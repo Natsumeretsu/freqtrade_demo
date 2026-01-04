@@ -26,6 +26,14 @@
 - `.python-version`：固定 Python 版本（uv 自动使用）。
 - 安全：`config*.json` 默认忽略，避免误提交密钥；提交前务必 `git status` 复核。
 
+## 提交规范（Conventional Commits）
+
+- 提交信息格式：`type(scope): subject`
+- `type` 推荐：`feat`、`fix`、`docs`、`refactor`、`perf`、`test`、`build`、`ci`、`chore`
+- `scope` 用于标注影响范围（例如：`uv`、`bootstrap`、`docs`、`strategies`），可省略
+- `subject` 使用英文动词原形（imperative），简短明确（建议 ≤ 72 字符），不要以句号结尾
+- 破坏性变更：使用 `type(scope)!: ...` 或在正文/脚注中写 `BREAKING CHANGE: ...`
+
 ## 危险操作确认（强制）
 
 执行以下操作前必须获得用户明确确认：
