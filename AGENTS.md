@@ -11,15 +11,19 @@
 
 - 本机为 Windows 环境，默认使用 **Windows PowerShell 5.1**。
 - 统一使用 `uv` 管理虚拟环境，虚拟环境放在：`./.venv/`。
-- 命令行优先显式调用虚拟环境内可执行文件，并带上 userdir：
-  - `& "./.venv/Scripts/freqtrade.exe" --userdir "." ...`
+- 依赖安装统一使用 `uv sync --frozen`（以 `uv.lock` 为准）。
+- 命令行优先使用 `uv run` 在项目环境中执行，并带上 userdir：
+  - `uv run freqtrade <命令> --userdir "." ...`
+- 可选：使用 `./scripts/bootstrap.ps1` 一键初始化（含子模块 + 依赖同步）。
 - 路径处理：命令里优先使用双引号包裹路径，尽量使用正斜杠 `/`。
 
 ## 仓库结构与约定
 
 - 仓库根目录即 Freqtrade userdir（策略/超参/笔记本/文档）。
 - `strategies_ref_docs/`：策略参考文档（Git 子模块）。
-- `requirements.txt`：Freqtrade 依赖锁定（固定到 Git commit，避免版本漂移）。
+- `pyproject.toml`：依赖声明（唯一来源）。
+- `uv.lock`：依赖锁文件（锁死传递依赖）。
+- `.python-version`：固定 Python 版本（uv 自动使用）。
 - 安全：`config*.json` 默认忽略，避免误提交密钥；提交前务必 `git status` 复核。
 
 ## 危险操作确认（强制）

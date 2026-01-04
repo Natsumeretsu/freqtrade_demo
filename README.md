@@ -10,7 +10,9 @@
 - `notebooks/`：分析笔记本
 - `docs/`：补充文档（中文）
 - `strategies_ref_docs/`：策略参考文档（Git 子模块）
-- `requirements.txt`：Freqtrade 依赖（固定到 Git commit）
+- `pyproject.toml`：依赖声明（唯一来源）
+- `uv.lock`：依赖锁文件（锁死传递依赖）
+- `.python-version`：固定 Python 版本（uv 自动使用）
 - `.venv/`：本地虚拟环境（不提交）
 
 ## 克隆（含子模块）
@@ -24,14 +26,19 @@ git submodule update --init --recursive
 
 ```powershell
 uv python install "3.11"
-uv venv --python "3.11" "./.venv"
-uv pip install --python "./.venv/Scripts/python.exe" -r "./requirements.txt"
+uv sync --frozen
 
-& "./.venv/Scripts/freqtrade.exe" --userdir "." --help
+uv run freqtrade trade --userdir "." --help
+```
+
+也可以一键初始化（含子模块 + 依赖同步）：
+
+```powershell
+& "./scripts/bootstrap.ps1"
 ```
 
 ## 生成配置（注意：`config*.json` 默认忽略，不要提交密钥）
 
 ```powershell
-& "./.venv/Scripts/freqtrade.exe" --userdir "." new-config --config "./config.json"
+uv run freqtrade --userdir "." new-config --config "./config.json"
 ```
