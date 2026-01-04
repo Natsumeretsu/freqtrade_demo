@@ -1,0 +1,8 @@
+# Freqtrade 依赖（固定到 Git commit，避免版本漂移影响回测/超参结果）
+#
+# 说明：
+# - 本仓库不再内置 `freqtrade/` 子模块源码，改为通过 uv/pip 直接安装
+# - 如需升级版本：更新下面这一行的 commit hash，然后重新安装
+#
+# 原子模块指针：8e91fea11f3cc0354b952a5b667628b18378c7fe
+freqtrade[hyperopt] @ git+https://github.com/freqtrade/freqtrade.git@8e91fea11f3cc0354b952a5b667628b18378c7fe
