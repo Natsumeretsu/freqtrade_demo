@@ -37,6 +37,12 @@ uv run freqtrade trade --userdir "." --help
 & "./scripts/bootstrap.ps1"
 ```
 
+如果系统限制执行脚本，可用：
+
+```powershell
+powershell.exe -ExecutionPolicy Bypass -File "./scripts/bootstrap.ps1"
+```
+
 ## 生成配置（注意：`config*.json` 默认忽略，不要提交密钥）
 
 ```powershell

@@ -7,6 +7,12 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
+function Test-Command {
+  param([string]$Name)
+
+  return [bool](Get-Command $Name -ErrorAction SilentlyContinue)
+}
+
 function Get-PinnedPythonVersion {
   param([string]$Path)
 
@@ -22,24 +28,33 @@ function Get-PinnedPythonVersion {
   return $version
 }
 
+if (-not (Test-Command "uv")) {
+  throw "uv not found. Please install uv first, then re-run this script."
+}
+
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 Set-Location $repoRoot
 
-Write-Host "📌 仓库根目录: $repoRoot"
+Write-Host "Repo root: $repoRoot"
 
 if (-not $SkipSubmodules -and (Test-Path ".gitmodules")) {
-  Write-Host "🔄 初始化/更新子模块..."
-  git submodule update --init --recursive
+  if (Test-Command "git") {
+    Write-Host "Init/update git submodules..."
+    git submodule update --init --recursive
+  }
+  else {
+    Write-Warning "git not found, skipped submodules init/update."
+  }
 }
 
 $pythonVersion = Get-PinnedPythonVersion ".python-version"
 
 if (-not $SkipPythonInstall) {
-  Write-Host "🐍 确保 Python $pythonVersion 可用(uv)..."
+  Write-Host "Ensure Python $pythonVersion is available (uv)..."
   uv python install $pythonVersion
 }
 
-Write-Host "📦 同步依赖(uv.lock, frozen)..."
+Write-Host "Sync dependencies (uv.lock, frozen)..."
 uv sync --frozen
 
-Write-Host "✅ 完成。示例：uv run freqtrade --version"
+Write-Host "Done. Example: uv run freqtrade --version"
