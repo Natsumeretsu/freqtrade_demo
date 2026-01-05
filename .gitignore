@@ -1,5 +1,7 @@
 # 私钥/个人配置（不要提交到仓库）
 /config*.json
+!/config.example.json
+!/config-private.example.json
 /*.env
 
 # 运行期数据/日志（通常体积较大且可再生成）
