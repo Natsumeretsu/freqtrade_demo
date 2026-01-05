@@ -4,6 +4,7 @@ version = "0.1.0"
 requires-python = ">=3.11"
 dependencies = [
     "freqtrade[hyperopt]",
+    "nbformat>=4.2.0",
 ]
 
 [tool.uv]
@@ -11,3 +12,10 @@ link-mode = "copy"
 
 [tool.uv.sources]
 freqtrade = { git = "https://github.com/freqtrade/freqtrade.git", rev = "8e91fea11f3cc0354b952a5b667628b18378c7fe" }
+
+[dependency-groups]
+dev = [
+    "ipykernel",
+    "ipywidgets>=8.1.8",
+    "plotly",
+]
