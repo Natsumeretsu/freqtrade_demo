@@ -18,11 +18,15 @@
 
 ## 0) 最小命令模板（先验证“接口是否真的关闭”）
 
-```bash
+```powershell
 uv run freqtrade show-config --userdir "." --config "config.json"
 ```
 
 如果你目前“不用 Web/API 管理”，建议把 `api_server.enabled` 保持为 `false`，并用上面的命令确认最终合并配置里确实是关闭状态。
+
+### 0.1 关键输出检查点
+
+- `show-config`：确认 `api_server.enabled: false`（以及 `telegram.enabled: false`），避免“我以为关了但其实没关”。
 
 ---
 

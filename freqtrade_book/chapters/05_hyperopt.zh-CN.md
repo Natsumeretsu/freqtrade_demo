@@ -18,10 +18,15 @@
 
 ## 0) 最小命令模板（先跑一个小实验）
 
-```bash
+```powershell
 uv run freqtrade hyperopt --userdir "." --config "config.json" --strategy "SimpleTrendFollowV6" --timerange 20240101- --epochs 50
 uv run freqtrade hyperopt-show --userdir "." --best -n -1 --print-json --no-header
 ```
+
+### 0.1 关键输出检查点
+
+- `hyperopt`：会生成 `hyperopt_results/` 下的结果文件（并在终端显示进度/最优解摘要）。
+- `hyperopt-show`：能输出 JSON（代表成功读取并解析最新/最优结果）。
 
 ---
 
@@ -36,7 +41,7 @@ uv run freqtrade hyperopt-show --userdir "." --best -n -1 --print-json --no-head
 
 ## 2) 最小 hyperopt 模板
 
-```bash
+```powershell
 uv run freqtrade hyperopt --userdir "." --config "config.json" --strategy "SimpleTrendFollowV6"
 ```
 
@@ -59,7 +64,7 @@ uv run freqtrade hyperopt --userdir "." --config "config.json" --strategy "Simpl
 
 你可以用 `hyperopt-show` 快速查看结果文件里的某个 epoch 或最优解（默认读取最新结果文件）：
 
-```bash
+```powershell
 uv run freqtrade hyperopt-show --userdir "." -n 168
 uv run freqtrade hyperopt-show --userdir "." --best -n -1 --print-json --no-header
 ```
@@ -84,7 +89,7 @@ loss 每个 epoch 都会被调用一次，写得慢会把 hyperopt 拖成“永�
 
 1. 固定时间范围 + 少量 epochs 先跑通：
 
-```bash
+```powershell
 uv run freqtrade hyperopt --userdir "." --config "config.json" --strategy "SimpleTrendFollowV6" --timerange 20240101- --epochs 50
 ```
 

@@ -17,7 +17,9 @@
 
 - 目录：[`freqtrade_book/SUMMARY.zh-CN.md`](SUMMARY.zh-CN.md)
 - 阅读指南：[`freqtrade_book/chapters/00_reading_guide.zh-CN.md`](chapters/00_reading_guide.zh-CN.md)
+- 端到端实战：[`freqtrade_book/chapters/09_end_to_end_workflow.zh-CN.md`](chapters/09_end_to_end_workflow.zh-CN.md)
 - 关键词索引：[`freqtrade_book/chapters/91_keyword_index.zh-CN.md`](chapters/91_keyword_index.zh-CN.md)
+- 排错与复现：[`freqtrade_book/chapters/92_troubleshooting_playbook.zh-CN.md`](chapters/92_troubleshooting_playbook.zh-CN.md)
 - 快速速查：[`freqtrade_book/chapters/99_quick_reference.zh-CN.md`](chapters/99_quick_reference.zh-CN.md)
 - 参考库索引：[`freqtrade_book/chapters/90_reference_library.zh-CN.md`](chapters/90_reference_library.zh-CN.md)
 
@@ -25,6 +27,6 @@
 
 校验 `freqtrade_book/` 与 `freqtrade_docs/` 的本地链接是否断链，并检查手册是否误写入敏感 Token：
 
-```bash
+```powershell
 uv run python "scripts/check_docs_health.py"
 ```

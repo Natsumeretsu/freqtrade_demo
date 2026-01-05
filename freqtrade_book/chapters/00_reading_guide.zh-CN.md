@@ -16,6 +16,22 @@
 
 ---
 
+## 0) 最小命令模板（环境跑通后再执行）
+
+如果你已经完成“环境准备”章节，可以用下面两条快速确认“命令可用 + 配置可被识别”：
+
+```powershell
+uv run freqtrade --help
+uv run freqtrade show-config --userdir "." --config "config.json"
+```
+
+### 0.1 关键输出检查点
+
+- `--help`：能输出子命令列表（应包含 `download-data` / `backtesting` 等）。
+- `show-config`：输出中包含 `Your combined configuration is:`；若提示找不到 `config.json`，先完成“配置入门”再回来。
+
+---
+
 ## 1) 这套资料怎么分层？
 
 ### 1.1 手册（freqtrade_book）
@@ -62,21 +78,35 @@
 2. 运维监控：[07_ops_monitoring.zh-CN.md](./07_ops_monitoring.zh-CN.md)
 3. 安全相关：[`freqtrade_docs/rest_api.zh-CN.md`](../../freqtrade_docs/rest_api.zh-CN.md)、[`freqtrade_docs/telegram_usage.zh-CN.md`](../../freqtrade_docs/telegram_usage.zh-CN.md)、[`freqtrade_docs/webhook_config.zh-CN.md`](../../freqtrade_docs/webhook_config.zh-CN.md)
 
+### 2.4 端到端：把流程串起来（回测 → dry-run → 排错）
+
+目标：把“配置/策略/数据/回测/运行”串成可复现闭环，并建立最短排错路径。
+
+1. 配置入门：[02_configuration.zh-CN.md](./02_configuration.zh-CN.md)
+2. 数据与回测：[03_data_backtest.zh-CN.md](./03_data_backtest.zh-CN.md)
+3. 端到端实战：[09_end_to_end_workflow.zh-CN.md](./09_end_to_end_workflow.zh-CN.md)
+4. 卡住就按排错三件套走：[92_troubleshooting_playbook.zh-CN.md](./92_troubleshooting_playbook.zh-CN.md)
+
 ---
 
 ## 3) 统一命令模板（本仓库约定）
 
 本仓库使用 `uv` 管理环境，且仓库根目录就是 Freqtrade 的 `userdir`。
 
-```bash
+```powershell
 uv run freqtrade <命令> --userdir "." <参数...>
 ```
 
 当你怀疑配置没生效时，先跑这个看最终合并配置：
 
-```bash
+```powershell
 uv run freqtrade show-config --userdir "." --config "config.json"
 ```
+
+你应该看到：
+
+- 输出中包含 `Your combined configuration is:`（代表配置已成功解析并合并）。
+- 若提示 `Invalid configuration` / JSON 解析错误：先回到“配置入门”章节修复 `config.json`。
 
 ---
 
@@ -85,9 +115,14 @@ uv run freqtrade show-config --userdir "." --config "config.json"
 - 先在手册里定位主题 → 再跳到参考库原文页 → 用 `Ctrl+F` 或 `rg` 搜关键词。
 - 在仓库根目录用 `rg` 全局搜索（例：找 `stake_amount`）：
 
-```bash
+```powershell
 rg -n "stake_amount" "freqtrade_docs"
 ```
+
+你应该看到：
+
+- 返回若干行匹配结果（包含文件路径与行号）。
+- 若没有任何输出：说明你搜的关键词在参考库里不存在（换关键词，或确认搜索目录/拼写）。
 
 ---
 

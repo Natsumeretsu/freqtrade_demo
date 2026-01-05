@@ -18,10 +18,15 @@
 
 ## 0) 最小命令模板（先跑通一条链路）
 
-```bash
+```powershell
 uv run freqtrade download-data --userdir "." --config "config.json" --timeframes 5m --days 30
 uv run freqtrade backtesting --userdir "." --config "config.json" --strategy "SimpleTrendFollowV6"
 ```
+
+### 0.1 关键输出检查点
+
+- `download-data`：无报错退出，且 `data/` 下能看到对应交易所/交易对/timeframe 的数据文件。
+- `backtesting`：无报错退出，并生成 `backtest_results/backtest-result-*.zip`；终端输出里能看到 `Total profit %`、`Absolute drawdown`、`Exit reason` 等摘要。
 
 ---
 
@@ -29,13 +34,13 @@ uv run freqtrade backtesting --userdir "." --config "config.json" --strategy "Si
 
 最常用命令（以配置文件里的交易所/交易对为准）：
 
-```bash
+```powershell
 uv run freqtrade download-data --userdir "." --config "config.json" --timeframes 5m --days 30
 ```
 
 下载后的数据默认落在本仓库的 `data/` 目录（因为仓库根目录就是 userdir）。你可以用 `list-data` 快速确认：
 
-```bash
+```powershell
 uv run freqtrade list-data --userdir "." --config "config.json"
 ```
 
@@ -50,7 +55,7 @@ uv run freqtrade list-data --userdir "." --config "config.json"
 
 ### 2.1 最小回测模板
 
-```bash
+```powershell
 uv run freqtrade backtesting --userdir "." --config "config.json" --strategy "SimpleTrendFollowV6"
 ```
 
@@ -95,19 +100,19 @@ uv run freqtrade backtesting --userdir "." --config "config.json" --strategy "Si
 
 1. 下载数据（示例：5m，近 90 天）：
 
-```bash
+```powershell
 uv run freqtrade download-data --userdir "." --config "config.json" --timeframes 5m --days 90
 ```
 
 2. 固定回测范围跑回测（示例：从 20240101 开始）：
 
-```bash
+```powershell
 uv run freqtrade backtesting --userdir "." --config "config.json" --strategy "SimpleTrendFollowV6" --timeframe 5m --timerange 20240101-
 ```
 
 3. 需要进一步分析时，再导出信号：
 
-```bash
+```powershell
 uv run freqtrade backtesting --userdir "." --config "config.json" --strategy "SimpleTrendFollowV6" --timeframe 5m --timerange 20240101- --export signals
 ```
 

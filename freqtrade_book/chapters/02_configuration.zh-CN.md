@@ -18,12 +18,17 @@
 
 ## 0) 最小命令模板（先确认配置生效）
 
-```bash
+```powershell
 uv run freqtrade show-config --userdir "." --config "config.json"
 uv run freqtrade list-strategies --userdir "." --config "config.json"
 ```
 
 - 第一条看“最终合并配置”；第二条确认策略名可被加载（避免拼写/路径问题）。
+
+### 0.1 关键输出检查点
+
+- `show-config`：输出中包含 `Your combined configuration is:`，并且你能在 JSON 里看到期望值（例如 `strategy`、`dry_run`、`stake_amount`）。
+- `list-strategies`：表格里能看到 `SimpleTrendFollowV6`，且 `Status` 为 `OK`（否则优先排查策略加载问题）。
 
 ---
 
@@ -31,7 +36,7 @@ uv run freqtrade list-strategies --userdir "." --config "config.json"
 
 只要你开始用多个配置文件/环境变量/命令行参数，就必须养成这个习惯：
 
-```bash
+```powershell
 uv run freqtrade show-config --userdir "." --config "config.json"
 ```
 
@@ -103,7 +108,7 @@ uv run freqtrade show-config --userdir "." --config "config.json"
 
 启动时用“多配置叠加”让私密配置覆盖公开配置：
 
-```bash
+```powershell
 uv run freqtrade show-config --userdir "." --config "config.json" --config "config-private.json"
 ```
 
@@ -151,7 +156,7 @@ uv run freqtrade show-config --userdir "." --config "config.json" --config "conf
 
 2. 运行下面两条验证：
 
-```bash
+```powershell
 uv run freqtrade list-strategies --userdir "." --config "config.json"
 uv run freqtrade show-config --userdir "." --config "config.json"
 ```

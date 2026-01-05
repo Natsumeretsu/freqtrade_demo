@@ -11,9 +11,11 @@
 7. [实盘与风控](chapters/06_live_risk.zh-CN.md)
 8. [运维与监控](chapters/07_ops_monitoring.zh-CN.md)
 9. [FreqAI](chapters/08_freqai.zh-CN.md)
+10. [端到端实战（从回测到 dry-run）](chapters/09_end_to_end_workflow.zh-CN.md)
 
 附录：
 
 - [参考库索引](chapters/90_reference_library.zh-CN.md)
 - [关键词索引](chapters/91_keyword_index.zh-CN.md)
+- [排错与复现手册](chapters/92_troubleshooting_playbook.zh-CN.md)
 - [快速速查](chapters/99_quick_reference.zh-CN.md)

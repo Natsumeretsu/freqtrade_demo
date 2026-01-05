@@ -16,12 +16,29 @@
 
 ---
 
-## 0) 最小命令模板（dry-run → 实盘）
+## 0) 最小命令模板（启动前先做一次自检）
 
-```bash
-uv run freqtrade trade --userdir "." --config "config.json"
+```powershell
 uv run freqtrade show-config --userdir "." --config "config.json"
 ```
+
+### 0.1 关键输出检查点
+
+- `show-config`：输出中包含 `Your combined configuration is:`，并确认关键风险开关是你期望的值：
+  - `dry_run`（是否实盘）
+  - `exchange.name` / 交易对列表
+  - `stake_amount` / `max_open_trades` / `tradable_balance_ratio`
+  - `api_server.enabled` / `telegram.enabled`
+
+### 0.2 启动模板（谨慎：会进入持续运行）
+
+只有在你确认 `dry_run` 的值正确（dry-run 或实盘）后，再启动：
+
+```powershell
+uv run freqtrade trade --userdir "." --config "config.json"
+```
+
+停止运行：在终端按 `Ctrl+C`。
 
 ---
 
@@ -65,7 +82,7 @@ uv run freqtrade show-config --userdir "." --config "config.json"
 2. 新建私密配置（例如 `config-private.json`），只放密钥与实盘专用项（并确保被 git 忽略）。
 3. 启动时叠加两份配置（私密覆盖公开）：
 
-```bash
+```powershell
 uv run freqtrade trade --userdir "." --config "config.json" --config "config-private.json"
 ```
 

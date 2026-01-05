@@ -1,6 +1,6 @@
 # FreqAI：机器学习工作流（先理解，再上手）
 
-[返回目录](../SUMMARY.zh-CN.md) | [上一章](./07_ops_monitoring.zh-CN.md) | [下一章](./90_reference_library.zh-CN.md)
+[返回目录](../SUMMARY.zh-CN.md) | [上一章](./07_ops_monitoring.zh-CN.md) | [下一章](./09_end_to_end_workflow.zh-CN.md)
 
 ## 本章目标
 
@@ -18,11 +18,16 @@
 
 ## 0) 最小命令模板（先确认工具链可用）
 
-```bash
+```powershell
 uv run freqtrade list-freqaimodels --userdir "."
 ```
 
 如果你连“纯策略”流程还没跑顺（数据→回测→迭代→风控），建议先完成前面章节，再回来上 FreqAI。
+
+### 0.1 关键输出检查点
+
+- `list-freqaimodels`：能输出可用模型列表（证明 FreqAI 相关命令可用）。
+- 若报 “command not found”/依赖问题：先回到“环境准备”章节把环境跑通。
 
 ---
 
@@ -86,4 +91,4 @@ FreqAI 的参数非常多，建议两种用法：
 
 ---
 
-[返回目录](../SUMMARY.zh-CN.md) | [上一章](./07_ops_monitoring.zh-CN.md) | [下一章](./90_reference_library.zh-CN.md)
+[返回目录](../SUMMARY.zh-CN.md) | [上一章](./07_ops_monitoring.zh-CN.md) | [下一章](./09_end_to_end_workflow.zh-CN.md)

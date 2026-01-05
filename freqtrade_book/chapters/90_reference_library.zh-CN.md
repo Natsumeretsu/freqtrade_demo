@@ -1,16 +1,37 @@
 # 参考库索引（freqtrade_docs 分类目录）
 
-[返回目录](../SUMMARY.zh-CN.md) | [上一章](./08_freqai.zh-CN.md) | [下一章](./91_keyword_index.zh-CN.md)
+[返回目录](../SUMMARY.zh-CN.md) | [上一章](./09_end_to_end_workflow.zh-CN.md) | [下一章](./91_keyword_index.zh-CN.md)
 
 目的：把 `freqtrade_docs/*.zh-CN.md` 按主题分组，方便你“知道该去翻哪一页”。
 
 提示：参考库每页都包含“原文自动 Markdown 化”，建议用 `Ctrl+F` 或 `rg` 搜关键词。
+
+## 本章目标
+
+- 你能快速判断“某类问题应该去看哪一页参考文档”。
+- 你能把参考库当作本地百科：需要细节时直接全文搜索与复制示例。
 
 ## 本章完成标准（你会用这份索引）
 
 - [ ] 能按主题跳到对应参考页（配置/回测/策略/运维/FreqAI）
 - [ ] 在参考页内会用 `Ctrl+F`/`rg` 搜参数名与报错关键词
 - [ ] 需要更快定位时，会配合“关键词索引”（[91_keyword_index.zh-CN.md](./91_keyword_index.zh-CN.md)）使用
+
+---
+
+## 0) 搜索模板（把参考库当本地百科用）
+
+当你只记得一个参数/报错关键词时，推荐直接在参考库里搜：
+
+```powershell
+rg -n "stake_amount|tradable_balance_ratio|dry_run|unfilledtimeout" "freqtrade_docs"
+rg -n "No data|No candles|Invalid configuration|Strategy.*not.*found" "freqtrade_docs"
+```
+
+你应该看到：
+
+- 命中结果里包含文件路径与行号，从而快速跳到权威参考页。
+- 若无任何输出：换同义词/确认拼写/确认搜索目录。
 
 ---
 
@@ -107,4 +128,4 @@
 
 ---
 
-[返回目录](../SUMMARY.zh-CN.md) | [上一章](./08_freqai.zh-CN.md) | [下一章](./91_keyword_index.zh-CN.md)
+[返回目录](../SUMMARY.zh-CN.md) | [上一章](./09_end_to_end_workflow.zh-CN.md) | [下一章](./91_keyword_index.zh-CN.md)

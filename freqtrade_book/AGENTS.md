@@ -28,7 +28,7 @@
 - 引用参考库：从章节文件链接到 `../../freqtrade_docs/<file>.zh-CN.md`。
 - 命令统一使用本仓库推荐形式：
 
-```bash
+```powershell
 uv run freqtrade <命令> --userdir "." <参数...>
 ```
 
@@ -37,3 +37,36 @@ uv run freqtrade <命令> --userdir "." <参数...>
 - 禁止在文档中写入真实密钥/Token/密码/JWT secret。
 - 示例统一使用占位符：`<yourExchangeKey>`、`<telegramToken>`、`<strong_password>` 等。
 
+## 6) 章节骨架（强制）
+
+学习章节（`00_` ~ `09_`）建议固定骨架，便于读者快速定位与复用：
+
+1. 标题（`# ...`）
+2. 顶部导航：`[返回目录] | [上一章] | [下一章]`
+3. `## 本章目标`
+4. `## 本章完成标准`
+5. `---`
+6. `## 0) 最小命令模板` + `### 0.1 关键输出检查点`（让读者知道“跑完应该看到什么”）
+7. 正文按“任务/问题”编号组织（`## 1) ...`、`## 2) ...`）
+8. `## 延伸阅读（参考库）`：链接到 `../../freqtrade_docs/*.zh-CN.md`
+9. 底部导航：同顶部
+
+代码块语言约定：
+
+- 命令行：`powershell`
+- 配置片段：`json`
+- 日志/输出：`text`
+
+## 7) 提交前自检（强制）
+
+在提交前运行自检脚本，避免断链/泄露/结构退化：
+
+```powershell
+uv run python "scripts/check_docs_health.py"
+```
+
+可选：同时校验 `config.example.json` 是否能通过 `show-config`/`list-strategies`：
+
+```powershell
+uv run python "scripts/check_docs_health.py" --check-config-examples
+```

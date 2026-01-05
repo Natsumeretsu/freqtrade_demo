@@ -23,6 +23,11 @@ uv sync --frozen
 uv run freqtrade --version
 ```
 
+### 0.1 关键输出检查点
+
+- `uv sync --frozen`：无报错退出（第一次跑会下载/安装依赖，耗时更长）。
+- `uv run freqtrade --version`：能输出类似 `freqtrade <版本号>` 的版本信息。
+
 ---
 
 ## 1) 本仓库默认约束（先记住这三条）
@@ -72,21 +77,27 @@ uv run freqtrade --version
 
 1. 先确认命令列表（能看到 `download-data` / `backtesting` 等子命令就对了）：
 
-```bash
+```powershell
 uv run freqtrade --help
 ```
 
 2. 再确认 userdir 与配置能被识别（本仓库根目录就是 userdir）：
 
-```bash
+```powershell
 uv run freqtrade show-config --userdir "." --config "config.json"
 ```
 
 如果你还没有 `config.json`，可以先生成一份示例再回到本手册继续：
 
-```bash
+```powershell
 uv run freqtrade new-config --userdir "."
 ```
+
+你应该看到：
+
+- `--help`：输出子命令列表（应包含 `download-data` / `backtesting` / `list-strategies` 等）。
+- `show-config`：输出中包含 `Your combined configuration is:`（若没有 `config.json` 会报错，这是正常的）。
+- `new-config`：进入交互式配置生成流程（会询问交易所/交易对/策略等）。
 
 ---
 

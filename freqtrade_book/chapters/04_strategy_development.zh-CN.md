@@ -18,11 +18,17 @@
 
 ## 0) 最小命令模板（策略从创建到回测）
 
-```bash
+```powershell
 uv run freqtrade new-strategy --userdir "." --strategy "MyStrategy" --template minimal
 uv run freqtrade list-strategies --userdir "." --config "config.json"
 uv run freqtrade backtesting --userdir "." --config "config.json" --strategy "MyStrategy"
 ```
+
+### 0.1 关键输出检查点
+
+- `new-strategy`：生成 `strategies/MyStrategy.py`（或提示已创建/已存在）。
+- `list-strategies`：表格里能看到 `MyStrategy`，且 `Status` 为 `OK`。
+- `backtesting`：能跑通并打印回测摘要（若“完全无交易”，按本章排错清单定位是否有入场信号）。
 
 ---
 
@@ -32,7 +38,7 @@ uv run freqtrade backtesting --userdir "." --config "config.json" --strategy "My
 
 查看可用策略（非常推荐先确认名字）：
 
-```bash
+```powershell
 uv run freqtrade list-strategies --userdir "." --config "config.json"
 ```
 
@@ -85,19 +91,19 @@ uv run freqtrade list-strategies --userdir "." --config "config.json"
 
 1. 生成一个最小模板：
 
-```bash
+```powershell
 uv run freqtrade new-strategy --userdir "." --strategy "MyStrategy" --template minimal
 ```
 
 2. 确认 Freqtrade 能加载到它：
 
-```bash
+```powershell
 uv run freqtrade list-strategies --userdir "." --config "config.json"
 ```
 
 3. 跑一次固定区间回测（建议固定 `--timerange` 便于复现）：
 
-```bash
+```powershell
 uv run freqtrade backtesting --userdir "." --config "config.json" --strategy "MyStrategy" --timerange 20240101-
 ```
 
