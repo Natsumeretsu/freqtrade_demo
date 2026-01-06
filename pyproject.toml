@@ -5,6 +5,7 @@ requires-python = ">=3.11"
 dependencies = [
     "freqtrade[hyperopt]",
     "nbformat>=4.2.0",
+    "scikit-learn>=1.8.0",
 ]
 
 [tool.uv]

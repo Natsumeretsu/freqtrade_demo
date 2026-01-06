@@ -1,0 +1,5 @@
+{
+  // 让 Jupyter Notebook 在工作区根目录作为工作目录（cwd）运行。
+  // 这样即使在 notebooks/ 里打开并运行，也不会把 user_data_dir 的 "." 解析到 notebooks/。
+  "jupyter.notebookFileRoot": "${workspaceFolder}"
+}

@@ -9,7 +9,12 @@ from pandas import DataFrame
 
 import talib.abstract as ta
 
-from freqtrade.strategy import BooleanParameter, DecimalParameter, IStrategy, IntParameter
+from freqtrade.strategy import (
+    BooleanParameter,
+    DecimalParameter,
+    IStrategy,
+    IntParameter,
+)
 
 
 class MacdHistogramMomentumReversalStrategy(IStrategy):
@@ -76,17 +81,19 @@ class MacdHistogramMomentumReversalStrategy(IStrategy):
 
     def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         # === MACD 计算（与参考 PineScript 默认参数一致）===
-        macd = ta.MACD(dataframe, fastperiod=12, slowperiod=26, signalperiod=9)
+        macd = ta.MACD(dataframe, fastperiod=12, slowperiod=26, signalperiod=9) # type: ignore
         dataframe["macd"] = macd["macd"]
         dataframe["macdsignal"] = macd["macdsignal"]
         dataframe["macdhist"] = macd["macdhist"]
 
         # === K 线实体大小 ===
         dataframe["body_size"] = (dataframe["close"] - dataframe["open"]).abs()
-        dataframe["prev_body_size"] = (dataframe["close"].shift(1) - dataframe["open"].shift(1)).abs()
-        dataframe["candle_bigger"] = dataframe["body_size"] > dataframe["prev_body_size"] * float(
-            self.body_multiplier.value
-        )
+        dataframe["prev_body_size"] = (
+            dataframe["close"].shift(1) - dataframe["open"].shift(1)
+        ).abs()
+        dataframe["candle_bigger"] = dataframe["body_size"] > dataframe[
+            "prev_body_size"
+        ] * float(self.body_multiplier.value)
 
         dataframe["is_bullish"] = dataframe["close"] > dataframe["open"]
         dataframe["is_bearish"] = dataframe["close"] < dataframe["open"]
@@ -100,8 +107,12 @@ class MacdHistogramMomentumReversalStrategy(IStrategy):
         dataframe["hist_increasing_2"] = hist.shift(1) < hist
 
         # 3 根：hist[2] > hist[1] > hist[0]
-        dataframe["hist_decreasing_3"] = (hist.shift(2) > hist.shift(1)) & (hist.shift(1) > hist)
-        dataframe["hist_increasing_3"] = (hist.shift(2) < hist.shift(1)) & (hist.shift(1) < hist)
+        dataframe["hist_decreasing_3"] = (hist.shift(2) > hist.shift(1)) & (
+            hist.shift(1) > hist
+        )
+        dataframe["hist_increasing_3"] = (hist.shift(2) < hist.shift(1)) & (
+            hist.shift(1) < hist
+        )
 
         # 4 根：hist[3] > hist[2] > hist[1] > hist[0]
         dataframe["hist_decreasing_4"] = (
@@ -130,7 +141,9 @@ class MacdHistogramMomentumReversalStrategy(IStrategy):
         )
 
         # 可选趋势过滤：长期均线
-        dataframe["trend_sma"] = ta.SMA(dataframe, timeperiod=int(self.trend_sma_length.value))
+        dataframe["trend_sma"] = ta.SMA( # type: ignore
+            dataframe, timeperiod=int(self.trend_sma_length.value)
+        )
 
         return dataframe
 
@@ -154,7 +167,9 @@ class MacdHistogramMomentumReversalStrategy(IStrategy):
         )
 
         if bool(self.trend_filter_enabled.value):
-            enter_long_cond &= dataframe["trend_sma"].notna() & (dataframe["close"] > dataframe["trend_sma"])
+            enter_long_cond &= dataframe["trend_sma"].notna() & (
+                dataframe["close"] > dataframe["trend_sma"]
+            )
 
         if bool(self.entry_hist_must_be_negative.value):
             enter_long_cond &= dataframe["hist_is_negative"]
