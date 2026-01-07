@@ -1,0 +1,17 @@
+{
+  "strategy_name": "KNNTrendWindowStrategy",
+  "params": {
+    "buy": {
+      "buy_adx_min": 20,
+      "buy_proba_min": 0.7,
+      "buy_require_pred": true
+    },
+    "sell": {
+      "max_hold_mult": 2.0
+    },
+    "roi": {
+      "0": 0.008
+    },
+    "model_path": "models/final/knn_tw_btc_usdt_1h_h6_r0090_train2018_20250101_v2.pkl"
+  }
+}

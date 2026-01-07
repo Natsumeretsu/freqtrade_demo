@@ -1,7 +1,6 @@
 from pathlib import Path
 
 import joblib
-import talib.abstract as ta
 from freqtrade.strategy import IStrategy
 from pandas import DataFrame
 
@@ -15,6 +14,9 @@ class KNNStrategy(IStrategy):
         )
         print(f"Loading KNN model from: {model_path}")
         self.knn_model = joblib.load(model_path)
+        self._feature_columns = list(
+            getattr(self.knn_model, "feature_names_in_", ["Open-Close", "High-Low"])
+        )
 
     def populate_indicators(
         self, df: DataFrame, metadata: dict
@@ -26,7 +28,18 @@ class KNNStrategy(IStrategy):
 
     def predict(self, df):
         """预测下一根K线是涨还是跌"""
-        x = df[["Open-Close", "High-Low"]].values
+        if "knn_pred" in df.columns:
+            return df
+
+        if not hasattr(self, "knn_model"):
+            raise RuntimeError("KNN 模型未加载：请确认已执行 ft_bot_start()。")
+
+        feature_columns = getattr(self, "_feature_columns", ["Open-Close", "High-Low"])
+        missing_columns = [col for col in feature_columns if col not in df.columns]
+        if missing_columns:
+            raise ValueError(f"缺少 KNN 特征列：{missing_columns}")
+
+        x = df[feature_columns].astype("float64")
         preds = self.knn_model.predict(x)
         df["knn_pred"] = preds  # 将预测结果放入数据集
         return df

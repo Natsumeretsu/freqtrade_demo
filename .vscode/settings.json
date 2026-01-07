@@ -1,5 +1,14 @@
 {
   // 让 Jupyter Notebook 在工作区根目录作为工作目录（cwd）运行。
   // 这样即使在 notebooks/ 里打开并运行，也不会把 user_data_dir 的 "." 解析到 notebooks/。
-  "jupyter.notebookFileRoot": "${workspaceFolder}"
+  "jupyter.notebookFileRoot": "${workspaceFolder}",
+
+  // Windows 默认编码常为 GBK，启用 Python UTF-8 模式可避免读取策略文件时报 UnicodeDecodeError
+  "python.envFile": "${workspaceFolder}/.env",
+
+  // 让 VSCode 集成终端也自动带上环境变量（否则手动在终端运行 uv/freqtrade 仍可能触发 GBK 解码问题）
+  "terminal.integrated.env.windows": {
+    "PYTHONUTF8": "1",
+    "PYTHONIOENCODING": "utf-8"
+  }
 }

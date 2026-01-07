@@ -28,8 +28,13 @@ git submodule update --init --recursive
 uv python install "3.11"
 uv sync --frozen
 
-uv run freqtrade trade --userdir "." --help
+.\scripts\ft.ps1 trade --help
 ```
+
+### Windows 编码说明（重要）
+
+中文 Windows 的默认编码常为 GBK，Freqtrade 在扫描 `strategies/*.py` 时可能触发 `UnicodeDecodeError`。
+本仓库已提供统一入口脚本 `./scripts/ft.ps1`，会强制使用 UTF-8 模式运行 Freqtrade，建议用它替代直接运行 `uv run freqtrade ...`。
 
 也可以一键初始化（含子模块 + 依赖同步）：
 
@@ -47,4 +52,44 @@ powershell.exe -ExecutionPolicy Bypass -File "./scripts/bootstrap.ps1"
 
 ```powershell
 uv run freqtrade --userdir "." new-config --config "./config.json"
+```
+
+## KNNTrendWindow 示例（严格样本外）
+
+训练用 `2018-2024`，回测/评估用 `2025-2026`（避免“训练集标签跨到测试期”的隐性泄露），并且按“典型持仓几小时”将默认 `horizon` 调整为 6。
+
+### 1) 训练模型（2018-2024 训练，2025-2026 测试）
+
+```powershell
+uv run python -X utf8 "scripts/train_knn_trend_window.py" `
+  --filter-trend `
+  --datadir "data/okx" `
+  --pair "BTC/USDT" `
+  --timeframe "1h" `
+  --train-timerange "20180101-20250101" `
+  --test-timerange "20250101-20270101"
+```
+
+训练结束会打印“阈值扫描（用于选 buy_proba_min）”。如果需要手动固定参数，可在策略同名参数文件中配置：`strategies/knn_trend_window_strategy.json`
+
+```json
+{
+  "strategy_name": "KNNTrendWindowStrategy",
+  "params": {
+    "buy": {
+      "buy_adx_min": 10,
+      "buy_proba_min": 0.35
+    }
+  }
+}
+```
+
+### 2) 回测策略（2025-2026 严格样本外）
+
+```powershell
+.\scripts\ft.ps1 backtesting `
+  --config "config.json" `
+  --strategy "KNNTrendWindowStrategy" `
+  --timeframe "1h" `
+  --timerange "20250101-20270101"
 ```
