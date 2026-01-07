@@ -45,7 +45,8 @@ class FreqaiLGBMTrendStrategy(IStrategy):
     stoploss = -0.10
 
     # --- 入场/出场阈值（可用于 hyperopt）---
-    buy_pred_threshold = DecimalParameter(0.01, 0.06, default=0.02, decimals=3, space="buy", optimize=True)
+    # 默认 1.5%：给手续费/滑点留缓冲，避免“胜率假象”下的费率磨损
+    buy_pred_threshold = DecimalParameter(0.01, 0.06, default=0.015, decimals=3, space="buy", optimize=True)
     sell_pred_threshold = DecimalParameter(-0.06, 0.0, default=-0.005, decimals=3, space="sell", optimize=True)
 
     # --- 趋势过滤 ---
@@ -61,6 +62,14 @@ class FreqaiLGBMTrendStrategy(IStrategy):
     sell_sl_atr_mult = DecimalParameter(0.5, 8.0, default=2.0, decimals=2, space="sell", optimize=True)
     sell_sl_min = DecimalParameter(0.0, 0.20, default=0.02, decimals=3, space="sell", optimize=True)
     sell_sl_max = DecimalParameter(0.0, 0.30, default=0.0, decimals=3, space="sell", optimize=True)
+
+    # --- 风控：追踪止损（盈利达到阈值后，将止损收紧到“离现价固定距离”）---
+    sell_use_trailing_stop = BooleanParameter(default=True, space="sell", optimize=False)
+    sell_trailing_stop_positive = DecimalParameter(0.0, 0.05, default=0.01, decimals=3, space="sell", optimize=False)
+    sell_trailing_stop_offset = DecimalParameter(0.0, 0.10, default=0.02, decimals=3, space="sell", optimize=False)
+
+    # --- 风控：预测转弱时的“智能退出”（仅在盈利时触发，避免被噪音反复洗出）---
+    sell_smart_exit_pred_threshold = DecimalParameter(-0.05, 0.05, default=0.0, decimals=3, space="sell", optimize=False)
 
     def feature_engineering_expand_all(
         self,
@@ -83,6 +92,7 @@ class FreqaiLGBMTrendStrategy(IStrategy):
         adx = ta.ADX(dataframe, timeperiod=period)
         ema = ta.EMA(dataframe, timeperiod=period)
         atr = ta.ATR(dataframe, timeperiod=period)
+        natr = ta.NATR(dataframe, timeperiod=period)
         bb = ta.BBANDS(dataframe, timeperiod=period, nbdevup=2.0, nbdevdn=2.0)
         bb_mid = bb["middleband"].replace(0, np.nan)
         bb_width = (bb["upperband"] - bb["lowerband"]) / bb_mid
@@ -93,6 +103,7 @@ class FreqaiLGBMTrendStrategy(IStrategy):
         dataframe["%-adx-period"] = adx / 100.0
         dataframe["%-dist_ema-period"] = (dataframe["close"] - ema) / ema.replace(0, np.nan)
         dataframe["%-atr_pct-period"] = atr / close_safe
+        dataframe["%-natr-period"] = natr / 100.0
         dataframe["%-bb_width-period"] = bb_width
         dataframe["%-roc-period"] = ta.ROC(dataframe, timeperiod=period) / 100.0
 
@@ -111,6 +122,13 @@ class FreqaiLGBMTrendStrategy(IStrategy):
         """
         仅在基础 timeframe 调用一次，适合放“不会自动扩展”的特征。
         """
+        close_safe = dataframe["close"].replace(0, np.nan)
+
+        # 趋势强度（相对长期均线偏离，避免直接喂“绝对价格”）
+        ema_period = max(1, int(self.buy_ema_long.value))
+        dataframe["ema_long"] = ta.EMA(dataframe, timeperiod=ema_period)
+        dataframe["%-dist_ema_long"] = (dataframe["close"] - dataframe["ema_long"]) / close_safe
+
         dataframe["%-day_of_week"] = dataframe["date"].dt.dayofweek
         dataframe["%-hour_of_day"] = dataframe["date"].dt.hour
         return dataframe
@@ -122,7 +140,7 @@ class FreqaiLGBMTrendStrategy(IStrategy):
         label_period = int(self.freqai_info["feature_parameters"]["label_period_candles"])
         label_period = max(1, label_period)
 
-        dataframe["&-s_close"] = (
+        dataframe["&s_close_mean"] = (
             dataframe["close"]
             .shift(-label_period)
             .rolling(label_period)
@@ -137,8 +155,9 @@ class FreqaiLGBMTrendStrategy(IStrategy):
         dataframe = self.freqai.start(dataframe, metadata, self)
 
         # 供策略过滤使用的趋势线（不加 %，避免被当作特征）
-        ema_period = max(1, int(self.buy_ema_long.value))
-        dataframe["ema_long"] = ta.EMA(dataframe, timeperiod=ema_period)
+        if "ema_long" not in dataframe.columns:
+            ema_period = max(1, int(self.buy_ema_long.value))
+            dataframe["ema_long"] = ta.EMA(dataframe, timeperiod=ema_period)
 
         # 风控使用的 ATR（不加 %，避免和 FreqAI 的特征扩展混在一起）
         atr_period = max(1, int(self.risk_atr_period.value))
@@ -154,7 +173,7 @@ class FreqaiLGBMTrendStrategy(IStrategy):
         conditions = [
             df["do_predict"] == 1,
             df["volume"] > 0,
-            df["&-s_close"] > pred_thr,
+            df["&s_close_mean"] > pred_thr,
         ]
         if use_trend:
             conditions.append(df["close"] > df["ema_long"])
@@ -169,7 +188,7 @@ class FreqaiLGBMTrendStrategy(IStrategy):
         conditions = [
             df["do_predict"] == 1,
             df["volume"] > 0,
-            df["&-s_close"] < pred_thr,
+            df["&s_close_mean"] < pred_thr,
         ]
 
         if conditions:
@@ -192,6 +211,43 @@ class FreqaiLGBMTrendStrategy(IStrategy):
             return candle.to_dict()
         except Exception:
             return None
+
+    def custom_exit(
+        self,
+        pair: str,
+        trade: Trade,
+        current_time: datetime,
+        current_rate: float,
+        current_profit: float,
+        **kwargs,
+    ) -> str | None:
+        """
+        智能退出（更贴近“模型转弱就走”的实盘行为）：
+        - 仅在当前单已盈利时触发（避免在浮亏期被短期噪音反复洗出）
+        - 当模型预测未来均值收益 <= 阈值时退出
+        """
+        if trade.is_short:
+            return None
+        if float(current_profit) <= 0:
+            return None
+
+        candle = self._get_last_analyzed_candle(pair)
+        if not candle:
+            return None
+
+        if int(candle.get("do_predict", 0)) != 1:
+            return None
+
+        try:
+            pred = float(candle.get("&s_close_mean"))
+        except Exception:
+            return None
+
+        thr = float(self.sell_smart_exit_pred_threshold.value)
+        if np.isfinite(pred) and pred <= thr:
+            return "FREQAI_SMART_EXIT"
+
+        return None
 
     def custom_roi(
         self,
@@ -278,6 +334,19 @@ class FreqaiLGBMTrendStrategy(IStrategy):
 
         if not np.isfinite(sl) or sl <= 0:
             return None
+
+        # 追踪止损：盈利达到 offset 后，将止损收紧到离现价 trailing_positive 的距离
+        if bool(self.sell_use_trailing_stop.value):
+            trailing_offset = float(self.sell_trailing_stop_offset.value)
+            trailing_positive = float(self.sell_trailing_stop_positive.value)
+            if (
+                np.isfinite(trailing_offset)
+                and np.isfinite(trailing_positive)
+                and trailing_offset > 0
+                and trailing_positive > 0
+                and float(current_profit) >= trailing_offset
+            ):
+                sl = min(sl, trailing_positive)
 
         # 可选：预测窗口结束仍未赚钱，则更积极地收紧止损（避免“拖到大回撤”）
         try:

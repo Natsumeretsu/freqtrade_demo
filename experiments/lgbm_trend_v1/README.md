@@ -27,3 +27,5 @@ $start = (Get-Date).AddDays(-14).ToString('yyyyMMdd')
 ## 2) 备注
 
 - FreqAI 训练/预测产物会自动写入 `models/<identifier>/`（默认被 git 忽略）。
+- 策略当前的预测目标列为 `&s_close_mean`（未来 `label_period_candles` 根K线的均值收益率）。
+- 默认入场阈值为 `1.5%`（给手续费/滑点留缓冲），并带有“盈利时预测转弱就走”的 `custom_exit()` 智能退出。
