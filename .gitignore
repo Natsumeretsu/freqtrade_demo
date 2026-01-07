@@ -1,7 +1,5 @@
 # 私钥/个人配置（不要提交到仓库）
 /config*.json
-!/config.example.json
-!/config-private.example.json
 /*.env
 
 # 运行期数据/日志（通常体积较大且可再生成）
@@ -9,10 +7,15 @@
 /logs/
 /backtest_results/
 /hyperopt_results/
-/freqaimodels/
 /plot/
 /*.sqlite
 /*.log
+
+# FreqAI 训练产物默认写入 userdir/models/<identifier>/（体积大且可再生成，避免误提交）
+/models/*/
+
+# 本地实验/历史产物（非 FreqAI 标准目录）
+/artifacts/
 
 # Python
 **/__pycache__/
@@ -26,3 +29,10 @@
 # 常见系统临时文件
 .DS_Store
 Thumbs.db
+
+# Serena（建议同步 memories 与 project.yml，忽略缓存/日志）
+/.serena/cache/
+/.serena/logs/
+
+# freqtrade_docs：离线保存的官方 HTML 原文（体积大，默认不提交；可用脚本下载后再生成 Markdown）
+/freqtrade_docs/raw_html/

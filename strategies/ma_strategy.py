@@ -1,6 +1,7 @@
 import talib.abstract as ta
 from freqtrade.strategy import IStrategy
 from pandas import DataFrame
+from technical import qtpylib
 
 
 class MAStrategy(IStrategy):
@@ -10,10 +11,8 @@ class MAStrategy(IStrategy):
 
     timeframe = "1h"
 
-    # 初始止损设置为 -10%
+    # 硬止损兜底
     stoploss = -0.10
-
-    stoploss = -0.1  # 表示最大止损为-10%
 
     def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         # 计算短期和长期均线
@@ -24,8 +23,8 @@ class MAStrategy(IStrategy):
     def populate_entry_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         # 短均线上穿长均线→买入
         dataframe.loc[
-            (dataframe["ma_short"] > dataframe["ma_long"])
-            & (dataframe["ma_short"].shift(1) <= dataframe["ma_long"].shift(1)),
+            qtpylib.crossed_above(dataframe["ma_short"], dataframe["ma_long"])
+            & (dataframe["volume"] > 0),
             "enter_long",
         ] = 1
         return dataframe
@@ -34,8 +33,8 @@ class MAStrategy(IStrategy):
         self, dataframe: DataFrame, metadata: dict
     ) -> DataFrame:  # 短均线下穿长均线→卖出
         dataframe.loc[
-            (dataframe["ma_short"] < dataframe["ma_long"])
-            & (dataframe["ma_short"].shift(1) >= dataframe["ma_long"].shift(1)),
+            qtpylib.crossed_below(dataframe["ma_short"], dataframe["ma_long"])
+            & (dataframe["volume"] > 0),
             "exit_long",
         ] = 1
         return dataframe

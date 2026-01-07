@@ -1,4 +1,4 @@
-# Strategy Migration between V2 and V3（Strategy Migration between V2 and V3）
+# 策略迁移（Strategy Migration between V2 and V3）
 
 这份文档由 Freqtrade 官方页面离线保存后整理为便于“vibe coding 查阅使用”的 Markdown。
 

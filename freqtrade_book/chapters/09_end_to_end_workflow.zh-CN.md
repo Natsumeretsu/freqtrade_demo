@@ -9,7 +9,7 @@
 
 ## 本章完成标准（学完你应该能做到）
 
-- [ ] 能从 `config.example.json` 复制出可用的 `config.json`（并确保 `dry_run: true`）
+- [ ] 能从 `configs/config.example.json` 复制出可用的 `config.json`（并确保 `dry_run: true`）
 - [ ] 能跑通“排错三件套”，并定位问题属于配置/策略/数据哪一类
 - [ ] 能完成数据下载 + 固定区间回测，并生成可复现的结果文件
 - [ ] 能启动 dry-run 持续运行，并知道如何安全停止、看日志、做最小回滚
@@ -39,7 +39,7 @@ uv run freqtrade list-data --userdir "." --config "config.json"
 如果你还没有一份“可提交/可复制”的配置，建议从模板复制（并按需修改交易所与交易对）：
 
 ```powershell
-Copy-Item "config.example.json" "config.json"
+Copy-Item "configs/config.example.json" "config.json"
 ```
 
 你可以先保持：
@@ -51,7 +51,7 @@ Copy-Item "config.example.json" "config.json"
 当你需要填入密钥/Token 时，推荐放到第二份私密配置（并确保被 git 忽略）：
 
 ```powershell
-Copy-Item "config-private.example.json" "config-private.json"
+Copy-Item "configs/config-private.example.json" "config-private.json"
 ```
 
 启动时叠加两份配置（私密覆盖公开）：
@@ -143,4 +143,3 @@ uv run freqtrade trade --userdir "." --config "config.json"
 ---
 
 [返回目录](../SUMMARY.zh-CN.md) | [上一章](./08_freqai.zh-CN.md) | [下一章](./90_reference_library.zh-CN.md)
-

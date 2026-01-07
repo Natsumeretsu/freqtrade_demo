@@ -210,7 +210,7 @@ uv run freqtrade lookahead-analysis --userdir "." --config "config.json" --strat
 脱敏规则：
 
 - 禁止出现真实 `exchange.key` / `exchange.secret` / Telegram token / API 密码 / JWT secret。
-- 优先用模板：`config.example.json` + `config-private.example.json`。
+- 优先用模板：`configs/config.example.json` + `configs/config-private.example.json`。
 
 ---
 

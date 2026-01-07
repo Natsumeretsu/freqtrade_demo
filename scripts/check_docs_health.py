@@ -200,7 +200,7 @@ def run_command(argv: list[str]) -> tuple[int, str]:
 def check_config_examples() -> list[str]:
     issues: list[str] = []
 
-    config_example = Path("config.example.json")
+    config_example = Path("configs") / "config.example.json"
     if not config_example.exists():
         return [f"{config_example.as_posix()}: 不存在"]
 
@@ -252,7 +252,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--check-config-examples",
         action="store_true",
-        help="额外校验 config.example.json 是否能通过 show-config/list-strategies（需要已安装依赖）。",
+        help="额外校验 configs/config.example.json 是否能通过 show-config/list-strategies（需要已安装依赖）。",
     )
     return parser
 

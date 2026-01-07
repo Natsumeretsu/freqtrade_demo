@@ -9,7 +9,7 @@
 
 ## 2) 文档产物约定
 
-- `freqtrade_docs/raw_html/`：只存放离线保存的官方 HTML 原文（不做手改）。
+- `freqtrade_docs/raw_html/`：只存放离线保存的官方 HTML 原文（不做手改；默认不纳入 Git，可按需运行 `scripts/download_freqtrade_docs_html.py` 下载生成）。
 - `freqtrade_docs/*.zh-CN.md`：整理后的中文 Markdown。
 - 文件命名建议：使用主题小写 + 下划线，例如：
   - `data_download.zh-CN.md`

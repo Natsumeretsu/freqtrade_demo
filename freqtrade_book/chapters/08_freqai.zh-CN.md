@@ -67,7 +67,7 @@ FreqAI 的参数非常多，建议两种用法：
 2. 固定训练与回测窗口（例如：固定 `train_period_days` 与 `backtest_period_days`），避免“你以为改了模型，其实是换了行情区间”。
 3. 每次只改一个因素（一个特征、一个模型参数或一个标签定义），并记录结果与结论。
 
-提示：本仓库已准备 `freqaimodels/` 目录用于落盘模型；`identifier` 变化会影响模型复用与路径。
+提示：`freqaimodels/` 用于放自定义 FreqAI 预测模型（Python 代码）；训练/回测产物会自动写入 `models/<identifier>/`（请不要手工改动）。`identifier` 变化会影响模型复用与落盘路径。
 
 ---
 

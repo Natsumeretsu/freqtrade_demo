@@ -42,7 +42,7 @@ TITLE_MAP = {
     "data-download": "数据下载",
     "deprecated": "已弃用功能",
     "developer": "贡献者指南",
-    "docker-quickstart": "Docker 快速开始",
+    "docker_quickstart": "Docker 快速开始",
     "exchanges": "交易所说明",
     "faq": "常见问题",
     "freq-ui": "freqUI 界面",
@@ -67,16 +67,16 @@ TITLE_MAP = {
     "stoploss": "止损",
     "strategy-101": "策略快速开始",
     "strategy-advanced": "高级策略",
-    "strategy-analysis-example": "策略分析示例",
+    "strategy_analysis_example": "策略分析示例",
     "strategy-callbacks": "策略回调",
     "strategy-customization": "策略自定义",
-    "strategy-migration": "策略迁移",
+    "strategy_migration": "策略迁移",
     "telegram-usage": "Telegram 使用",
     "trade-object": "Trade 对象",
     "updating": "更新 Freqtrade",
     "utils": "工具子命令",
     "webhook-config": "Webhook 配置",
-    "windows-installation": "Windows 安装",
+    "windows_installation": "Windows 安装",
 }
 
 
@@ -128,9 +128,17 @@ def _guess_code_language(code: str) -> str:
 
 
 def _extract_head_info(html: str) -> tuple[str, str]:
-    # canonical
-    m = re.search(r"<link\s+rel=canonical\s+href=([^\s>]+)", html, flags=re.IGNORECASE)
-    canonical = m.group(1).strip() if m else ""
+    # canonical（兼容引号、href/rel 顺序差异）
+    canonical = ""
+    canonical_patterns = (
+        r"<link\b[^>]*\brel=(?:\"|')?canonical(?:\"|')?[^>]*\bhref=(?:\"|')?([^\s\"'>]+)",
+        r"<link\b[^>]*\bhref=(?:\"|')?([^\s\"'>]+)[^>]*\brel=(?:\"|')?canonical(?:\"|')?",
+    )
+    for pat in canonical_patterns:
+        m = re.search(pat, html, flags=re.IGNORECASE)
+        if m:
+            canonical = m.group(1).strip()
+            break
 
     # saved date
     m = re.search(r"saved date:\s*(.+)$", html, flags=re.IGNORECASE | re.MULTILINE)
@@ -429,7 +437,15 @@ def main() -> None:
     docs_dir = DOCS_DIR_DEFAULT
     raw_dir = docs_dir / RAW_HTML_DIRNAME
     if not raw_dir.exists():
-        raise SystemExit(f"未找到目录：{raw_dir.as_posix()}")
+        raise SystemExit(
+            "\n".join(
+                [
+                    f"未找到目录：{raw_dir.as_posix()}",
+                    "说明：该目录可能被 gitignore（用于减小仓库体积）。",
+                    '如需重新生成，请先运行：uv run python "scripts/download_freqtrade_docs_html.py"',
+                ]
+            )
+        )
 
     html_files = sorted(raw_dir.glob("*.html"))
     if not html_files:

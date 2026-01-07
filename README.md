@@ -7,9 +7,17 @@
 
 - `strategies/`：策略源码
 - `hyperopts/`：超参 loss 等
+- `scripts/`：辅助脚本（推荐统一入口 `./scripts/ft.ps1`）
+- `configs/`：可提交、可复制的配置模板（脱敏）
+- `experiments/`：实验记录（命令/结论；不存训练产物）
+- `freqaimodels/`：自定义 FreqAI 预测模型代码（可选）
 - `notebooks/`：分析笔记本
-- `docs/`：补充文档（中文）
+- `freqtrade_book/`：渐进式学习手册（中文）
+- `freqtrade_docs/`：离线整理的参考库（中文）
 - `strategies_ref_docs/`：策略参考文档（Git 子模块）
+- `models/`：FreqAI 训练/预测产物（默认忽略，不建议手工改动）
+- `artifacts/`：本地归档/历史产物（默认忽略）
+- `.serena/`：Serena 项目配置与记忆（建议跨设备同步 `memories/` 与 `project.yml`；`cache/`/`logs/` 默认忽略）
 - `pyproject.toml`：依赖声明（唯一来源）
 - `uv.lock`：依赖锁文件（锁死传递依赖）
 - `.python-version`：固定 Python 版本（uv 自动使用）
@@ -36,6 +44,14 @@ uv sync --frozen
 中文 Windows 的默认编码常为 GBK，Freqtrade 在扫描 `strategies/*.py` 时可能触发 `UnicodeDecodeError`。
 本仓库已提供统一入口脚本 `./scripts/ft.ps1`，会强制使用 UTF-8 模式运行 Freqtrade，建议用它替代直接运行 `uv run freqtrade ...`。
 
+如果你希望 VSCode 的 Python 扩展（运行/调试）也默认启用 UTF-8，可复制示例环境变量文件：
+
+```powershell
+Copy-Item ".env.example" ".env"
+```
+
+说明：`.env` 默认被 git 忽略，避免误提交环境变量；请只在 `.env.example` 放非敏感内容。
+
 也可以一键初始化（含子模块 + 依赖同步）：
 
 ```powershell
@@ -54,42 +70,26 @@ powershell.exe -ExecutionPolicy Bypass -File "./scripts/bootstrap.ps1"
 uv run freqtrade --userdir "." new-config --config "./config.json"
 ```
 
-## KNNTrendWindow 示例（严格样本外）
+## FreqAI + LightGBM 示例（滚动训练）
 
-训练用 `2018-2024`，回测/评估用 `2025-2026`（避免“训练集标签跨到测试期”的隐性泄露），并且按“典型持仓几小时”将默认 `horizon` 调整为 6。
+本仓库提供：
 
-### 1) 训练模型（2018-2024 训练，2025-2026 测试）
+- 策略：`strategies/freqai_lgbm_trend_strategy.py`（`FreqaiLGBMTrendStrategy`）
+- 示例配置：`configs/freqai/lgbm_trend_v1.json`
 
-```powershell
-uv run python -X utf8 "scripts/train_knn_trend_window.py" `
-  --filter-trend `
-  --datadir "data/okx" `
-  --pair "BTC/USDT" `
-  --timeframe "1h" `
-  --train-timerange "20180101-20250101" `
-  --test-timerange "20250101-20270101"
-```
+### 开发约定（避免重复造轮子）
 
-训练结束会打印“阈值扫描（用于选 buy_proba_min）”。如果需要手动固定参数，可在策略同名参数文件中配置：`strategies/knn_trend_window_strategy.json`
+- 技术指标：统一用 `talib.abstract` / `technical.qtpylib`，不要手写 RSI/ATR/布林带等。
+- 风控/退出：优先使用 Freqtrade 回调 `custom_roi` / `custom_stoploss`（以及配置里的 `trailing_stop` 等），不要用自定义 `custom_exit` 充当止损系统。
+- FreqAI 训练产物：默认会写入 `models/<identifier>/`，该目录已在 `.gitignore` 中忽略，避免误提交。
 
-```json
-{
-  "strategy_name": "KNNTrendWindowStrategy",
-  "params": {
-    "buy": {
-      "buy_adx_min": 10,
-      "buy_proba_min": 0.35
-    }
-  }
-}
-```
-
-### 2) 回测策略（2025-2026 严格样本外）
+回测示例：
 
 ```powershell
 .\scripts\ft.ps1 backtesting `
-  --config "config.json" `
-  --strategy "KNNTrendWindowStrategy" `
+  --config "configs/freqai/lgbm_trend_v1.json" `
+  --strategy "FreqaiLGBMTrendStrategy" `
+  --freqaimodel "LightGBMRegressor" `
   --timeframe "1h" `
   --timerange "20250101-20270101"
 ```

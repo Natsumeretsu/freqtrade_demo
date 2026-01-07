@@ -103,8 +103,8 @@ uv run freqtrade show-config --userdir "." --config "config.json"
 
 本仓库已提供可提交的脱敏模板，方便你在其它设备拉取后直接用：
 
-- `config.example.json`：公开配置模板（复制为 `config.json` 使用）。
-- `config-private.example.json`：私密配置模板（复制为 `config-private.json`，填入密钥/Token 等）。
+- `configs/config.example.json`：公开配置模板（复制为 `config.json` 使用）。
+- `configs/config-private.example.json`：私密配置模板（复制为 `config-private.json`，填入密钥/Token 等）。
 
 启动时用“多配置叠加”让私密配置覆盖公开配置：
 

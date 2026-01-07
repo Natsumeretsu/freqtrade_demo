@@ -65,7 +65,7 @@ uv run freqtrade <命令> --userdir "." <参数...>
 uv run python "scripts/check_docs_health.py"
 ```
 
-可选：同时校验 `config.example.json` 是否能通过 `show-config`/`list-strategies`：
+可选：同时校验 `configs/config.example.json` 是否能通过 `show-config`/`list-strategies`：
 
 ```powershell
 uv run python "scripts/check_docs_health.py" --check-config-examples

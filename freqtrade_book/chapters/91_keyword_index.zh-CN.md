@@ -41,7 +41,7 @@ rg -n "Invalid configuration|No data|Strategy.*not.*found|ImportError|ModuleNotF
 ## A) 配置与资金（最常查）
 
 - `config.json`：本书 [配置入门](./02_configuration.zh-CN.md)；参考库 [`freqtrade_docs/configuration.zh-CN.md`](../../freqtrade_docs/configuration.zh-CN.md)
-- `config.example.json` / `config-private.example.json`：脱敏模板；本书 [配置入门](./02_configuration.zh-CN.md)
+- `configs/config.example.json` / `configs/config-private.example.json`：脱敏模板；本书 [配置入门](./02_configuration.zh-CN.md)
 - `show-config`：本书 [阅读指南](./00_reading_guide.zh-CN.md)；参考库 [`freqtrade_docs/utils.zh-CN.md`](../../freqtrade_docs/utils.zh-CN.md)
 - `add_config_files` / 多份 `--config`：配置叠加与覆盖顺序；本书 [配置入门](./02_configuration.zh-CN.md)；参考库 [`freqtrade_docs/configuration.zh-CN.md`](../../freqtrade_docs/configuration.zh-CN.md)
 - `FREQTRADE__...`：环境变量覆盖配置；本书 [快速速查](./99_quick_reference.zh-CN.md)；参考库 [`freqtrade_docs/configuration.zh-CN.md`](../../freqtrade_docs/configuration.zh-CN.md)
@@ -127,7 +127,7 @@ rg -n "Invalid configuration|No data|Strategy.*not.*found|ImportError|ModuleNotF
 - `train_period_days` / `backtest_period_days`：训练窗口与重训节奏；本书 [FreqAI](./08_freqai.zh-CN.md)
 - `freqai_parameter_table`：参数表（字典式查阅）；参考库 [`freqtrade_docs/freqai_parameter_table.zh-CN.md`](../../freqtrade_docs/freqai_parameter_table.zh-CN.md)
 - `freqai_feature_engineering`：特征工程；参考库 [`freqtrade_docs/freqai_feature_engineering.zh-CN.md`](../../freqtrade_docs/freqai_feature_engineering.zh-CN.md)
-- `freqaimodels/`：模型落盘目录（默认被 git 忽略）；本书 [FreqAI](./08_freqai.zh-CN.md)
+- `freqaimodels/`：自定义 FreqAI 预测模型目录（Python 代码，可提交）；本书 [FreqAI](./08_freqai.zh-CN.md)
 
 ---
 
@@ -152,7 +152,8 @@ rg -n "Invalid configuration|No data|Strategy.*not.*found|ImportError|ModuleNotF
 - `data/`：下载的历史数据（OHLCV 等）。
 - `backtest_results/`：回测结果（zip + meta + config 快照）。
 - `hyperopt_results/`：超参优化结果。
-- `freqaimodels/`：FreqAI 模型落盘。
+- `models/<identifier>/`：FreqAI 训练/预测产物目录（默认被 git 忽略，尽量不要手工改）。
+- `freqaimodels/`：自定义 FreqAI 预测模型代码目录（可选）。
 - `logs/`：运行日志（排错第一入口）。
 - `notebooks/`：数据分析/策略分析 notebook。
 
