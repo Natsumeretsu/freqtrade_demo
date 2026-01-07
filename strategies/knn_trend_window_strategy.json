@@ -3,15 +3,101 @@
   "params": {
     "buy": {
       "buy_adx_min": 20,
-      "buy_proba_min": 0.7,
+      "buy_proba_min": 0.6,
       "buy_require_pred": true
     },
     "sell": {
-      "max_hold_mult": 2.0
+      "max_hold_mult": 0.0,
+      "sell_use_model_exit": false,
+      "sell_time_loss_cut": 0.0,
+      "sell_trend_exit": false,
+      "sell_trend_exit_confirm": 2,
+      "sell_trend_exit_buffer": 0.0,
+      "sell_trend_exit_require_model": false
     },
     "roi": {
-      "0": 0.008
+      "0": 0.01
     },
-    "model_path": "models/final/knn_tw_btc_usdt_1h_h6_r0090_train2018_20250101_v2.pkl"
+    "model_path": "models/scan/knn_tw_btc_usdt_1h_h6_r0100_logreg_max_high.pkl",
+    "pair_overrides": {
+      "BTC/USDT": {
+        "buy_adx_min": 20,
+        "buy_proba_min": 0.6,
+        "buy_require_pred": true,
+        "max_hold_mult": 0.0,
+        "sell_use_model_exit": false,
+        "sell_trend_exit": false,
+        "sell_trend_exit_confirm": 2,
+        "sell_trend_exit_buffer": 0.0,
+        "sell_trend_exit_require_model": false,
+        "sell_time_loss_cut": 0.0,
+        "model_path": "models/scan/knn_tw_btc_usdt_1h_h6_r0100_logreg_max_high.pkl"
+      },
+      "ETH/USDT": {
+        "buy_adx_min": 30,
+        "buy_proba_min": 0.55,
+        "buy_require_pred": true,
+        "max_hold_mult": 2.0,
+        "sell_use_model_exit": true,
+        "sell_trend_exit": true,
+        "sell_trend_exit_confirm": 2,
+        "sell_trend_exit_buffer": 0.0,
+        "sell_trend_exit_require_model": false,
+        "sell_time_loss_cut": 0.0,
+        "model_path": "models/final/knn_tw_eth_usdt_1h_h6_r0080_logreg_max_high_train2018_20250101.pkl"
+      },
+      "DOGE/USDT": {
+        "buy_adx_min": 30,
+        "buy_proba_min": 0.5,
+        "buy_require_pred": true,
+        "max_hold_mult": 0.0,
+        "sell_use_model_exit": false,
+        "sell_trend_exit": false,
+        "sell_trend_exit_confirm": 2,
+        "sell_trend_exit_buffer": 0.0,
+        "sell_trend_exit_require_model": false,
+        "sell_time_loss_cut": 0.0,
+        "model_path": "models/final/knn_tw_doge_usdt_1h_h6_r0090_logreg_train2019_20250101.pkl"
+      },
+      "SOL/USDT": {
+        "buy_adx_min": 30,
+        "buy_proba_min": 0.5,
+        "buy_require_pred": true,
+        "max_hold_mult": 2.0,
+        "sell_use_model_exit": false,
+        "sell_trend_exit": false,
+        "sell_trend_exit_confirm": 2,
+        "sell_trend_exit_buffer": 0.0,
+        "sell_trend_exit_require_model": false,
+        "sell_time_loss_cut": 0.0,
+        "model_path": "models/final/knn_tw_sol_usdt_1h_h6_r0090_logreg_train2018_20250101.pkl"
+      },
+      "XRP/USDT": {
+        "buy_adx_min": 35,
+        "buy_proba_min": 0.4,
+        "buy_require_pred": true,
+        "max_hold_mult": 0.0,
+        "sell_use_model_exit": false,
+        "sell_trend_exit": false,
+        "sell_trend_exit_confirm": 2,
+        "sell_trend_exit_buffer": 0.0,
+        "sell_trend_exit_require_model": false,
+        "sell_time_loss_cut": 0.0,
+        "model_path": "models/final/knn_tw_xrp_usdt_1h_h6_r0090_logreg_train2018_20250101.pkl"
+      },
+      "ADA/USDT": {
+        "buy_adx_min": 30,
+        "buy_proba_min": 0.45,
+        "buy_require_pred": true,
+        "max_hold_mult": 2.0,
+        "sell_use_model_exit": false,
+        "sell_trend_exit": false,
+        "sell_trend_exit_confirm": 2,
+        "sell_trend_exit_buffer": 0.0,
+        "sell_trend_exit_require_model": false,
+        "sell_time_loss_cut": 0.0,
+        "model_path": "models/final/knn_tw_ada_usdt_1h_h6_r0090_logreg_train2018_20250101.pkl"
+      }
+    }
   }
 }

@@ -20,6 +20,12 @@ class ScanResult:
     buy_require_pred: bool
     roi: float
     max_hold_mult: float
+    sell_use_model_exit: bool
+    sell_trend_exit: bool
+    trend_exit_confirm: int
+    trend_exit_buffer: float
+    trend_exit_require_model: bool
+    loss_cut: float
     model_path: str
     backtest_zip: str
     trades: int
@@ -100,31 +106,88 @@ def _pick_best_threshold(train_output: str, min_samples: int = 200) -> float:
     return float(rows[0][2])
 
 
+def _read_json_if_exists(path: Path) -> dict:
+    if not path.is_file():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
 def _write_strategy_params(
     param_path: Path,
     *,
+    pair: str,
     buy_adx_min: int,
     buy_proba_min: float,
     buy_require_pred: bool,
     roi: float,
     max_hold_mult: float,
+    sell_use_model_exit: bool,
+    sell_trend_exit: bool,
+    trend_exit_confirm: int,
+    trend_exit_buffer: float,
+    trend_exit_require_model: bool,
+    loss_cut: float,
     model_path: str,
 ) -> None:
-    payload = {
-        "strategy_name": "KNNTrendWindowStrategy",
-        "params": {
-            "buy": {
-                "buy_adx_min": int(buy_adx_min),
-                "buy_proba_min": float(round(buy_proba_min, 4)),
-                "buy_require_pred": bool(buy_require_pred),
-            },
-            "sell": {
-                "max_hold_mult": float(round(max_hold_mult, 2)),
-            },
-            "roi": {"0": float(roi)},
+    payload = _read_json_if_exists(param_path)
+    payload["strategy_name"] = "KNNTrendWindowStrategy"
+
+    params = payload.get("params")
+    if not isinstance(params, dict):
+        params = {}
+        payload["params"] = params
+
+    buy = params.get("buy")
+    if not isinstance(buy, dict):
+        buy = {}
+        params["buy"] = buy
+    buy.update(
+        {
+            "buy_adx_min": int(buy_adx_min),
+            "buy_proba_min": float(round(buy_proba_min, 4)),
+            "buy_require_pred": bool(buy_require_pred),
+        }
+    )
+
+    sell = params.get("sell")
+    if not isinstance(sell, dict):
+        sell = {}
+        params["sell"] = sell
+    sell.update(
+        {
+            "max_hold_mult": float(round(max_hold_mult, 2)),
+            "sell_use_model_exit": bool(sell_use_model_exit),
+            "sell_trend_exit": bool(sell_trend_exit),
+            "sell_trend_exit_confirm": int(trend_exit_confirm),
+            "sell_trend_exit_buffer": float(round(trend_exit_buffer, 4)),
+            "sell_trend_exit_require_model": bool(trend_exit_require_model),
+            "sell_time_loss_cut": float(round(loss_cut, 4)),
+        }
+    )
+
+    params["roi"] = {"0": float(roi)}
+    params["model_path"] = model_path.replace("\\", "/")
+
+    # 如果参数文件启用了 per-pair 覆盖，则同步写入当前 pair，保证扫描参数真实生效
+    overrides = params.get("pair_overrides")
+    if isinstance(overrides, dict):
+        overrides[str(pair)] = {
+            "buy_adx_min": int(buy_adx_min),
+            "buy_proba_min": float(round(buy_proba_min, 4)),
+            "buy_require_pred": bool(buy_require_pred),
+            "max_hold_mult": float(round(max_hold_mult, 2)),
+            "sell_use_model_exit": bool(sell_use_model_exit),
+            "sell_trend_exit": bool(sell_trend_exit),
+            "sell_trend_exit_confirm": int(trend_exit_confirm),
+            "sell_trend_exit_buffer": float(round(trend_exit_buffer, 4)),
+            "sell_trend_exit_require_model": bool(trend_exit_require_model),
+            "sell_time_loss_cut": float(round(loss_cut, 4)),
             "model_path": model_path.replace("\\", "/"),
-        },
-    }
+        }
     param_path.write_text(
         json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
@@ -172,6 +235,16 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--horizons", default="4,6,8", help="horizon 列表（逗号分隔）")
     parser.add_argument("--min-returns", default="0.006,0.01,0.015", help="min-return 列表（逗号分隔）")
     parser.add_argument(
+        "--label-mode",
+        choices=["end_close", "max_high"],
+        default="end_close",
+        help=(
+            "训练标签模式："
+            "end_close=使用 close(t+h) 收益；"
+            "max_high=使用未来 horizon 内最高价是否触达阈值（更贴近 ROI/止盈命中）。"
+        ),
+    )
+    parser.add_argument(
         "--rois",
         default="",
         help=(
@@ -181,6 +254,12 @@ def _parse_args() -> argparse.Namespace:
 
     parser.add_argument("--window", type=int, default=8, help="特征窗口 N")
     parser.add_argument("--neighbors", type=int, default=25, help="KNN 邻居数 k")
+    parser.add_argument(
+        "--model",
+        choices=["knn", "logreg"],
+        default="knn",
+        help="分类器：knn=KNN；logreg=LogisticRegression（更稳健，通常更不容易过拟合）。",
+    )
     parser.add_argument("--balance", default="downsample", choices=["none", "downsample", "upsample"], help="训练集类别平衡")
     parser.add_argument(
         "--include-trend-features",
@@ -198,9 +277,42 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--buy-adx-mins", default="20,30", help="策略入场 ADX 阈值列表（逗号分隔）")
     parser.add_argument("--buy-proba-mins", default="0.55,0.60,0.65,0.70", help="策略入场 proba 阈值列表（逗号分隔，或写 auto）")
     parser.add_argument(
+        "--sell-use-model-exit",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="是否启用模型翻空退出（MODEL_PRED）。默认关闭（更稳健）。",
+    )
+    parser.add_argument(
+        "--sell-trend-exit",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="是否启用趋势破坏退出（TREND_BREAK）。默认关闭（需在验证集选参后再启用）。",
+    )
+    parser.add_argument(
+        "--trend-exit-confirms",
+        default="2",
+        help="趋势破坏确认根数列表（逗号分隔，1-3）。",
+    )
+    parser.add_argument(
+        "--trend-exit-buffers",
+        default="0.0",
+        help="趋势破位缓冲列表（逗号分隔，0-0.02）。例如 0.005 表示跌破 EMA0.5% 才触发。",
+    )
+    parser.add_argument(
+        "--trend-exit-require-model",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="趋势退出是否要求模型翻空确认（knn_pred==-1）。默认关闭。",
+    )
+    parser.add_argument(
         "--max-hold-mults",
         default="1.0",
         help="time_exit 最大持仓倍数列表（逗号分隔，乘以模型 horizon；0 表示禁用 time_exit）",
+    )
+    parser.add_argument(
+        "--loss-cuts",
+        default="",
+        help="浮亏截断阈值列表（逗号分隔）。例如 0.01 表示 -1% 截断；0 表示禁用（默认）。",
     )
     parser.add_argument(
         "--buy-require-pred",
@@ -232,6 +344,7 @@ def main() -> int:
     min_returns = _parse_list(args.min_returns)
     roi_list = _parse_list(args.rois) if str(args.rois).strip() else []
     max_hold_mults = _parse_list(args.max_hold_mults)
+    loss_cuts = _parse_list(args.loss_cuts) if str(args.loss_cuts).strip() else [0.0]
 
     scan_dir = cwd / "models" / "scan"
     scan_dir.mkdir(parents=True, exist_ok=True)
@@ -244,6 +357,11 @@ def main() -> int:
 
     buy_adx_mins = _parse_list_int(args.buy_adx_mins)
     buy_require_pred = bool(args.buy_require_pred)
+    sell_use_model_exit = bool(args.sell_use_model_exit)
+    sell_trend_exit = bool(args.sell_trend_exit)
+    trend_exit_confirms = _parse_list_int(args.trend_exit_confirms) if sell_trend_exit else [2]
+    trend_exit_buffers = _parse_list(args.trend_exit_buffers) if sell_trend_exit else [0.0]
+    trend_exit_require_model = bool(args.trend_exit_require_model)
 
     min_trades = int(args.min_trades)
     dd_weight = float(args.dd_weight)
@@ -257,7 +375,15 @@ def main() -> int:
             pair_slug = args.pair.replace("/", "_").lower()
             tf_slug = args.timeframe.lower()
             minret_bp = int(round(min_return * 10000))
-            model_rel = f"models/scan/knn_tw_{pair_slug}_{tf_slug}_h{horizon}_r{minret_bp:04d}.pkl"
+            suffix_parts: list[str] = []
+            if str(args.model).strip().lower() != "knn":
+                suffix_parts.append(str(args.model).strip().lower())
+            if bool(args.include_trend_features):
+                suffix_parts.append("trendfeat")
+            if str(args.label_mode).strip().lower() != "end_close":
+                suffix_parts.append(str(args.label_mode).strip().lower())
+            suffix = f"_{'_'.join(suffix_parts)}" if suffix_parts else ""
+            model_rel = f"models/scan/knn_tw_{pair_slug}_{tf_slug}_h{horizon}_r{minret_bp:04d}{suffix}.pkl"
             model_out = cwd / model_rel
 
             print("")
@@ -282,8 +408,12 @@ def main() -> int:
                 str(int(horizon)),
                 "--min-return",
                 str(float(min_return)),
+                "--label-mode",
+                str(args.label_mode),
                 "--neighbors",
                 str(int(args.neighbors)),
+                "--model",
+                str(args.model),
                 "--balance",
                 str(args.balance),
                 "--adx-min",
@@ -312,77 +442,101 @@ def main() -> int:
             for buy_adx_min in buy_adx_mins:
                 for buy_proba_min in buy_proba_mins:
                     for max_hold_mult in max_hold_mults:
-                        for roi in rois:
-                            backtest_count += 1
-                            if args.max_backtests and backtest_count > int(args.max_backtests):
-                                break
+                        for trend_exit_confirm in trend_exit_confirms:
+                            for trend_exit_buffer in trend_exit_buffers:
+                                for loss_cut in loss_cuts:
+                                    for roi in rois:
+                                        backtest_count += 1
+                                        if args.max_backtests and backtest_count > int(args.max_backtests):
+                                            break
 
-                            _write_strategy_params(
-                                param_path,
-                                buy_adx_min=int(buy_adx_min),
-                                buy_proba_min=float(buy_proba_min),
-                                buy_require_pred=buy_require_pred,
-                                roi=float(roi),
-                                max_hold_mult=float(max_hold_mult),
-                                model_path=model_rel,
-                            )
+                                        _write_strategy_params(
+                                            param_path,
+                                            pair=str(args.pair),
+                                            buy_adx_min=int(buy_adx_min),
+                                            buy_proba_min=float(buy_proba_min),
+                                            buy_require_pred=buy_require_pred,
+                                            roi=float(roi),
+                                            max_hold_mult=float(max_hold_mult),
+                                            sell_use_model_exit=sell_use_model_exit,
+                                            sell_trend_exit=sell_trend_exit,
+                                            trend_exit_confirm=int(trend_exit_confirm),
+                                            trend_exit_buffer=float(trend_exit_buffer),
+                                            trend_exit_require_model=trend_exit_require_model,
+                                            loss_cut=float(loss_cut),
+                                            model_path=model_rel,
+                                        )
 
-                            backtest_cmd = [
-                                "uv",
-                                "run",
-                                "python",
-                                "-X",
-                                "utf8",
-                                "-m",
-                                "freqtrade",
-                                "backtesting",
-                                "--userdir",
-                                ".",
-                                "--config",
-                                "config.json",
-                                "--strategy",
-                                "KNNTrendWindowStrategy",
-                                "--timeframe",
-                                args.timeframe,
-                                "--timerange",
-                                args.backtest_timerange,
-                            ]
-                            _run(backtest_cmd, cwd=cwd, env=env, print_on_success=False)
+                                        backtest_cmd = [
+                                            "uv",
+                                            "run",
+                                            "python",
+                                            "-X",
+                                            "utf8",
+                                            "-m",
+                                            "freqtrade",
+                                            "backtesting",
+                                            "--userdir",
+                                            ".",
+                                            "--config",
+                                            "config.json",
+                                            "--datadir",
+                                            args.datadir,
+                                            "--strategy",
+                                            "KNNTrendWindowStrategy",
+                                            "--timeframe",
+                                            args.timeframe,
+                                            "--timerange",
+                                            args.backtest_timerange,
+                                            "--pairs",
+                                            args.pair,
+                                        ]
+                                        _run(backtest_cmd, cwd=cwd, env=env, print_on_success=False)
 
-                            zip_path = _read_last_backtest_zip(cwd)
-                            summary = _read_strategy_summary(zip_path)
-                            trades = int(summary["trades"])
-                            profit_total_pct = float(summary["profit_total_pct"])
-                            max_dd = float(summary["max_drawdown_account"])
-                            score = profit_total_pct - (max_dd * 100.0 * dd_weight)
+                                        zip_path = _read_last_backtest_zip(cwd)
+                                        summary = _read_strategy_summary(zip_path)
+                                        trades = int(summary["trades"])
+                                        profit_total_pct = float(summary["profit_total_pct"])
+                                        max_dd = float(summary["max_drawdown_account"])
+                                        score = profit_total_pct - (max_dd * 100.0 * dd_weight)
 
-                            res = ScanResult(
-                                horizon=int(horizon),
-                                min_return=float(min_return),
-                                buy_adx_min=int(buy_adx_min),
-                                buy_proba_min=float(buy_proba_min),
-                                buy_require_pred=buy_require_pred,
-                                roi=float(roi),
-                                max_hold_mult=float(max_hold_mult),
-                                model_path=model_rel,
-                                backtest_zip=zip_path.name,
-                                trades=trades,
-                                profit_total_pct=profit_total_pct,
-                                profit_total_abs=float(summary["profit_total_abs"]),
-                                winrate=float(summary["winrate"]),
-                                max_drawdown_account=max_dd,
-                                score=float(score),
-                            )
-                            results.append(res)
+                                        res = ScanResult(
+                                            horizon=int(horizon),
+                                            min_return=float(min_return),
+                                            buy_adx_min=int(buy_adx_min),
+                                            buy_proba_min=float(buy_proba_min),
+                                            buy_require_pred=buy_require_pred,
+                                            roi=float(roi),
+                                            max_hold_mult=float(max_hold_mult),
+                                            sell_use_model_exit=sell_use_model_exit,
+                                            sell_trend_exit=sell_trend_exit,
+                                            trend_exit_confirm=int(trend_exit_confirm),
+                                            trend_exit_buffer=float(trend_exit_buffer),
+                                            trend_exit_require_model=trend_exit_require_model,
+                                            loss_cut=float(loss_cut),
+                                            model_path=model_rel,
+                                            backtest_zip=zip_path.name,
+                                            trades=trades,
+                                            profit_total_pct=profit_total_pct,
+                                            profit_total_abs=float(summary["profit_total_abs"]),
+                                            winrate=float(summary["winrate"]),
+                                            max_drawdown_account=max_dd,
+                                            score=float(score),
+                                        )
+                                        results.append(res)
 
-                            print(
-                                f"结果: trades={res.trades}  profit={res.profit_total_pct:.2f}%  "
-                                f"score={res.score:.2f}  winrate={res.winrate:.1%}  "
-                                f"max_dd={res.max_drawdown_account:.1%}  "
-                                f"adx>={res.buy_adx_min}  proba>={res.buy_proba_min:.2f}  "
-                                f"hold_mult={res.max_hold_mult:.1f}  roi={res.roi:.4f}  "
-                                f"h={res.horizon}  r(label)={res.min_return:.4f}"
-                            )
+                                        print(
+                                            f"结果: trades={res.trades}  profit={res.profit_total_pct:.2f}%  "
+                                            f"score={res.score:.2f}  winrate={res.winrate:.1%}  "
+                                            f"max_dd={res.max_drawdown_account:.1%}  "
+                                            f"adx>={res.buy_adx_min}  proba>={res.buy_proba_min:.2f}  "
+                                            f"hold_mult={res.max_hold_mult:.1f}  "
+                                            f"trend_exit={res.sell_trend_exit}  "
+                                            f"trend_confirm={res.trend_exit_confirm}  "
+                                            f"trend_buf={res.trend_exit_buffer:.3f}  "
+                                            f"loss_cut={res.loss_cut:.3f}  "
+                                            f"roi={res.roi:.4f}  h={res.horizon}  r(label)={res.min_return:.4f}"
+                                        )
 
                 if args.max_backtests and backtest_count >= int(args.max_backtests):
                     break
@@ -417,18 +571,30 @@ def main() -> int:
             f"dd={r.max_drawdown_account:.1%}  winrate={r.winrate:.1%}  "
             f"h={r.horizon}  r(label)={r.min_return:.4f}  roi={r.roi:.4f}  "
             f"adx>={r.buy_adx_min}  proba>={r.buy_proba_min:.2f}  "
-            f"hold_mult={r.max_hold_mult:.1f}  require_pred={r.buy_require_pred}  "
+            f"hold_mult={r.max_hold_mult:.1f}  "
+            f"trend_exit={r.sell_trend_exit}  "
+            f"trend_confirm={r.trend_exit_confirm}  "
+            f"trend_buf={r.trend_exit_buffer:.3f}  "
+            f"loss_cut={r.loss_cut:.3f}  "
+            f"require_pred={r.buy_require_pred}  "
             f"zip={r.backtest_zip}"
         )
 
     # 写回最佳参数，方便你直接继续回测/实盘验证
     _write_strategy_params(
         param_path,
+        pair=str(args.pair),
         buy_adx_min=int(best.buy_adx_min),
         buy_proba_min=float(best.buy_proba_min),
         buy_require_pred=bool(best.buy_require_pred),
         roi=float(best.roi),
         max_hold_mult=float(best.max_hold_mult),
+        sell_use_model_exit=bool(best.sell_use_model_exit),
+        sell_trend_exit=bool(best.sell_trend_exit),
+        trend_exit_confirm=int(best.trend_exit_confirm),
+        trend_exit_buffer=float(best.trend_exit_buffer),
+        trend_exit_require_model=bool(best.trend_exit_require_model),
+        loss_cut=float(best.loss_cut),
         model_path=best.model_path,
     )
 
@@ -448,6 +614,11 @@ def main() -> int:
     print(f"- 最佳 buy_proba_min: {best.buy_proba_min:.2f}")
     print(f"- 最佳 buy_require_pred: {best.buy_require_pred}")
     print(f"- 最佳 max_hold_mult: {best.max_hold_mult:.1f}")
+    print(f"- 最佳 sell_trend_exit: {best.sell_trend_exit}")
+    print(f"- 最佳 trend_exit_confirm: {best.trend_exit_confirm}")
+    print(f"- 最佳 trend_exit_buffer: {best.trend_exit_buffer:.3f}")
+    print(f"- 最佳 trend_exit_require_model: {best.trend_exit_require_model}")
+    print(f"- 最佳 loss_cut: {best.loss_cut:.3f}")
     print(f"- 最佳 roi: {best.roi:.4f}")
     print(f"- 汇总输出: {out_path}")
 

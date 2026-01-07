@@ -8,6 +8,7 @@ import joblib
 import numpy as np
 import pandas as pd
 from freqtrade.data.history import load_pair_history
+from sklearn.linear_model import LogisticRegression
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
@@ -28,7 +29,7 @@ from knn_window_features import (
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="训练：趋势过滤 + 多K线窗口特征 的 KNN 分类模型"
+        description="训练：趋势过滤 + 多K线窗口特征 的 分类模型（默认 KNN）"
     )
     parser.add_argument("--datadir", default="data/okx", help="Freqtrade 数据目录")
     parser.add_argument("--pair", default="BTC/USDT", help="交易对，例如 BTC/USDT")
@@ -45,6 +46,14 @@ def _parse_args() -> argparse.Namespace:
         "--test-timerange",
         default=None,
         help="测试集时间范围：YYYYMMDD-YYYYMMDD（end 可省略，end 不包含）。",
+    )
+    parser.add_argument(
+        "--final",
+        action="store_true",
+        help=(
+            "仅训练并导出“最终模型”：只使用 --train-timerange（严格不看 --test-timerange），"
+            "跳过测试评估与阈值扫描。"
+        ),
     )
 
     parser.add_argument("--window", type=int, default=8, help="特征窗口：最近 N 根K线")
@@ -67,6 +76,16 @@ def _parse_args() -> argparse.Namespace:
         help="未来收益阈值：大于该值标记为 1，否则为 -1",
     )
     parser.add_argument(
+        "--label-mode",
+        choices=["end_close", "max_high"],
+        default="end_close",
+        help=(
+            "标签模式："
+            "end_close=使用 close(t+h) 的收益；"
+            "max_high=使用未来 horizon 内最高价是否触达阈值（更贴近 ROI/止盈命中）。"
+        ),
+    )
+    parser.add_argument(
         "--train-ratio",
         type=float,
         default=0.8,
@@ -74,6 +93,12 @@ def _parse_args() -> argparse.Namespace:
     )
 
     parser.add_argument("--neighbors", type=int, default=25, help="KNN 的邻居数 k")
+    parser.add_argument(
+        "--model",
+        choices=["knn", "logreg"],
+        default="knn",
+        help="分类器：knn=KNN；logreg=LogisticRegression（更稳健，通常更不容易过拟合）。",
+    )
     parser.add_argument(
         "--balance",
         choices=["none", "downsample", "upsample"],
@@ -188,10 +213,21 @@ def _build_trend_up_mask(
 def main() -> int:
     args = _parse_args()
 
+    final_mode = bool(getattr(args, "final", False))
     use_timerange_split = bool(args.train_timerange) or bool(args.test_timerange)
     if args.window <= 0 or args.horizon <= 0:
         raise ValueError("window/horizon 必须为正整数")
-    if use_timerange_split:
+    if final_mode:
+        if not args.train_timerange:
+            raise ValueError("final 模式下必须指定 --train-timerange")
+        if args.test_timerange:
+            raise ValueError("final 模式下不允许指定 --test-timerange（避免在训练阶段触碰样本外）")
+        _, train_end = _parse_timerange(args.train_timerange)
+        if train_end is None:
+            raise ValueError(
+                "final 模式要求：训练集必须有 end（例如 20180101-20250101），以保证严格不越界"
+            )
+    elif use_timerange_split:
         if not args.train_timerange or not args.test_timerange:
             raise ValueError("使用严格样本外切分时，请同时指定 --train-timerange 与 --test-timerange")
         train_start, train_end = _parse_timerange(args.train_timerange)
@@ -231,8 +267,20 @@ def main() -> int:
         dates = pd.Series(pd.to_datetime(df.index, utc=True), index=df.index)
     future_date = dates.shift(-args.horizon)
 
-    # 标签：未来 N 根K线后的收益是否超过阈值（更贴近“做交易”而不是“猜下一根涨跌”）
-    future_return = df["close"].shift(-args.horizon) / df["close"] - 1.0
+    label_mode = str(args.label_mode)
+    if label_mode == "end_close":
+        # 标签：未来 N 根K线后的收益是否超过阈值（更贴近“做交易”而不是“猜下一根涨跌”）
+        future_return = df["close"].shift(-args.horizon) / df["close"] - 1.0
+        label_desc = f"close(t+{args.horizon})/close(t)-1 > {args.min_return}"
+    elif label_mode == "max_high":
+        # 标签：未来 N 根K线内是否“触达”阈值（用 high 近似止盈命中）
+        future_highs = [df["high"].shift(-i) for i in range(1, args.horizon + 1)]
+        future_high_max = pd.concat(future_highs, axis=1).max(axis=1)
+        future_return = future_high_max / df["close"] - 1.0
+        label_desc = f"max(high[t+1..t+{args.horizon}])/close(t)-1 > {args.min_return}"
+    else:
+        raise ValueError(f"不支持的 label-mode：{label_mode}")
+
     target = pd.Series(
         np.where(future_return > float(args.min_return), 1, -1),
         index=df.index,
@@ -260,7 +308,22 @@ def main() -> int:
     if args.filter_trend:
         base_mask &= trend_up
 
-    if use_timerange_split:
+    if final_mode:
+        train_start, train_end = _parse_timerange(args.train_timerange)
+
+        train_mask = base_mask & _build_timerange_mask(dates, args.train_timerange)
+        if train_end is not None:
+            train_mask &= future_date < train_end
+
+        x_train = (
+            features.loc[train_mask, feature_cols]
+            .astype("float64")
+            .replace([np.inf, -np.inf], 0.0)
+        )
+        y_train = target.loc[train_mask].astype("int64")
+        x_test = pd.DataFrame()
+        y_test = pd.Series(dtype="int64")
+    elif use_timerange_split:
         train_start, train_end = _parse_timerange(args.train_timerange)
         test_start, test_end = _parse_timerange(args.test_timerange)
 
@@ -316,79 +379,99 @@ def main() -> int:
         random_state=int(args.random_state),
     )
 
-    if len(x_train) < max(200, args.neighbors * 5):
+    model_kind = str(args.model).strip().lower()
+    min_train_samples = 200
+    if model_kind == "knn":
+        min_train_samples = max(min_train_samples, int(args.neighbors) * 5)
+    if len(x_train) < min_train_samples:
         raise ValueError(
             f"训练样本过少（{len(x_train)}），请增大数据量/调小 window 或 neighbors，或关闭 --filter-trend"
         )
-    if len(x_test) < 200:
+    if not final_mode and len(x_test) < 200:
         raise ValueError(f"测试样本过少（{len(x_test)}），请调整时间区间或数据量")
+
+    if model_kind == "knn":
+        classifier = KNeighborsClassifier(n_neighbors=args.neighbors, weights="distance")
+    elif model_kind == "logreg":
+        classifier = LogisticRegression(max_iter=2000)
+    else:
+        raise ValueError(f"不支持的 model：{model_kind}")
 
     model = Pipeline(
         steps=[
             ("scaler", StandardScaler()),
-            ("knn", KNeighborsClassifier(n_neighbors=args.neighbors, weights="distance")),
+            ("clf", classifier),
         ]
     )
     model.fit(x_train, y_train)
     model.feature_window = int(args.window)
     model.horizon = int(args.horizon)
     model.min_return = float(args.min_return)
+    model.label_mode = str(args.label_mode)
+    model.model = str(args.model)
     model.train_timerange = str(args.train_timerange or "")
     model.test_timerange = str(args.test_timerange or "")
     model.balance = str(args.balance)
 
     train_acc = float(model.score(x_train, y_train))
-    test_acc = float(model.score(x_test, y_test))
-    baseline_acc = _majority_baseline_accuracy(y_test)
+    test_acc = float(model.score(x_test, y_test)) if not final_mode else float("nan")
+    baseline_acc = _majority_baseline_accuracy(y_test) if not final_mode else float("nan")
 
-    print(f"训练样本: {len(x_train)}，测试样本: {len(x_test)}")
-    if use_timerange_split:
-        print(f"训练区间: {args.train_timerange}（严格样本外）")
-        print(f"测试区间: {args.test_timerange}（严格样本外）")
+    if final_mode:
+        print(f"训练样本: {len(x_train)}（final 模式：无测试集）")
+        print(f"训练区间: {args.train_timerange}（final：严格不看样本外）")
+    else:
+        print(f"训练样本: {len(x_train)}，测试样本: {len(x_test)}")
+        if use_timerange_split:
+            print(f"训练区间: {args.train_timerange}（严格样本外）")
+            print(f"测试区间: {args.test_timerange}（严格样本外）")
     print(f"特征维度: {x_train.shape[1]}（window={args.window}）")
-    print(f"标签定义: future_return(t+{args.horizon}) > {args.min_return} => 1 else -1")
+    print(f"标签定义({args.label_mode}): {label_desc} => 1 else -1")
     if args.filter_trend:
         print("已启用趋势过滤：仅使用上升趋势样本")
     print(f"训练集类别平衡: {args.balance}")
     print("训练集标签分布:")
     print(y_train.value_counts(normalize=True).sort_index().to_string())
     print(f"训练集准确率: {train_acc:.4f}")
-    print(f"测试集准确率: {test_acc:.4f}")
-    print(f"测试集基线准确率(多数类): {baseline_acc:.4f}")
-    print("测试集标签分布:")
-    print(y_test.value_counts(normalize=True).sort_index().to_string())
+    if not final_mode:
+        print(f"测试集准确率: {test_acc:.4f}")
+        print(f"测试集基线准确率(多数类): {baseline_acc:.4f}")
+        print("测试集标签分布:")
+        print(y_test.value_counts(normalize=True).sort_index().to_string())
 
-    y_pred = pd.Series(model.predict(x_test), index=y_test.index, name="pred")
-    print("测试集预测分布:")
-    print(y_pred.value_counts(normalize=True).sort_index().to_string())
+        y_pred = pd.Series(model.predict(x_test), index=y_test.index, name="pred")
+        print("测试集预测分布:")
+        print(y_pred.value_counts(normalize=True).sort_index().to_string())
 
-    if hasattr(model, "predict_proba"):
-        probas = model.predict_proba(x_test)
-        classes = getattr(model, "classes_", None)
-        if classes is not None and 1 in list(classes):
-            idx = list(classes).index(1)
-        else:
-            idx = -1
-        proba_1 = pd.Series(probas[:, idx], index=x_test.index, name="proba_1")
-
-        print("测试集 proba(=1) 分位数:")
-        for q in (0.5, 0.8, 0.9, 0.95, 0.99):
-            print(f"  p{int(q * 100)}: {float(proba_1.quantile(q)):.4f}")
-
-        future_return_test = future_return.loc[y_test.index].astype("float64")
-        thresholds = [round(x, 2) for x in np.arange(0.20, 0.81, 0.05)]
-        print("阈值扫描（用于选 buy_proba_min）:")
-        for thr in thresholds:
-            sel = proba_1 >= float(thr)
-            n_sel = int(sel.sum())
-            if n_sel == 0:
-                precision = float("nan")
-                avg_ret = float("nan")
+        if hasattr(model, "predict_proba"):
+            probas = model.predict_proba(x_test)
+            classes = getattr(model, "classes_", None)
+            if classes is not None and 1 in list(classes):
+                idx = list(classes).index(1)
             else:
-                precision = float((y_test.loc[sel] == 1).mean())
-                avg_ret = float(future_return_test.loc[sel].mean())
-            sel_rate = float(n_sel / len(y_test))
-            print(f"  thr>={thr:.2f}: 触发率={sel_rate:.3f}  样本={n_sel}  精确率={precision:.3f}  平均未来收益={avg_ret:.4f}")
+                idx = -1
+            proba_1 = pd.Series(probas[:, idx], index=x_test.index, name="proba_1")
+
+            print("测试集 proba(=1) 分位数:")
+            for q in (0.5, 0.8, 0.9, 0.95, 0.99):
+                print(f"  p{int(q * 100)}: {float(proba_1.quantile(q)):.4f}")
+
+            future_return_test = future_return.loc[y_test.index].astype("float64")
+            thresholds = [round(x, 2) for x in np.arange(0.20, 0.81, 0.05)]
+            print("阈值扫描（用于选 buy_proba_min）:")
+            for thr in thresholds:
+                sel = proba_1 >= float(thr)
+                n_sel = int(sel.sum())
+                if n_sel == 0:
+                    precision = float("nan")
+                    avg_ret = float("nan")
+                else:
+                    precision = float((y_test.loc[sel] == 1).mean())
+                    avg_ret = float(future_return_test.loc[sel].mean())
+                sel_rate = float(n_sel / len(y_test))
+                print(
+                    f"  thr>={thr:.2f}: 触发率={sel_rate:.3f}  样本={n_sel}  精确率={precision:.3f}  平均未来收益={avg_ret:.4f}"
+                )
 
     out_path = Path(args.model_out)
     out_path.parent.mkdir(parents=True, exist_ok=True)
