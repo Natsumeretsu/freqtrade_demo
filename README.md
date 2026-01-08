@@ -93,3 +93,11 @@ uv run freqtrade --userdir "." new-config --config "./config.json"
   --timeframe "1h" `
   --timerange "20250101-20270101"
 ```
+
+扫参示例（跨多个窗口评估阈值稳健性）：
+
+```powershell
+uv run python "scripts/sweep_freqai_params.py" --configs "configs/freqai/lgbm_trend_v1_eval.json" --pairs "BTC/USDT" --timeframe-detail "5m" --fee 0.0015
+```
+
+提示：扫参脚本也支持把入场过滤参数一起纳入网格（用于提升“熊市/暴跌窗口”的抗性），详见 `scripts/sweep_freqai_params.py --help`。

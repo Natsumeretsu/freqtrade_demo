@@ -1,0 +1,11 @@
+{
+  "strategy_name": "FreqaiLGBMTrendStrategy",
+  "params": {
+    "buy": {
+      "buy_pred_threshold": 0.012
+    },
+    "sell": {
+      "sell_smart_exit_pred_threshold": 0.0
+    }
+  }
+}
