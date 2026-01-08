@@ -87,7 +87,7 @@ powershell.exe -ExecutionPolicy Bypass -File "./scripts/setup_codex_mcp.ps1"
 ./scripts/setup_codex_mcp.ps1 -Force
 ```
 
-前置：已安装 `codex`（Codex CLI）、`node`（含 `npx`）、`uv`（含 `uvx`）。本仓库默认使用 Wolfram 的 **Python 模式**（默认使用 `~/.codex/tools/Wolfram-MCP/`，脚本会按需克隆/更新该仓库并自动初始化其 `.venv`）；如需改用 `wolframscript` + Paclet 请使用 `-WolframMode paclet`。如需强制重建 `~/.codex/tools/Wolfram-MCP/.venv`，可加 `-BootstrapWolframPython`。如需指定 Wolfram-MCP 仓库位置/地址，可用 `-WolframMcpRepoDir` / `-WolframMcpRepoUrl`。如需启用 `mcp_router`，请通过参数或环境变量提供 `MCPR_TOKEN`。
+前置：已安装 `codex`（Codex CLI）、`node`（含 `npx`）、`uv`（含 `uvx`）。本仓库默认使用 Wolfram 的 **Python 模式**（默认使用 `~/.codex/tools/Wolfram-MCP/`，脚本会按需克隆/更新该仓库并自动初始化其 `.venv`）；如需改用 `wolframscript` + Paclet 请使用 `-WolframMode paclet`。如需强制重建 `~/.codex/tools/Wolfram-MCP/.venv`，可加 `-BootstrapWolframPython`。如需指定 Wolfram-MCP 仓库位置/地址，可用 `-WolframMcpRepoDir` / `-WolframMcpRepoUrl`。
 
 说明：该脚本只会写入你本机的 `~/.codex/config.toml`（Codex CLI 的用户配置），不会修改或提交仓库文件。
 

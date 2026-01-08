@@ -17,6 +17,21 @@
 - 可选：使用 `./scripts/bootstrap.ps1` 一键初始化（含子模块 + 依赖同步）。
 - 路径处理：命令里优先使用双引号包裹路径，尽量使用正斜杠 `/`。
 
+## MCP 工具优先策略（默认）
+
+当任务明显属于以下场景时，默认优先调用对应 MCP 工具来获得可验证结果（除非用户明确要求不用工具）：
+
+- `wolfram`：数学/符号计算/作图/优化/极值（求导、积分、解方程、画图、极值/数值求解等）
+- `context7`：第三方库/框架文档与 API 查询（先 `resolve-library-id` 再 `get-library-docs`）
+- `markitdown`：网页/文件转 Markdown，提取正文用于总结/对照
+- `playwright_mcp`：需要可复现的网页交互/抓取（登录、点击、下载、表单、滚动、截图等）
+- `chrome_devtools_mcp`：更底层的浏览器调试/网络请求/性能分析（Network/Console/Trace）
+
+执行约定：
+
+- 工具运行前若缺关键输入（URL、文件路径、变量范围/约束等），先提问补齐，不要凭空猜测。
+- 网页自动化优先 `playwright_mcp`；只有需要更底层的 Network/性能数据时再用 `chrome_devtools_mcp`。
+
 ## 仓库结构与约定
 
 - 仓库根目录即 Freqtrade userdir（策略/超参/笔记本/文档）。

@@ -51,8 +51,6 @@ powershell.exe -ExecutionPolicy Bypass -File "./scripts/setup_codex_mcp.ps1"
 - `-WolframMcpRepoDir <dir>`：Python 模式下 Wolfram-MCP 仓库目录（默认：`~/.codex/tools/Wolfram-MCP/`）
 - `-BootstrapWolframPython`：Python 模式下强制（重新）初始化依赖并生成/更新 `.venv`（优先 `uv sync`；若仅有 `requirements.txt` 则使用 `uv venv` + `uv pip install -r requirements.txt`）
 - `-WolframInstallationDirectory <dir>`：指定 Wolfram 安装目录（用于定位 `wolframscript`，并注入 `WOLFRAM_INSTALLATION_DIRECTORY` 环境变量）
-- `-IncludeMcpRouter`：可选配置 `mcp_router`
-- `-McpRouterToken <token>`：为 `mcp_router` 提供 `MCPR_TOKEN`（也可用环境变量 `MCPR_TOKEN`）
 
 ## Wolfram MCP 的同步策略（推荐：独立仓库 + 全局 tools）
 
@@ -105,5 +103,5 @@ powershell.exe -ExecutionPolicy Bypass -File "./scripts/setup_codex_mcp.ps1"
 
 ## 安全提醒
 
-- 不要把 `MCPR_TOKEN`、各类 API Key、生产环境地址写进仓库。
-- 如需在多台电脑间同步敏感配置，建议用系统密钥链/密码管理器/企业机密管理服务分发，再通过环境变量注入（例如 `MCPR_TOKEN`）。
+- 不要把各类 Token/API Key、生产环境地址写进仓库。
+- 如需在多台电脑间同步敏感配置，建议用系统密钥链/密码管理器/企业机密管理服务分发，再通过环境变量注入。

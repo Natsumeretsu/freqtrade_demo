@@ -13,11 +13,7 @@ param(
 
   [string]$WolframInstallationDirectory,
 
-  [switch]$BootstrapWolframPython,
-
-  [switch]$IncludeMcpRouter,
-
-  [string]$McpRouterToken
+  [switch]$BootstrapWolframPython
 )
 
 $ErrorActionPreference = "Stop"
@@ -390,25 +386,6 @@ $servers = @(
     Note = "Playwright MCP"
   }
 )
-
-if ($IncludeMcpRouter) {
-  $token = $McpRouterToken
-  if ([string]::IsNullOrWhiteSpace($token)) {
-    $token = $env:MCPR_TOKEN
-  }
-
-  if ([string]::IsNullOrWhiteSpace($token)) {
-    Write-Warning "已指定 -IncludeMcpRouter，但未提供 MCPR_TOKEN（可用 -McpRouterToken 或环境变量 MCPR_TOKEN）。跳过 mcp_router。"
-  } else {
-    $servers += @{
-      Name = "mcp_router"
-      Command = "npx"
-      Args = @("-y", "@mcp_router/cli@latest", "connect")
-      Env = @("MCPR_TOKEN=$token")
-      Note = "MCP Router（需要 MCPR_TOKEN）"
-    }
-  }
-}
 
 $resolvedWolframMode = $WolframMode
 if ($resolvedWolframMode -eq "auto") {
