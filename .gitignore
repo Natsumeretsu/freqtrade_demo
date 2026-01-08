@@ -17,6 +17,9 @@
 # 本地实验/历史产物（非 FreqAI 标准目录）
 /artifacts/
 
+# 外部工具：建议安装到 ~/.codex/tools（避免作为仓库依赖/子模块）
+/tools/Wolfram-MCP/
+
 # Python
 **/__pycache__/
 *.py[cod]
@@ -36,3 +39,6 @@ Thumbs.db
 
 # freqtrade_docs：离线保存的官方 HTML 原文（体积大，默认不提交；可用脚本下载后再生成 Markdown）
 /freqtrade_docs/raw_html/
+
+# wolfram_engine_doc：离线保存的 Wolfram 文档 HTML（体积大，默认不提交）
+/other_doc/wolfram_engine_doc/**/raw_html/

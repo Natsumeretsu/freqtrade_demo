@@ -15,6 +15,7 @@
 - `freqtrade_book/`：渐进式学习手册（中文）
 - `freqtrade_docs/`：离线整理的参考库（中文）
 - `strategies_ref_docs/`：策略参考文档（Git 子模块）
+- `tools/`：开发工具（可选；建议不要把外部依赖放进仓库；Wolfram-MCP 建议安装到 `~/.codex/tools/Wolfram-MCP/`）
 - `models/`：FreqAI 训练/预测产物（默认忽略，不建议手工改动）
 - `artifacts/`：本地归档/历史产物（默认忽略）
 - `.serena/`：Serena 项目配置与记忆（建议跨设备同步 `memories/` 与 `project.yml`；`cache/`/`logs/` 默认忽略）
@@ -63,6 +64,32 @@ Copy-Item ".env.example" ".env"
 ```powershell
 powershell.exe -ExecutionPolicy Bypass -File "./scripts/bootstrap.ps1"
 ```
+
+## Codex MCP（可选）
+
+如果团队使用 Codex CLI，并希望启用常用 MCP（Context7 / Playwright / MarkItDown / Chrome DevTools / Wolfram），克隆后在仓库根目录执行一次：
+
+```powershell
+powershell.exe -ExecutionPolicy Bypass -File "./scripts/setup_codex_mcp.ps1"
+```
+
+更完整的同步/参数说明见：`other_doc/codex_mcp_sync.md`。
+
+仅预览将要执行的命令（不修改本机配置）：
+
+```powershell
+./scripts/setup_codex_mcp.ps1 -WhatIf
+```
+
+如果你已经添加过同名 MCP server，但想按脚本版本覆盖：
+
+```powershell
+./scripts/setup_codex_mcp.ps1 -Force
+```
+
+前置：已安装 `codex`（Codex CLI）、`node`（含 `npx`）、`uv`（含 `uvx`）。本仓库默认使用 Wolfram 的 **Python 模式**（默认使用 `~/.codex/tools/Wolfram-MCP/`，脚本会按需克隆/更新该仓库并自动初始化其 `.venv`）；如需改用 `wolframscript` + Paclet 请使用 `-WolframMode paclet`。如需强制重建 `~/.codex/tools/Wolfram-MCP/.venv`，可加 `-BootstrapWolframPython`。如需指定 Wolfram-MCP 仓库位置/地址，可用 `-WolframMcpRepoDir` / `-WolframMcpRepoUrl`。如需启用 `mcp_router`，请通过参数或环境变量提供 `MCPR_TOKEN`。
+
+说明：该脚本只会写入你本机的 `~/.codex/config.toml`（Codex CLI 的用户配置），不会修改或提交仓库文件。
 
 ## 生成配置（注意：`config*.json` 默认忽略，不要提交密钥）
 
