@@ -17,9 +17,14 @@
 - 已安装 `codex`（Codex CLI）
 - 如需自动拉取/更新 Wolfram-MCP（Python 模式推荐）：已安装 `git`
 - 已安装 `node`（含 `npx`）
-- 已安装 `uv`（含 `uvx`）
+- 建议安装 `uv`（含 `uvx`；若未安装 `uvx`，脚本会尝试自动安装 uv，失败则跳过 MarkItDown MCP）
 - 如需使用浏览器相关 MCP：安装 Chrome/Chromium（Playwright 相关依赖按需安装）
 - 如需使用 Wolfram MCP：安装 Wolfram Engine/Mathematica（含 `wolframscript`）
+
+说明：
+
+- 脚本会自动探测并补齐缺失的 MCP server（不存在则添加，已存在则跳过）；单个 server 配置失败会告警并继续处理其它 server。
+- 若缺少 `uvx`，脚本会优先尝试自动安装 uv（可能需要联网/系统权限确认）；若安装失败，会跳过 MarkItDown MCP。
 
 在仓库根目录执行：
 

@@ -53,14 +53,146 @@ function Test-Command {
   return [bool](Get-Command $Name -ErrorAction SilentlyContinue)
 }
 
+function Add-PathEntry {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$Directory
+  )
+
+  if ([string]::IsNullOrWhiteSpace($Directory)) {
+    return
+  }
+  if (-not (Test-Path $Directory)) {
+    return
+  }
+
+  $current = @()
+  if (-not [string]::IsNullOrWhiteSpace($env:Path)) {
+    $current = $env:Path -split ";"
+  }
+
+  if ($current -notcontains $Directory) {
+    $env:Path = ($Directory + ";" + $env:Path)
+  }
+}
+
+function Try-Repair-UvxFromUv {
+  if (-not (Test-Command "uv")) {
+    return $false
+  }
+
+  try {
+    $uvCmd = Get-Command "uv" -ErrorAction Stop
+    $uvDir = Split-Path $uvCmd.Source -Parent
+    $uvxCandidate = Join-Path $uvDir "uvx.exe"
+    if (Test-Path $uvxCandidate) {
+      Add-PathEntry -Directory $uvDir
+      return (Test-Command "uvx")
+    }
+  } catch {
+    return $false
+  }
+
+  return $false
+}
+
+function Install-Uv {
+  $prevErrorActionPreference = $ErrorActionPreference
+  try {
+    $ErrorActionPreference = "Continue"
+
+    if (Test-Command "winget") {
+      Write-Host "检测到 winget，尝试用 winget 安装 uv..."
+      & winget install --id "Astral-sh.UV" -e --accept-source-agreements --accept-package-agreements 2>&1 | Out-Host
+      if ($LASTEXITCODE -eq 0) {
+        return $true
+      }
+
+      Write-Warning "winget 安装 uv 失败，将尝试使用官方安装脚本。"
+    } else {
+      Write-Host "未检测到 winget，将尝试使用官方安装脚本安装 uv..."
+    }
+
+    $installUrl = "https://astral.sh/uv/install.ps1"
+    $cmd = @(
+      "-NoProfile",
+      "-ExecutionPolicy", "Bypass",
+      "-Command",
+      ("try {{ irm -UseBasicParsing '{0}' | iex }} catch {{ Write-Error $_; exit 1 }}" -f $installUrl)
+    )
+    & powershell.exe @cmd 2>&1 | Out-Host
+    return ($LASTEXITCODE -eq 0)
+  } finally {
+    $ErrorActionPreference = $prevErrorActionPreference
+  }
+}
+
+function Ensure-UvxAvailable {
+  if (Test-Command "uvx") {
+    return $true
+  }
+
+  if (Try-Repair-UvxFromUv) {
+    return $true
+  }
+
+  Write-Host "未检测到 uvx，将尝试自动安装 uv（以提供 uvx）..."
+  if (-not $PSCmdlet.ShouldProcess("uv/uvx", "安装 uv（提供 uvx）")) {
+    return $true
+  }
+
+  if (-not (Install-Uv)) {
+    Write-Warning "自动安装 uv 失败，将跳过 MarkItDown MCP。你可以手动安装 uv：https://docs.astral.sh/uv/"
+    return $false
+  }
+
+  # 安装后尝试刷新当前进程 PATH（部分安装器只会修改用户/系统 PATH，不会影响当前 PowerShell 会话）
+  $candidateDirs = @(
+    (Join-Path $env:LOCALAPPDATA "Microsoft/WinGet/Links"),
+    (Join-Path $env:USERPROFILE ".local/bin"),
+    (Join-Path $env:USERPROFILE ".cargo/bin"),
+    (Join-Path $env:USERPROFILE "scoop/shims"),
+    (Join-Path $env:LOCALAPPDATA "Programs/uv"),
+    (Join-Path $env:LOCALAPPDATA "Programs/uv/bin"),
+    (Join-Path $env:LOCALAPPDATA "uv"),
+    (Join-Path $env:LOCALAPPDATA "uv/bin")
+  )
+
+  foreach ($dir in $candidateDirs) {
+    Add-PathEntry -Directory $dir
+  }
+
+  if (Try-Repair-UvxFromUv) {
+    return $true
+  }
+
+  if (Test-Command "uvx") {
+    return $true
+  }
+
+  Write-Warning "uv 已安装，但当前会话仍未检测到 uvx。请重开终端后重试，或把 uv 安装目录加入 PATH。将跳过 MarkItDown MCP。"
+  return $false
+}
+
 function Test-McpServerExists {
   param(
     [Parameter(Mandatory = $true)]
     [string]$Name
   )
 
-  & codex mcp get $Name --json *> $null
-  return ($LASTEXITCODE -eq 0)
+  $prevErrorActionPreference = $ErrorActionPreference
+  try {
+    # codex.ps1 内部会调用 node；node 输出到 stderr 时，在 $ErrorActionPreference=Stop 下会变成终止错误。
+    # 这里局部降级为 Continue，并吞掉输出，用于“存在性探测”。
+    $ErrorActionPreference = "Continue"
+
+    & codex mcp get $Name --json 1>$null 2>$null
+    return ($LASTEXITCODE -eq 0)
+  } catch {
+    return $false
+  } finally {
+    $ErrorActionPreference = $prevErrorActionPreference
+  }
 }
 
 function Invoke-CodexMcpRemove {
@@ -70,12 +202,25 @@ function Invoke-CodexMcpRemove {
   )
 
   if (-not $PSCmdlet.ShouldProcess($Name, "codex mcp remove")) {
-    return
+    return $true
   }
 
-  & codex mcp remove $Name | Out-Host
-  if ($LASTEXITCODE -ne 0) {
-    throw "codex mcp remove 失败：$Name"
+  $prevErrorActionPreference = $ErrorActionPreference
+  try {
+    $ErrorActionPreference = "Continue"
+
+    & codex mcp remove $Name 2>&1 | Out-Host
+    if ($LASTEXITCODE -ne 0) {
+      Write-Warning "codex mcp remove 失败：$Name"
+      return $false
+    }
+
+    return $true
+  } catch {
+    Write-Warning ("codex mcp remove 异常：{0}（{1}）" -f $Name, $_.Exception.Message)
+    return $false
+  } finally {
+    $ErrorActionPreference = $prevErrorActionPreference
   }
 }
 
@@ -101,12 +246,25 @@ function Invoke-CodexMcpAdd {
   $cmdArgs += @($Name, "--", $Command) + $Args
 
   if (-not $PSCmdlet.ShouldProcess($Name, ("codex {0}" -f ($cmdArgs -join " ")))) {
-    return
+    return $true
   }
 
-  & codex @cmdArgs | Out-Host
-  if ($LASTEXITCODE -ne 0) {
-    throw "codex mcp add 失败：$Name"
+  $prevErrorActionPreference = $ErrorActionPreference
+  try {
+    $ErrorActionPreference = "Continue"
+
+    & codex @cmdArgs 2>&1 | Out-Host
+    if ($LASTEXITCODE -ne 0) {
+      Write-Warning "codex mcp add 失败：$Name"
+      return $false
+    }
+
+    return $true
+  } catch {
+    Write-Warning ("codex mcp add 异常：{0}（{1}）" -f $Name, $_.Exception.Message)
+    return $false
+  } finally {
+    $ErrorActionPreference = $prevErrorActionPreference
   }
 }
 
@@ -358,144 +516,78 @@ if (-not [string]::IsNullOrWhiteSpace($codexHome)) {
 
 Require-Command -Name "codex" -InstallHint "请先安装 Codex CLI：npm i -g @openai/codex"
 Require-Command -Name "npx" -InstallHint "请先安装 Node.js（需包含 npx）"
-Require-Command -Name "uvx" -InstallHint "请先安装 uv（需包含 uvx），并确保 uvx 在 PATH 中"
 
-$servers = @(
-  @{
-    Name = "context7"
-    Command = "npx"
-    Args = @("-y", "@upstash/context7-mcp@1.0.31")
-    Note = "Context7（技术文档）"
-  },
-  @{
-    Name = "chrome_devtools_mcp"
-    Command = "npx"
-    Args = @("-y", "chrome-devtools-mcp@0.12.1")
-    Note = "Chrome DevTools MCP"
-  },
-  @{
+$servers = @()
+
+$servers += @{
+  Name = "context7"
+  Command = "npx"
+  Args = @("-y", "@upstash/context7-mcp@1.0.31")
+  Note = "Context7（技术文档）"
+}
+
+$servers += @{
+  Name = "chrome_devtools_mcp"
+  Command = "npx"
+  Args = @("-y", "chrome-devtools-mcp@0.12.1")
+  Note = "Chrome DevTools MCP"
+}
+
+if (Ensure-UvxAvailable) {
+  $servers += @{
     Name = "markitdown"
     Command = "uvx"
     Args = @("markitdown-mcp==0.0.1a4")
     Note = "MarkItDown（文档/网页转 Markdown）"
-  },
-  @{
-    Name = "playwright_mcp"
-    Command = "npx"
-    Args = @("-y", "@playwright/mcp@latest")
-    Note = "Playwright MCP"
   }
-)
-
-$resolvedWolframMode = $WolframMode
-if ($resolvedWolframMode -eq "auto") {
-  if (-not [string]::IsNullOrWhiteSpace($WolframMcpScriptPath)) {
-    $resolvedWolframMode = "python"
-  } else {
-    $candidate = Get-DefaultWolframMcpScriptCandidates -CodexHome $codexHome -WolframMcpRepoDir $WolframMcpRepoDir | Where-Object { Test-Path $_ } | Select-Object -First 1
-    if (-not $candidate) {
-      $repoDir = Get-DefaultWolframMcpRepoDir -CodexHome $codexHome -OverrideDir $WolframMcpRepoDir
-      if (-not [string]::IsNullOrWhiteSpace($repoDir)) {
-        Ensure-WolframMcpRepo -RepoDir $repoDir -RepoUrl $WolframMcpRepoUrl
-        $candidate = Get-DefaultWolframMcpScriptCandidates -CodexHome $codexHome -WolframMcpRepoDir $repoDir | Where-Object { Test-Path $_ } | Select-Object -First 1
-      }
-    }
-    if ($candidate) {
-      $WolframMcpScriptPath = $candidate
-      $resolvedWolframMode = "python"
-    } else {
-      $installDir = $WolframInstallationDirectory
-      if ([string]::IsNullOrWhiteSpace($installDir)) {
-        $installDir = $env:WOLFRAM_INSTALLATION_DIRECTORY
-      }
-      if ([string]::IsNullOrWhiteSpace($installDir)) {
-        $installDir = Find-WolframInstallationDirectory
-      }
-
-      if (Resolve-WolframScriptCommand -InstallDir $installDir) {
-        $resolvedWolframMode = "paclet"
-      } else {
-        $resolvedWolframMode = "skip"
-      }
-    }
-  }
+} else {
+  Write-Warning "未能确保 uvx 可用，将跳过 MarkItDown MCP。"
 }
 
-if ($resolvedWolframMode -eq "paclet") {
-  $wolframEnv = @()
+$servers += @{
+  Name = "playwright_mcp"
+  Command = "npx"
+  Args = @("-y", "@playwright/mcp@latest")
+  Note = "Playwright MCP"
+}
 
-  $installDir = $WolframInstallationDirectory
-  if ([string]::IsNullOrWhiteSpace($installDir)) {
-    $installDir = $env:WOLFRAM_INSTALLATION_DIRECTORY
-  }
-  if ([string]::IsNullOrWhiteSpace($installDir)) {
-    $installDir = Find-WolframInstallationDirectory
-  }
-
-  $wolframScriptCmd = Resolve-WolframScriptCommand -InstallDir $installDir
-  if (-not $wolframScriptCmd) {
-    Write-Warning "未找到 wolframscript（可通过 PATH 或 -WolframInstallationDirectory / 环境变量 WOLFRAM_INSTALLATION_DIRECTORY 指定安装目录）。跳过 Wolfram MCP（Paclet 模式）。"
-  } else {
-    if (-not [string]::IsNullOrWhiteSpace($installDir)) {
-      $wolframEnv += "WOLFRAM_INSTALLATION_DIRECTORY=$installDir"
-    }
-
-    $servers += @{
-      Name = "wolfram"
-      Command = $wolframScriptCmd
-      Args = @(
-        "-code",
-        'Needs["RickHennigan`MCPServer`"];LaunchMCPServer[]'
-      )
-      Env = $wolframEnv
-      Note = "Wolfram MCP（wolframscript + MCPServer Paclet）"
-    }
-  }
-} elseif ($resolvedWolframMode -eq "python") {
-  if ([string]::IsNullOrWhiteSpace($WolframMcpScriptPath)) {
-    $repoDir = Get-DefaultWolframMcpRepoDir -CodexHome $codexHome -OverrideDir $WolframMcpRepoDir
-    if (-not [string]::IsNullOrWhiteSpace($repoDir)) {
-      Ensure-WolframMcpRepo -RepoDir $repoDir -RepoUrl $WolframMcpRepoUrl
-      $WolframMcpScriptPath = Join-Path $repoDir "wolfram_mcp_server.py"
-    }
-  }
-
-  if ([string]::IsNullOrWhiteSpace($WolframMcpScriptPath)) {
-    Write-Warning "未提供 -WolframMcpScriptPath，且无法解析默认 Wolfram-MCP 路径（~/.codex/tools/Wolfram-MCP），跳过 Wolfram MCP（Python 模式）。"
-  } elseif (-not (Test-Path $WolframMcpScriptPath)) {
-    Write-Warning ("指定的 Wolfram MCP 脚本不存在，跳过：{0}" -f $WolframMcpScriptPath)
-  } else {
-    $wolframScript = (Resolve-Path $WolframMcpScriptPath).Path
-    $wolframProjectRoot = Split-Path $wolframScript -Parent
-
-    $venvPython = @(
-      (Join-Path $wolframProjectRoot ".venv/Scripts/python.exe"),
-      (Join-Path $wolframProjectRoot ".venv/bin/python")
-    ) | Where-Object { Test-Path $_ } | Select-Object -First 1
-
-    if ($BootstrapWolframPython -or -not $venvPython) {
-      Invoke-UvSync -ProjectRoot $wolframProjectRoot
-
-      $venvPython = @(
-        (Join-Path $wolframProjectRoot ".venv/Scripts/python.exe"),
-        (Join-Path $wolframProjectRoot ".venv/bin/python")
-      ) | Where-Object { Test-Path $_ } | Select-Object -First 1
-    }
-
-    if (-not $venvPython) {
-      if ($WhatIfPreference) {
-        Write-Host "WhatIf: 未实际创建 .venv，Wolfram MCP 将暂以系统 python 作为预览结果。"
-        $venvPython = Resolve-WolframMcpPythonCommand -ServerScriptPath $wolframScript
+try {
+  $resolvedWolframMode = $WolframMode
+  if ($resolvedWolframMode -eq "auto") {
+    if (-not [string]::IsNullOrWhiteSpace($WolframMcpScriptPath)) {
+      $resolvedWolframMode = "python"
+    } else {
+      $candidate = Get-DefaultWolframMcpScriptCandidates -CodexHome $codexHome -WolframMcpRepoDir $WolframMcpRepoDir | Where-Object { Test-Path $_ } | Select-Object -First 1
+      if (-not $candidate) {
+        $repoDir = Get-DefaultWolframMcpRepoDir -CodexHome $codexHome -OverrideDir $WolframMcpRepoDir
+        if (-not [string]::IsNullOrWhiteSpace($repoDir)) {
+          Ensure-WolframMcpRepo -RepoDir $repoDir -RepoUrl $WolframMcpRepoUrl
+          $candidate = Get-DefaultWolframMcpScriptCandidates -CodexHome $codexHome -WolframMcpRepoDir $repoDir | Where-Object { Test-Path $_ } | Select-Object -First 1
+        }
+      }
+      if ($candidate) {
+        $WolframMcpScriptPath = $candidate
+        $resolvedWolframMode = "python"
       } else {
-        throw ("Wolfram MCP（Python 模式）初始化失败：未找到 {0} 下的 .venv Python。" -f $wolframProjectRoot)
+        $installDir = $WolframInstallationDirectory
+        if ([string]::IsNullOrWhiteSpace($installDir)) {
+          $installDir = $env:WOLFRAM_INSTALLATION_DIRECTORY
+        }
+        if ([string]::IsNullOrWhiteSpace($installDir)) {
+          $installDir = Find-WolframInstallationDirectory
+        }
+
+        if (Resolve-WolframScriptCommand -InstallDir $installDir) {
+          $resolvedWolframMode = "paclet"
+        } else {
+          $resolvedWolframMode = "skip"
+        }
       }
     }
+  }
 
-    $pythonCmd = $venvPython
-    $wolframEnv = @(
-      "PYTHONUTF8=1",
-      "PYTHONIOENCODING=utf-8"
-    )
+  if ($resolvedWolframMode -eq "paclet") {
+    $wolframEnv = @()
 
     $installDir = $WolframInstallationDirectory
     if ([string]::IsNullOrWhiteSpace($installDir)) {
@@ -504,32 +596,108 @@ if ($resolvedWolframMode -eq "paclet") {
     if ([string]::IsNullOrWhiteSpace($installDir)) {
       $installDir = Find-WolframInstallationDirectory
     }
-    if (-not [string]::IsNullOrWhiteSpace($installDir)) {
-      $wolframEnv += "WOLFRAM_INSTALLATION_DIRECTORY=$installDir"
-    }
 
-    $wolframScriptPath = $null
-    if (Test-Command "wolframscript") {
-      $wolframScriptPath = (Get-Command "wolframscript").Source
-    } elseif (-not [string]::IsNullOrWhiteSpace($installDir)) {
-      $candidateExe = Join-Path $installDir "wolframscript.exe"
-      if (Test-Path $candidateExe) {
-        $wolframScriptPath = $candidateExe
+    $wolframScriptCmd = Resolve-WolframScriptCommand -InstallDir $installDir
+    if (-not $wolframScriptCmd) {
+      Write-Warning "未找到 wolframscript（可通过 PATH 或 -WolframInstallationDirectory / 环境变量 WOLFRAM_INSTALLATION_DIRECTORY 指定安装目录）。跳过 Wolfram MCP（Paclet 模式）。"
+    } else {
+      if (-not [string]::IsNullOrWhiteSpace($installDir)) {
+        $wolframEnv += "WOLFRAM_INSTALLATION_DIRECTORY=$installDir"
+      }
+
+      $servers += @{
+        Name = "wolfram"
+        Command = $wolframScriptCmd
+        Args = @(
+          "-code",
+          'Needs["RickHennigan`MCPServer`"];LaunchMCPServer[]'
+        )
+        Env = $wolframEnv
+        Note = "Wolfram MCP（wolframscript + MCPServer Paclet）"
       }
     }
-    if (-not [string]::IsNullOrWhiteSpace($wolframScriptPath)) {
-      $wolframEnv += "WOLFRAMSCRIPT_PATH=$wolframScriptPath"
-      $wolframEnv += "WOLFRAM_SCRIPT_PATH=$wolframScriptPath"
+  } elseif ($resolvedWolframMode -eq "python") {
+    if ([string]::IsNullOrWhiteSpace($WolframMcpScriptPath)) {
+      $repoDir = Get-DefaultWolframMcpRepoDir -CodexHome $codexHome -OverrideDir $WolframMcpRepoDir
+      if (-not [string]::IsNullOrWhiteSpace($repoDir)) {
+        Ensure-WolframMcpRepo -RepoDir $repoDir -RepoUrl $WolframMcpRepoUrl
+        $WolframMcpScriptPath = Join-Path $repoDir "wolfram_mcp_server.py"
+      }
     }
 
-    $servers += @{
-      Name = "wolfram"
-      Command = $pythonCmd
-      Args = @($wolframScript)
-      Env = $wolframEnv
-      Note = "Wolfram MCP（Python 服务端脚本）"
+    if ([string]::IsNullOrWhiteSpace($WolframMcpScriptPath)) {
+      Write-Warning "未提供 -WolframMcpScriptPath，且无法解析默认 Wolfram-MCP 路径（~/.codex/tools/Wolfram-MCP），跳过 Wolfram MCP（Python 模式）。"
+    } elseif (-not (Test-Path $WolframMcpScriptPath)) {
+      Write-Warning ("指定的 Wolfram MCP 脚本不存在，跳过：{0}" -f $WolframMcpScriptPath)
+    } else {
+      $wolframScript = (Resolve-Path $WolframMcpScriptPath).Path
+      $wolframProjectRoot = Split-Path $wolframScript -Parent
+
+      $venvPython = @(
+        (Join-Path $wolframProjectRoot ".venv/Scripts/python.exe"),
+        (Join-Path $wolframProjectRoot ".venv/bin/python")
+      ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+
+      if ($BootstrapWolframPython -or -not $venvPython) {
+        Invoke-UvSync -ProjectRoot $wolframProjectRoot
+
+        $venvPython = @(
+          (Join-Path $wolframProjectRoot ".venv/Scripts/python.exe"),
+          (Join-Path $wolframProjectRoot ".venv/bin/python")
+        ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+      }
+
+      if (-not $venvPython) {
+        if ($WhatIfPreference) {
+          Write-Host "WhatIf: 未实际创建 .venv，Wolfram MCP 将暂以系统 python 作为预览结果。"
+          $venvPython = Resolve-WolframMcpPythonCommand -ServerScriptPath $wolframScript
+        } else {
+          throw ("Wolfram MCP（Python 模式）初始化失败：未找到 {0} 下的 .venv Python。" -f $wolframProjectRoot)
+        }
+      }
+
+      $pythonCmd = $venvPython
+      $wolframEnv = @(
+        "PYTHONUTF8=1",
+        "PYTHONIOENCODING=utf-8"
+      )
+
+      $installDir = $WolframInstallationDirectory
+      if ([string]::IsNullOrWhiteSpace($installDir)) {
+        $installDir = $env:WOLFRAM_INSTALLATION_DIRECTORY
+      }
+      if ([string]::IsNullOrWhiteSpace($installDir)) {
+        $installDir = Find-WolframInstallationDirectory
+      }
+      if (-not [string]::IsNullOrWhiteSpace($installDir)) {
+        $wolframEnv += "WOLFRAM_INSTALLATION_DIRECTORY=$installDir"
+      }
+
+      $wolframScriptPath = $null
+      if (Test-Command "wolframscript") {
+        $wolframScriptPath = (Get-Command "wolframscript").Source
+      } elseif (-not [string]::IsNullOrWhiteSpace($installDir)) {
+        $candidateExe = Join-Path $installDir "wolframscript.exe"
+        if (Test-Path $candidateExe) {
+          $wolframScriptPath = $candidateExe
+        }
+      }
+      if (-not [string]::IsNullOrWhiteSpace($wolframScriptPath)) {
+        $wolframEnv += "WOLFRAMSCRIPT_PATH=$wolframScriptPath"
+        $wolframEnv += "WOLFRAM_SCRIPT_PATH=$wolframScriptPath"
+      }
+
+      $servers += @{
+        Name = "wolfram"
+        Command = $pythonCmd
+        Args = @($wolframScript)
+        Env = $wolframEnv
+        Note = "Wolfram MCP（Python 服务端脚本）"
+      }
     }
   }
+} catch {
+  Write-Warning ("配置 Wolfram MCP 失败，已跳过：{0}" -f $_.Exception.Message)
 }
 
 foreach ($server in $servers) {
@@ -540,11 +708,16 @@ foreach ($server in $servers) {
     continue
   }
 
+  $wasExisting = $false
 
   if (Test-McpServerExists -Name $name) {
+    $wasExisting = $true
     if ($Force) {
       Write-Host ("已存在，按 -Force 重新创建：{0}（{1}）" -f $name, $server.Note)
-      Invoke-CodexMcpRemove -Name $name
+      if (-not (Invoke-CodexMcpRemove -Name $name)) {
+        Write-Warning ("跳过：{0}（移除失败，未能覆盖）。" -f $name)
+        continue
+      }
     } else {
       Write-Host ("已存在，跳过：{0}（{1}）。如需覆盖请加 -Force。" -f $name, $server.Note)
       continue
@@ -558,7 +731,14 @@ foreach ($server in $servers) {
     $envPairs = [string[]]$server.Env
   }
 
-  Invoke-CodexMcpAdd -Name $name -Command $server.Command -Args $server.Args -Env $envPairs
+  if (-not (Invoke-CodexMcpAdd -Name $name -Command $server.Command -Args $server.Args -Env $envPairs)) {
+    if ($wasExisting -and $Force) {
+      Write-Warning ("覆盖失败：{0}（已尝试移除后重新添加）。" -f $name)
+    } else {
+      Write-Warning ("添加失败：{0}" -f $name)
+    }
+    continue
+  }
 }
 
 Write-Host "完成。可运行：codex mcp list"
