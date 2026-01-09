@@ -1,0 +1,12 @@
+{
+  "strategy_name": "FreqaiLGBMProductionStrategy",
+  "params": {
+    "buy": {
+      "buy_pred_threshold": 0.018,
+      "buy_max_atr_pct": 0.03
+    },
+    "sell": {
+      "sell_smart_exit_pred_threshold": 0.0
+    }
+  }
+}

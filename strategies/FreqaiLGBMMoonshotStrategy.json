@@ -1,0 +1,52 @@
+{
+  "strategy_name": "FreqaiLGBMMoonshotStrategy",
+  "params": {
+    "roi": {
+      "0": 1.0
+    },
+    "stoploss": {
+      "stoploss": -0.15
+    },
+    "trailing": {
+      "trailing_stop": false,
+      "trailing_stop_positive": null,
+      "trailing_stop_positive_offset": 0.0,
+      "trailing_only_offset_is_reached": false
+    },
+    "max_open_trades": {
+      "max_open_trades": 10
+    },
+    "buy": {
+      "buy_adx_period": 14,
+      "buy_ema_long": 200,
+      "buy_ema_long_slope_lookback": 48,
+      "buy_ema_short": 50,
+      "buy_ema_short_slope_lookback": 24,
+      "buy_use_adx_filter": false,
+      "buy_use_ema_long_slope_filter": false,
+      "buy_use_ema_short_slope_filter": false,
+      "buy_use_fast_trend_filter": false,
+      "buy_use_max_atr_pct_filter": true,
+      "buy_use_trend_filter": false,
+      "buy_adx_min": 23,
+      "buy_max_atr_pct": 0.138,
+      "buy_pred_threshold": 0.017
+    },
+    "sell": {
+      "risk_atr_period": 14,
+      "sell_smart_exit_pred_threshold": 0.0,
+      "sell_use_trailing_stop": false,
+      "sell_pred_threshold": -0.022,
+      "sell_sl_atr_mult": 5.95,
+      "sell_sl_max": 0.20,
+      "sell_sl_min": 0.05,
+      "sell_tp_atr_mult": 4.66,
+      "sell_tp_max": 0.239,
+      "sell_tp_min": 0.027,
+      "sell_trailing_stop_offset": 0.071,
+      "sell_trailing_stop_positive": 0.083
+    }
+  },
+  "ft_stratparam_v": 1,
+  "export_time": "2026-01-08 13:58:24.115079+00:00"
+}

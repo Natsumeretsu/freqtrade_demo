@@ -1,3 +1,14 @@
+<#
+.SYNOPSIS
+    项目初始化脚本
+
+.DESCRIPTION
+    克隆仓库后的一键初始化：安装 Python 依赖、初始化子模块等。
+
+.EXAMPLE
+    .\bootstrap.ps1
+    .\bootstrap.ps1 -SkipSubmodules
+#>
 [CmdletBinding()]
 param(
   [switch]$SkipSubmodules,

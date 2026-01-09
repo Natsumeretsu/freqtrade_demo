@@ -21,8 +21,10 @@
 
 当任务明显属于以下场景时，默认优先调用对应 MCP 工具来获得可验证结果（除非用户明确要求不用工具）：
 
+- `serena`：语义/符号级代码检索与编辑（适合快速定位定义/引用、精确修改）
 - `wolfram`：数学/符号计算/作图/优化/极值（求导、积分、解方程、画图、极值/数值求解等）
 - `context7`：第三方库/框架文档与 API 查询（先 `resolve-library-id` 再 `get-library-docs`）
+- `github`：GitHub 仓库/代码/提交/Issue/PR/Actions（适合跨仓库检索、PR/Issue 自动化、CI/CD 分析等）
 - `markitdown`：网页/文件转 Markdown，提取正文用于总结/对照
 - `playwright_mcp`：需要可复现的网页交互/抓取（登录、点击、下载、表单、滚动、截图等）
 - `chrome_devtools_mcp`：更底层的浏览器调试/网络请求/性能分析（Network/Console/Trace）
@@ -30,6 +32,7 @@
 执行约定：
 
 - 工具运行前若缺关键输入（URL、文件路径、变量范围/约束等），先提问补齐，不要凭空猜测。
+- 代码导航/精确编辑优先 `serena`；仅做纯文本检索时再用 `rg`。
 - 网页自动化优先 `playwright_mcp`；只有需要更底层的 Network/性能数据时再用 `chrome_devtools_mcp`。
 
 ## 仓库结构与约定

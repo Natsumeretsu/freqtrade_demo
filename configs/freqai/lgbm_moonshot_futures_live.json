@@ -1,0 +1,99 @@
+{
+  "$schema": "https://schema.freqtrade.io/schema.json",
+  "max_open_trades": 6,
+  "stake_currency": "USDT",
+  "stake_amount": "unlimited",
+  "tradable_balance_ratio": 0.95,
+  "dry_run": true,
+  "dry_run_wallet": 100,
+  "trading_mode": "futures",
+  "margin_mode": "isolated",
+  "strategy": "FreqaiMoonshotStandalone",
+  "unfilledtimeout": {
+    "entry": 10,
+    "exit": 10,
+    "unit": "minutes"
+  },
+  "entry_pricing": {
+    "price_side": "other",
+    "use_order_book": true,
+    "order_book_top": 1
+  },
+  "exit_pricing": {
+    "price_side": "other",
+    "use_order_book": true,
+    "order_book_top": 1
+  },
+  "exchange": {
+    "name": "okx",
+    "pair_whitelist": [],
+    "pair_blacklist": [
+      ".*DOWN/.*",
+      ".*UP/.*",
+      ".*BEAR/.*",
+      ".*BULL/.*"
+    ]
+  },
+  "pairlists": [
+    {
+      "method": "VolumePairList",
+      "number_assets": 30,
+      "sort_key": "quoteVolume",
+      "min_value": 50000000,
+      "refresh_period": 86400,
+      "lookback_timeframe": "1d",
+      "lookback_period": 1
+    },
+    {
+      "method": "AgeFilter",
+      "min_days_listed": 90
+    },
+    {
+      "method": "SpreadFilter",
+      "max_spread_ratio": 0.005
+    },
+    {
+      "method": "RangeStabilityFilter",
+      "lookback_days": 3,
+      "min_rate_of_change": 0.02,
+      "max_rate_of_change": 0.30,
+      "refresh_period": 1800
+    },
+    {
+      "method": "PerformanceFilter",
+      "minutes": 1440,
+      "trade_back_seconds": 86400
+    }
+  ],
+  "freqai": {
+    "enabled": true,
+    "purge_old_models": true,
+    "train_period_days": 365,
+    "backtest_period_days": 30,
+    "live_retrain_hours": 24,
+    "identifier": "lgbm_moonshot_live_v1",
+    "feature_parameters": {
+      "include_timeframes": ["1h"],
+      "include_corr_pairlist": ["BTC/USDT:USDT"],
+      "label_period_candles": 6,
+      "include_shifted_candles": 2,
+      "indicator_periods_candles": [10, 20, 50],
+      "indicator_max_lag": 1,
+      "DI_threshold": 1.0
+    },
+    "data_split_parameters": {
+      "test_size": 0.2,
+      "random_state": 42
+    },
+    "model_training_parameters": {
+      "n_estimators": 800,
+      "learning_rate": 0.03,
+      "num_leaves": 48,
+      "max_depth": 8,
+      "feature_fraction": 0.8,
+      "bagging_fraction": 0.7,
+      "bagging_freq": 1,
+      "n_jobs": -1
+    }
+  }
+}

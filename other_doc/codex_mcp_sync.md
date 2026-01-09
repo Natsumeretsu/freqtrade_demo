@@ -1,14 +1,20 @@
 # Codex MCP 同步与一键初始化
 
-本文面向团队/多电脑场景：在新电脑上快速把常用 MCP（Context7 / MarkItDown / Playwright / Chrome DevTools / Wolfram）配置到 Codex CLI 的用户配置 `~/.codex/config.toml`。
+本文面向团队/多电脑场景：在新电脑上快速把常用 MCP（Serena / Context7 / MarkItDown / Playwright / Chrome DevTools / Wolfram）配置到 Codex CLI 的用户配置 `~/.codex/config.toml`。
 
-本仓库已提供一键脚本：`./scripts/setup_codex_mcp.ps1`。
+本仓库已提供一键脚本：`./scripts/mcp/setup_codex.ps1`。
 
 ## 为什么不建议直接复制 `~/.codex/config.toml`
 
 - 配置里常包含**绝对路径**（不同电脑盘符/安装位置不同）。
 - 配置里可能包含 **Token/API Key**（不应进仓库、也不应随意分发）。
 - 一键脚本可按需探测依赖、统一参数、减少“改路径/改环境变量”的人工步骤。
+
+## Serena 的同步策略（项目内 `.serena/`）
+
+- 本仓库已包含 `.serena/project.yml` 与 `.serena/memories/`，建议随 Git 跨设备同步。
+- `.serena/cache/` 与 `.serena/logs/` 属于本机缓存/日志，默认已忽略（不建议同步）。
+- Serena MCP 默认使用 `--project-from-cwd` 自动识别项目，因此建议在目标项目目录内启动 Codex CLI。
 
 ## 一键初始化（Windows）
 
@@ -29,19 +35,19 @@
 在仓库根目录执行：
 
 ```powershell
-powershell.exe -ExecutionPolicy Bypass -File "./scripts/setup_codex_mcp.ps1"
+powershell.exe -ExecutionPolicy Bypass -File "./scripts/mcp/setup_codex.ps1"
 ```
 
 只预览（不改本机配置）：
 
 ```powershell
-./scripts/setup_codex_mcp.ps1 -WhatIf
+./scripts/mcp/setup_codex.ps1 -WhatIf
 ```
 
 覆盖已有同名 MCP server（危险性：会重写你本机对应 server 配置）：
 
 ```powershell
-./scripts/setup_codex_mcp.ps1 -Force
+./scripts/mcp/setup_codex.ps1 -Force
 ```
 
 ## 脚本参数说明
@@ -80,7 +86,7 @@ powershell.exe -ExecutionPolicy Bypass -File "./scripts/setup_codex_mcp.ps1"
 如需自定义：
 
 ```powershell
-./scripts/setup_codex_mcp.ps1 -WolframMode python -WolframMcpRepoDir "C:/Users/Difg/.codex/tools/Wolfram-MCP" -WolframMcpRepoUrl "https://github.com/Natsumeretsu/Wolfram-MCP.git"
+./scripts/mcp/setup_codex.ps1 -WolframMode python -WolframMcpRepoDir "C:/Users/Difg/.codex/tools/Wolfram-MCP" -WolframMcpRepoUrl "https://github.com/Natsumeretsu/Wolfram-MCP.git"
 ```
 
 ### 方案 B：Paclet 模式（可选）
@@ -97,13 +103,13 @@ powershell.exe -ExecutionPolicy Bypass -File "./scripts/setup_codex_mcp.ps1"
 使用方式（示例）：
 
 ```powershell
-./scripts/setup_codex_mcp.ps1 -WolframMode paclet
+./scripts/mcp/setup_codex.ps1 -WolframMode paclet
 ```
 
 如果你的 `wolframscript` 不在 PATH，可显式传安装目录：
 
 ```powershell
-./scripts/setup_codex_mcp.ps1 -WolframMode paclet -WolframInstallationDirectory "C:/Program Files/Wolfram Research/Wolfram Engine/14.3"
+./scripts/mcp/setup_codex.ps1 -WolframMode paclet -WolframInstallationDirectory "C:/Program Files/Wolfram Research/Wolfram Engine/14.3"
 ```
 
 ## 安全提醒

@@ -1,4 +1,16 @@
-﻿[CmdletBinding()]
+<#
+.SYNOPSIS
+    Freqtrade 命令包装器
+
+.DESCRIPTION
+    通过 uv run freqtrade 执行命令，自动设置 userdir 为仓库根目录。
+    所有参数透传给 freqtrade。
+
+.EXAMPLE
+    .\ft.ps1 backtesting --config config.json
+    .\ft.ps1 download-data --pairs BTC/USDT
+#>
+[CmdletBinding()]
 param(
   [Parameter(ValueFromRemainingArguments = $true)]
   [string[]]$FreqtradeArgs

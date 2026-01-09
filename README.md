@@ -15,7 +15,7 @@
 - `freqtrade_book/`：渐进式学习手册（中文）
 - `freqtrade_docs/`：离线整理的参考库（中文）
 - `strategies_ref_docs/`：策略参考文档（Git 子模块）
-- `tools/`：开发工具（可选；建议不要把外部依赖放进仓库；Wolfram-MCP 建议安装到 `~/.codex/tools/Wolfram-MCP/`）
+- `.claude/CONVENTIONS.md`：项目规范文档（必读）
 - `models/`：FreqAI 训练/预测产物（默认忽略，不建议手工改动）
 - `artifacts/`：本地归档/历史产物（默认忽略）
 - `.serena/`：Serena 项目配置与记忆（建议跨设备同步 `memories/` 与 `project.yml`；`cache/`/`logs/` 默认忽略）
@@ -67,10 +67,10 @@ powershell.exe -ExecutionPolicy Bypass -File "./scripts/bootstrap.ps1"
 
 ## Codex MCP（可选）
 
-如果团队使用 Codex CLI，并希望启用常用 MCP（Context7 / Playwright / MarkItDown / Chrome DevTools / Wolfram），克隆后在仓库根目录执行一次：
+如果团队使用 Codex CLI，并希望启用常用 MCP（Serena / Context7 / MarkItDown / Playwright / Chrome DevTools / Wolfram），克隆后在仓库根目录执行一次：
 
 ```powershell
-powershell.exe -ExecutionPolicy Bypass -File "./scripts/setup_codex_mcp.ps1"
+powershell.exe -ExecutionPolicy Bypass -File "./scripts/mcp/setup_codex.ps1"
 ```
 
 更完整的同步/参数说明见：`other_doc/codex_mcp_sync.md`。
@@ -78,13 +78,13 @@ powershell.exe -ExecutionPolicy Bypass -File "./scripts/setup_codex_mcp.ps1"
 仅预览将要执行的命令（不修改本机配置）：
 
 ```powershell
-./scripts/setup_codex_mcp.ps1 -WhatIf
+./scripts/mcp/setup_codex.ps1 -WhatIf
 ```
 
 如果你已经添加过同名 MCP server，但想按脚本版本覆盖：
 
 ```powershell
-./scripts/setup_codex_mcp.ps1 -Force
+./scripts/mcp/setup_codex.ps1 -Force
 ```
 
 前置：已安装 `codex`（Codex CLI）、`node`（含 `npx`）、`uv`（含 `uvx`）。本仓库默认使用 Wolfram 的 **Python 模式**（默认使用 `~/.codex/tools/Wolfram-MCP/`，脚本会按需克隆/更新该仓库并自动初始化其 `.venv`）；如需改用 `wolframscript` + Paclet 请使用 `-WolframMode paclet`。如需强制重建 `~/.codex/tools/Wolfram-MCP/.venv`，可加 `-BootstrapWolframPython`。如需指定 Wolfram-MCP 仓库位置/地址，可用 `-WolframMcpRepoDir` / `-WolframMcpRepoUrl`。
@@ -101,7 +101,7 @@ uv run freqtrade --userdir "." new-config --config "./config.json"
 
 本仓库提供：
 
-- 策略：`strategies/freqai_lgbm_trend_strategy.py`（`FreqaiLGBMTrendStrategy`）
+- 策略：`strategies/FreqaiLGBMTrendStrategy.py`（`FreqaiLGBMTrendStrategy`）
 - 示例配置：`configs/freqai/lgbm_trend_v1.json`
 
 ### 开发约定（避免重复造轮子）
@@ -124,7 +124,33 @@ uv run freqtrade --userdir "." new-config --config "./config.json"
 扫参示例（跨多个窗口评估阈值稳健性）：
 
 ```powershell
-uv run python "scripts/sweep_freqai_params.py" --configs "configs/freqai/lgbm_trend_v1_eval.json" --pairs "BTC/USDT" --timeframe-detail "5m" --fee 0.0015
+uv run python "scripts/analysis/param_sweep.py" --configs "configs/freqai/lgbm_trend_v1_eval.json" --pairs "BTC/USDT" --timeframe-detail "5m" --fee 0.0015
 ```
 
-提示：扫参脚本也支持把入场过滤参数一起纳入网格（用于提升“熊市/暴跌窗口”的抗性），详见 `scripts/sweep_freqai_params.py --help`。
+提示：扫参脚本也支持把入场过滤参数一起纳入网格（用于提升“熊市/暴跌窗口”的抗性），详见 `scripts/analysis/param_sweep.py --help`。
+
+## 市场仪表盘（大盘均值/相对强弱）
+
+如果你希望从**最早数据到最新**，查看“交易对等权大盘”的归一化走势，以及每个交易对相对大盘的**强弱/排名变化**：
+
+```powershell
+uv run python "scripts/data/dashboard.py" `
+  --config "configs/config_moonshot.json" `
+  --datadir "data/okx" `
+  --timeframe "1h" `
+  --resample "1D" `
+  --benchmark "rebalanced" `
+  --anchor "pair" `
+  --heatmap-resample "1W" `
+  --out "plot/market_dashboard_moonshot.html"
+```
+
+周期同步更新（适合 Dry Run / Live 前的“实盘节奏”监控）：
+
+```powershell
+powershell.exe -ExecutionPolicy Bypass -File "./scripts/data/update_dashboard.ps1" `
+  -Config "configs/config_moonshot.json" `
+  -Days 10 `
+  -Timeframes @("1h") `
+  -Out "plot/market_dashboard_moonshot.html"
+```

@@ -3,7 +3,7 @@
 /*.env
 
 # 运行期数据/日志（通常体积较大且可再生成）
-/data/
+# /data/  # 保留数据目录，方便跨设备同步
 /logs/
 /backtest_results/
 /hyperopt_results/
