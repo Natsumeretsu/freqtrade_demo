@@ -9,18 +9,28 @@ pair_report.py - 逐交易对回测表现报告
 from __future__ import annotations
 
 import argparse
-import json
-import zipfile
+import sys
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
+# 添加 scripts/lib 到路径
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "lib"))
+
+from backtest_utils import (
+    extract_backtest_range,
+    pair_to_data_path,
+    pick_strategy_name,
+    read_backtest_zip,
+)
+from format_utils import fmt_float
+
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "生成“逐交易对表现 vs 交易对自身 Market Change”的汇总报表（HTML + CSV）。\n"
+            "生成\"逐交易对表现 vs 交易对自身 Market Change\"的汇总报表（HTML + CSV）。\n"
             "\n"
             "输出要求（固定规范）：\n"
             "- 纵轴=交易对（行）\n"
@@ -72,41 +82,8 @@ def _parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def _read_backtest_zip(zip_path: Path) -> dict:
-    if not zip_path.is_file():
-        raise FileNotFoundError(f"未找到 zip：{zip_path}")
-
-    json_name = zip_path.with_suffix(".json").name
-    with zipfile.ZipFile(zip_path) as zf:
-        return json.loads(zf.read(json_name))
-
-
-def _pick_strategy_name(data: dict, requested: str) -> str:
-    requested = (requested or "").strip()
-    if requested:
-        return requested
-    strategies = list((data.get("strategy") or {}).keys())
-    if len(strategies) != 1:
-        raise ValueError(f"无法自动判断策略名（zip 内策略数={len(strategies)}），请用 --strategy 指定")
-    return strategies[0]
-
-
-def _extract_backtest_range(strategy_data: dict) -> tuple[pd.Timestamp, pd.Timestamp]:
-    start_raw = strategy_data.get("backtest_start")
-    end_raw = strategy_data.get("backtest_end")
-    if not start_raw or not end_raw:
-        raise ValueError("回测结果缺少 backtest_start/backtest_end，无法计算 market change")
-
-    start = pd.to_datetime(start_raw, utc=True, errors="coerce")
-    end = pd.to_datetime(end_raw, utc=True, errors="coerce")
-    if pd.isna(start) or pd.isna(end):
-        raise ValueError("backtest_start/backtest_end 无法解析为时间")
-    if end <= start:
-        raise ValueError("backtest_end 必须晚于 backtest_start")
-    return start, end
-
-
 def _resolve_timeframe(strategy_data: dict, cli_value: str) -> str:
+    """从策略数据或命令行参数获取 timeframe。"""
     cli_value = (cli_value or "").strip()
     if cli_value:
         return cli_value
@@ -118,32 +95,8 @@ def _resolve_timeframe(strategy_data: dict, cli_value: str) -> str:
     raise ValueError("无法自动获取 timeframe，请显式传入 --timeframe（例如 5m/1h/4h）。")
 
 
-def _pair_to_data_path(datadir: Path, *, pair: str, timeframe: str, trading_mode: str) -> Path:
-    safe = pair.replace("/", "_").replace(":", "_")
-    tf = str(timeframe).strip()
-    mode = str(trading_mode).strip().lower()
-
-    # futures: data/okx/futures/BTC_USDT_USDT-5m-futures.feather
-    if mode == "futures":
-        candidates = [
-            datadir / "futures" / f"{safe}-{tf}-futures.feather",
-            datadir / "futures" / f"{safe}-{tf}.feather",
-        ]
-    else:
-        candidates = [
-            datadir / f"{safe}-{tf}.feather",
-            datadir / "spot" / f"{safe}-{tf}.feather",
-        ]
-
-    for p in candidates:
-        if p.is_file():
-            return p
-
-    tried = "\n".join(f"- {p.as_posix()}" for p in candidates)
-    raise FileNotFoundError(f"未找到交易对数据文件（pair={pair} timeframe={tf} mode={mode}）：\n{tried}")
-
-
 def _calc_market_change_pct(data_path: Path, *, start: pd.Timestamp, end: pd.Timestamp) -> float:
+    """计算指定时间范围内的市场变化百分比。"""
     df = pd.read_feather(data_path, columns=["date", "close"])
     if df is None or df.empty:
         return float("nan")
@@ -164,22 +117,18 @@ def _calc_market_change_pct(data_path: Path, *, start: pd.Timestamp, end: pd.Tim
 
 
 def _default_out_base(strategy_name: str, start: pd.Timestamp, end: pd.Timestamp) -> Path:
+    """生成默认输出文件基础路径。"""
     safe = "".join(c if c.isalnum() or c in ("-", "_") else "_" for c in strategy_name)
     s = start.strftime("%Y%m%d")
     e = end.strftime("%Y%m%d")
     return Path("plot") / f"{safe}_per_pair_report_{s}_{e}"
 
 
-def _fmt_pct(v: float) -> str:
+def _fmt_pct_display(v: float) -> str:
+    """格式化百分比用于显示（已经是百分比值）。"""
     if not np.isfinite(v):
         return ""
     return f"{v:+.2f}%"
-
-
-def _fmt_float(v: float, digits: int = 4) -> str:
-    if not np.isfinite(v):
-        return ""
-    return f"{v:.{digits}f}"
 
 
 def _render_html(
@@ -188,6 +137,7 @@ def _render_html(
     meta: list[tuple[str, str]],
     table_html: str,
 ) -> str:
+    """渲染 HTML 报表。"""
     meta_items = "\n".join(f"<li><b>{k}</b>: {v}</li>" for k, v in meta if k and v)
     return f"""<!doctype html>
 <html lang="zh-CN">
@@ -223,14 +173,14 @@ def main() -> int:
     zip_path = Path(str(args.zip))
     datadir = Path(str(args.datadir))
 
-    data = _read_backtest_zip(zip_path)
-    strategy_name = _pick_strategy_name(data, str(args.strategy))
+    data, _ = read_backtest_zip(zip_path)
+    strategy_name = pick_strategy_name(data, str(args.strategy))
     strategy_data = ((data.get("strategy") or {}).get(strategy_name)) or {}
     if not strategy_data:
         raise ValueError(f"zip 内未找到策略：{strategy_name}")
 
     timeframe = _resolve_timeframe(strategy_data, str(args.timeframe))
-    start, end = _extract_backtest_range(strategy_data)
+    start, end = extract_backtest_range(strategy_data)
 
     raw_rows = [r for r in (strategy_data.get("results_per_pair") or []) if isinstance(r, dict)]
     pair_rows = [r for r in raw_rows if str(r.get("key") or "").strip().upper() != "TOTAL"]
@@ -239,7 +189,7 @@ def main() -> int:
         raise ValueError("results_per_pair 为空，无法生成逐交易对报表")
 
     starting_balance = float(strategy_data.get("starting_balance", 0.0) or 0.0)
-    alloc = float(starting_balance / pair_count) if starting_balance > 0 else float("nan")
+    alloc = float(starting_balance / pair_count) if starting_balance > 0 and pair_count > 0 else float("nan")
 
     rows: list[dict] = []
     for r in pair_rows:
@@ -247,14 +197,16 @@ def main() -> int:
         if not pair:
             continue
 
-        data_path = _pair_to_data_path(datadir, pair=pair, timeframe=timeframe, trading_mode=str(args.trading_mode))
-        market_change_pct = _calc_market_change_pct(data_path, start=start, end=end)
+        try:
+            data_path = pair_to_data_path(datadir, pair=pair, timeframe=timeframe, trading_mode=str(args.trading_mode))
+            market_change_pct = _calc_market_change_pct(data_path, start=start, end=end)
+        except FileNotFoundError:
+            market_change_pct = float("nan")
 
         profit_total_abs = float(r.get("profit_total_abs", float("nan")))
         profit_total_pct = float(r.get("profit_total_pct", float("nan")))
 
-        # 更直观的“等额资金回报率”：把每个交易对视为起始等权分配的一份资金（starting_balance/pair_count）
-        # 注意：这是后处理指标，便于和 market_change_pct 做同口径对比。
+        # 更直观的"等额资金回报率"
         strategy_return_equal_alloc_pct = (profit_total_abs / alloc * 100.0) if np.isfinite(alloc) and alloc > 0 else float("nan")
         alpha_equal_alloc_pct = strategy_return_equal_alloc_pct - market_change_pct
 
@@ -298,28 +250,25 @@ def main() -> int:
     # CSV：保留数值，便于后续做二次分析
     df.to_csv(out_csv, encoding="utf-8-sig")
 
-    # HTML：做更友好的格式化展示（不破坏 CSV 的可计算性）
+    # HTML：做更友好的格式化展示
     df_display = df.copy()
     pct_cols = [
-        "winrate_pct",
-        "profit_mean_pct",
-        "profit_total_pct",
-        "strategy_return_equal_alloc_pct",
-        "market_change_pct",
-        "alpha_equal_alloc_pct",
-        "max_drawdown_account_pct",
+        "winrate_pct", "profit_mean_pct", "profit_total_pct",
+        "strategy_return_equal_alloc_pct", "market_change_pct",
+        "alpha_equal_alloc_pct", "max_drawdown_account_pct",
     ]
     float_cols_3 = ["profit_total_abs"]
     float_cols_4 = ["profit_factor", "expectancy_ratio", "sharpe", "sortino", "calmar"]
+
     for c in pct_cols:
         if c in df_display.columns:
-            df_display[c] = df_display[c].apply(_fmt_pct)
+            df_display[c] = df_display[c].apply(_fmt_pct_display)
     for c in float_cols_3:
         if c in df_display.columns:
-            df_display[c] = df_display[c].apply(lambda v: _fmt_float(float(v), 3))
+            df_display[c] = df_display[c].apply(lambda v: fmt_float(float(v), 3))
     for c in float_cols_4:
         if c in df_display.columns:
-            df_display[c] = df_display[c].apply(lambda v: _fmt_float(float(v), 4))
+            df_display[c] = df_display[c].apply(lambda v: fmt_float(float(v), 4))
 
     title = f"逐交易对报表（vs Market change）| {strategy_name} | {start.date().isoformat()} ~ {end.date().isoformat()}"
     meta = [
@@ -346,4 +295,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

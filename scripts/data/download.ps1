@@ -47,9 +47,15 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
-function Test-Command {
-  param([string]$Name)
-  return [bool](Get-Command $Name -ErrorAction SilentlyContinue)
+# 加载公共模块
+$mcpCommon = Join-Path $PSScriptRoot "../lib/common.ps1"
+if (Test-Path $mcpCommon) {
+  . $mcpCommon
+} else {
+  function Test-Command {
+    param([string]$Name)
+    return [bool](Get-Command $Name -ErrorAction SilentlyContinue)
+  }
 }
 
 if (-not (Test-Command "uv")) {
@@ -77,7 +83,7 @@ if ($Erase) {
   }
 }
 
-$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "../..")).Path
 Set-Location $repoRoot
 
 $argsList = @(

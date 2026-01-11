@@ -30,7 +30,7 @@
 | `freqtrade_book/` | 学习手册 | 中文文档 |
 | `freqtrade_docs/` | 参考文档 | 离线整理 |
 | `strategies_ref_docs/` | 策略参考 | Git 子模块 |
-| `other_doc/` | 其他文档 | MCP 配置等 |
+| `project_docs/` | 其他文档 | MCP 配置等 |
 
 ---
 

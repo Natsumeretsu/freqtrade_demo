@@ -472,7 +472,7 @@ def _parse_args() -> argparse.Namespace:
 def main() -> int:
     args = _parse_args()
 
-    repo_root = Path(__file__).resolve().parents[1]
+    repo_root = Path(__file__).resolve().parents[2]  # scripts/analysis -> scripts -> repo_root
     param_file = repo_root / str(args.strategy_param_file)
 
     buy_thresholds = _parse_float_list(str(args.buy_thresholds))

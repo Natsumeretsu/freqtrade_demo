@@ -12,9 +12,12 @@
 - 本机为 Windows 环境，默认使用 **Windows PowerShell 5.1**。
 - 统一使用 `uv` 管理虚拟环境，虚拟环境放在：`./.venv/`。
 - 依赖安装统一使用 `uv sync --frozen`（以 `uv.lock` 为准）。
-- 命令行优先使用 `uv run` 在项目环境中执行，并带上 userdir：
-  - `uv run freqtrade <命令> --userdir "." ...`
-- 可选：使用 `./scripts/bootstrap.ps1` 一键初始化（含子模块 + 依赖同步）。
+- **⚠️ 所有操作必须通过 `scripts/` 文件夹中的脚本执行：**
+  - Freqtrade 命令：`./scripts/ft.ps1 <命令> ...`（自动补 `--userdir "."`）
+  - 数据下载：`./scripts/data/download.ps1`
+  - 初始化：`./scripts/bootstrap.ps1`
+  - **禁止直接运行 `freqtrade` 或 `uv run freqtrade`**，否则会创建多余的 `user_data/` 子目录
+  - 仅当 `scripts/` 中没有对应脚本时，才考虑运行底层命令
 - 路径处理：命令里优先使用双引号包裹路径，尽量使用正斜杠 `/`。
 
 ## MCP 工具优先策略（默认）

@@ -1,0 +1,33 @@
+{
+  "name": "vharvest",
+  "version": "0.1.0",
+  "updated_date_utc": "2026-01-11",
+  "description": "vibe coding 输入采集层（控制平面清单）：把外部网页/文件采集为本地 feed（.vibe/knowledge/sources），并记录 blocked/needs_human 等合规状态；供 vbrain ingest 与后续提炼回灌。",
+  "capabilities": {
+    "entrypoints": {
+      "source_registry": "project_docs/knowledge/source_registry.md",
+      "vharvest_cli": "scripts/tools/vharvest.py",
+      "fetch_sources_markitdown": "scripts/tools/source_registry_fetch_sources.py",
+      "fetch_sources_playwright": "scripts/tools/source_registry_fetch_sources_playwright.py"
+    },
+    "cache_layout": {
+      "sources_cache_dir": ".vibe/knowledge/sources"
+    },
+    "mcp_servers": [
+      {
+        "id": "markitdown",
+        "required": false,
+        "role": "静态网页/文件转 Markdown（采集层输入适配器）"
+      },
+      {
+        "id": "playwright",
+        "required": false,
+        "role": "浏览器渲染采集（采集层输入适配器，仅限合法人工介入）"
+      }
+    ],
+    "policies": {
+      "no_bypass_captcha_login_paywall": true,
+      "human_intervention_required_for_legal_access": true
+    }
+  }
+}

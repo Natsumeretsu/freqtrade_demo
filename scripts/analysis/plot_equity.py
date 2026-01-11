@@ -9,19 +9,31 @@ plot_equity.py - 策略资金曲线 vs 大盘对比图
 from __future__ import annotations
 
 import argparse
-import json
-import zipfile
+import sys
 from pathlib import Path
 
 import pandas as pd
 import plotly.graph_objects as go
 import plotly.io as pio
 
+# 添加 scripts/lib 到路径
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "lib"))
+
+from backtest_utils import (
+    build_daily_index,
+    extract_backtest_range,
+    extract_pairs,
+    pair_to_data_filename,
+    pick_strategy_name,
+    read_backtest_zip,
+)
+from format_utils import fmt_pct_from_ratio
+
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "生成“策略资金曲线 vs 大盘（归一化）”对比图（HTML）。\n"
+            "生成\"策略资金曲线 vs 大盘（归一化）\"对比图（HTML）。\n"
             "\n"
             "输入：Freqtrade 回测结果 zip（backtest_results/*.zip）。\n"
             "输出：Plotly HTML（默认引用 CDN，无需本地 plotly.js）。\n"
@@ -70,56 +82,6 @@ def _parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def _read_backtest_zip(zip_path: Path) -> tuple[dict, pd.DataFrame]:
-    if not zip_path.is_file():
-        raise FileNotFoundError(f"未找到 zip：{zip_path}")
-
-    base = zip_path.with_suffix("").name
-    json_name = f"{base}.json"
-    feather_name = f"{base}_market_change.feather"
-
-    with zipfile.ZipFile(zip_path) as zf:
-        data = json.loads(zf.read(json_name))
-        with zf.open(feather_name) as f:
-            market = pd.read_feather(f)
-
-    if market is None or market.empty:
-        raise ValueError("zip 内 market_change.feather 为空，无法生成“大盘”曲线")
-
-    return data, market
-
-
-def _pick_strategy_name(data: dict, requested: str) -> str:
-    requested = (requested or "").strip()
-    if requested:
-        return requested
-    strategies = list((data.get("strategy") or {}).keys())
-    if len(strategies) != 1:
-        raise ValueError(f"无法自动判断策略名（zip 内策略数={len(strategies)}），请用 --strategy 指定")
-    return strategies[0]
-
-
-def _extract_backtest_range(strategy_data: dict) -> tuple[pd.Timestamp, pd.Timestamp]:
-    start_raw = strategy_data.get("backtest_start")
-    end_raw = strategy_data.get("backtest_end")
-    if not start_raw or not end_raw:
-        raise ValueError("回测结果缺少 backtest_start/backtest_end，无法构建对齐的时间轴")
-
-    start = pd.to_datetime(start_raw, utc=True, errors="coerce")
-    end = pd.to_datetime(end_raw, utc=True, errors="coerce")
-    if pd.isna(start) or pd.isna(end):
-        raise ValueError("backtest_start/backtest_end 无法解析为时间")
-    if end <= start:
-        raise ValueError("backtest_end 必须晚于 backtest_start")
-    return start, end
-
-
-def _build_daily_index(backtest_start: pd.Timestamp, backtest_end: pd.Timestamp) -> pd.DatetimeIndex:
-    start_day = backtest_start.floor("D")
-    end_day = backtest_end.floor("D")
-    return pd.date_range(start=start_day, end=end_day, freq="D", tz="UTC")
-
-
 def _build_market_series_rel_mean(market: pd.DataFrame, daily_index: pd.DatetimeIndex) -> pd.Series:
     df = market.copy()
     df["date"] = pd.to_datetime(df["date"], utc=True, errors="coerce")
@@ -134,23 +96,6 @@ def _build_market_series_rel_mean(market: pd.DataFrame, daily_index: pd.Datetime
     return 1.0 + rel_daily
 
 
-def _extract_pairs(strategy_data: dict) -> list[str]:
-    out: list[str] = []
-    for row in strategy_data.get("results_per_pair") or []:
-        if not isinstance(row, dict):
-            continue
-        pair = str(row.get("key") or "").strip()
-        if not pair or pair.upper() == "TOTAL":
-            continue
-        out.append(pair)
-    # 保留顺序去重
-    return list(dict.fromkeys(out))
-
-
-def _pair_to_data_filename(pair: str, timeframe: str) -> str:
-    return f"{pair.replace('/', '_')}-{timeframe}.feather"
-
-
 def _build_market_series_buy_and_hold(
     *,
     strategy_data: dict,
@@ -158,14 +103,14 @@ def _build_market_series_buy_and_hold(
     datadir: Path,
     timeframe: str,
 ) -> pd.Series:
-    pairs = _extract_pairs(strategy_data)
+    pairs = extract_pairs(strategy_data)
     if not pairs:
         raise ValueError("回测结果缺少 results_per_pair（或未包含任何交易对），无法构建大盘曲线")
 
     closes: list[pd.Series] = []
     skipped: list[str] = []
     for pair in pairs:
-        fn = datadir / _pair_to_data_filename(pair, timeframe)
+        fn = datadir / pair_to_data_filename(pair, timeframe)
         if not fn.is_file():
             skipped.append(pair)
             continue
@@ -193,7 +138,7 @@ def _build_market_series_buy_and_hold(
         raise ValueError("无法从本地 data 目录加载任何交易对的价格数据")
 
     if skipped:
-        print(f"⚠️  跳过 {len(skipped)} 个交易对（缺少数据或起始价无效）：{', '.join(skipped[:10])}" + (" ..." if len(skipped) > 10 else ""))
+        print(f"[!] 跳过 {len(skipped)} 个交易对（缺少数据或起始价无效）：{', '.join(skipped[:10])}" + (" ..." if len(skipped) > 10 else ""))
 
     market_index = pd.concat(closes, axis=1).mean(axis=1)
     return market_index
@@ -204,7 +149,7 @@ def _build_equity_series(strategy_data: dict, daily_index: pd.DatetimeIndex) -> 
     if starting_balance <= 0:
         raise ValueError("回测结果缺少 starting_balance，无法生成资金曲线")
 
-    # daily_profit 的日期粒度为天（YYYY-MM-DD），这里生成“每日起点”的资金曲线：
+    # daily_profit 的日期粒度为天（YYYY-MM-DD），这里生成"每日起点"的资金曲线：
     # - x=某天 00:00:00，y=该时刻账户余额（不包含当天结束时的盈亏）
     # - 末尾额外追加 backtest_end（通常也是 00:00:00），使末值对齐 final_balance
     days = daily_index[:-1]
@@ -241,22 +186,21 @@ def _default_out_path(strategy_name: str, daily_index: pd.DatetimeIndex) -> Path
     return Path("plot") / f"{safe}_equity_vs_market_{start}_{end}.html"
 
 
-def _pct_text(v: float) -> str:
-    return f"{(v - 1.0) * 100.0:+.2f}%"
-
-
 def main() -> int:
     args = _parse_args()
     zip_path = Path(str(args.zip))
-    data, market = _read_backtest_zip(zip_path)
+    data, market = read_backtest_zip(zip_path)
 
-    strategy_name = _pick_strategy_name(data, str(args.strategy))
+    if market is None or market.empty:
+        raise ValueError("zip 内 market_change.feather 为空，无法生成大盘曲线")
+
+    strategy_name = pick_strategy_name(data, str(args.strategy))
     strategy_data = ((data.get("strategy") or {}).get(strategy_name)) or {}
     if not strategy_data:
         raise ValueError(f"zip 内未找到策略：{strategy_name}")
 
-    backtest_start, backtest_end = _extract_backtest_range(strategy_data)
-    daily_index = _build_daily_index(backtest_start, backtest_end)
+    backtest_start, backtest_end = extract_backtest_range(strategy_data)
+    daily_index = build_daily_index(backtest_start, backtest_end)
 
     benchmark = str(args.benchmark).strip().lower()
     if benchmark == "rel_mean":
@@ -306,14 +250,14 @@ def main() -> int:
             {
                 "x": last_x,
                 "y": eq_last,
-                "text": f"策略末值: {eq_last:.3f}（{_pct_text(eq_last)}）",
+                "text": f"策略末值: {eq_last:.3f}（{fmt_pct_from_ratio(eq_last)}）",
                 "showarrow": True,
                 "arrowhead": 2,
             },
             {
                 "x": last_x,
                 "y": mk_last,
-                "text": f"大盘末值: {mk_last:.3f}（{_pct_text(mk_last)}）",
+                "text": f"大盘末值: {mk_last:.3f}（{fmt_pct_from_ratio(mk_last)}）",
                 "showarrow": True,
                 "arrowhead": 2,
             },
@@ -324,8 +268,8 @@ def main() -> int:
 
     print("")
     print(f"已生成：{out_path.as_posix()}")
-    print(f"- 策略末值：{eq_last:.6f}（{_pct_text(eq_last)}）")
-    print(f"- 大盘末值：{mk_last:.6f}（{_pct_text(mk_last)}）")
+    print(f"- 策略末值：{eq_last:.6f}（{fmt_pct_from_ratio(eq_last)}）")
+    print(f"- 大盘末值：{mk_last:.6f}（{fmt_pct_from_ratio(mk_last)}）")
     return 0
 
 

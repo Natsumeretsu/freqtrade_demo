@@ -1,5 +1,18 @@
 # freqtrade_demo 常用命令（Windows / PowerShell）
 
+## ⚠️ 核心原则：所有操作必须通过 `scripts/` 文件夹中的脚本执行
+
+**重要：所有配置文件必须包含 `"user_data_dir": "."` 设置！**
+- 项目根目录 `F:\Code\freqtrade_demo` 本身就是 user_data 目录
+- 如果配置文件缺少此设置，freqtrade 会在项目根目录下创建多余的 `user_data/` 子目录
+
+禁止直接运行底层命令（如 `freqtrade`、`uv run freqtrade` 等），否则可能导致：
+- 创建多余的 `user_data/` 子目录（套娃）
+- 编码问题（中文 Windows 默认 GBK）
+- 路径配置不一致
+
+仅当 `scripts/` 中没有对应脚本时，才考虑运行底层命令。
+
 ## 0) 初始化（首次克隆）
 - 克隆并拉取子模块：
   - `git clone --recurse-submodules "<repo_url>"`
@@ -20,6 +33,11 @@
 - 私密模板 → 本地私密配置：`Copy-Item "configs/config-private.example.json" "config-private.json"`
 
 ## 4) 运行 Freqtrade（推荐统一入口）
+
+**重要：禁止直接运行 `freqtrade` 命令！**
+- 始终通过 `./scripts/ft.ps1` 运行，否则会在项目根目录下创建多余的 `user_data/` 子目录（套娃）
+- 如果必须直接运行，必须加 `--userdir "."` 参数
+
 - 统一入口（自动 UTF-8 + 自动补 `--userdir "."`）：
   - `./scripts/ft.ps1 --help`
   - `./scripts/ft.ps1 --version`
@@ -27,13 +45,11 @@
   - `./scripts/ft.ps1 list-strategies`
 
 ## 5) 生成新配置（注意：`config*.json` 默认忽略，勿提交密钥）
-- `uv run freqtrade --userdir "." new-config --config "./config.json"`
+- `./scripts/ft.ps1 new-config --config "./config.json"`
 
 ## 6) 下载数据
-- 直接用 Freqtrade 子命令：
-  - `./scripts/ft.ps1 download-data --config "config.json" --pairs "BTC/USDT" --timeframes "1h" --days 30`
-- 或用封装脚本：
-  - `powershell.exe -File "./scripts/download_data.ps1" -Pairs "BTC/USDT" -Timeframes "1h" -Days 30 -Config "config.json"`
+- 统一入口（推荐）：`./scripts/ft.ps1 download-data --config "config.json" --pairs "BTC/USDT" --timeframes "1h" --days 30`
+- 或用封装脚本（支持正则 pairs / timerange / 交易模式等参数）：`powershell.exe -ExecutionPolicy Bypass -File "./scripts/data/download.ps1" -Pairs "BTC/USDT" -Timeframes "1h" -Days 30 -Config "config.json"`
 
 ## 7) 回测（示例模板）
 - 通用回测：
@@ -55,4 +71,4 @@ $start = (Get-Date).AddDays(-14).ToString('yyyyMMdd')
 - 可选：`uv run python "scripts/check_docs_health.py" --check-config-examples`
 
 ## 9) 回测结果压力测试（蒙特卡洛洗牌）
-- `uv run python "scripts/stress_test_backtest.py" --zip "backtest_results/<result>.zip" --simulations 5000`
+- `uv run python "scripts/analysis/stress_test.py" --zip "backtest_results/<result>.zip" --simulations 5000`

@@ -28,6 +28,44 @@ SKIP_OVERWRITE_MD = {
 
 APPENDIX_MARKER = "## 附录：官方原文（自动 Markdown 化）"
 
+# 预编译正则表达式（性能优化）
+_RE_HEADERLINK = re.compile(r"<a\s+class=headerlink[^>]*>.*?</a>", re.IGNORECASE | re.DOTALL)
+_RE_HTML_TAG = re.compile(r"<[^>]+>")
+_RE_WHITESPACE = re.compile(r"\s+")
+_RE_FREQTRADE_CMD = re.compile(r"(?m)^\s*(uv run )?freqtrade\b")
+_RE_PYTHON_DEF = re.compile(r"(?m)^\s*(def|class)\s+\w+")
+_RE_CANONICAL_1 = re.compile(r"<link\b[^>]*\brel=(?:\"|')?canonical(?:\"|')?[^>]*\bhref=(?:\"|')?([^\s\"'>]+)", re.IGNORECASE)
+_RE_CANONICAL_2 = re.compile(r"<link\b[^>]*\bhref=(?:\"|')?([^\s\"'>]+)[^>]*\brel=(?:\"|')?canonical(?:\"|')?", re.IGNORECASE)
+_RE_SAVED_DATE = re.compile(r"saved date:\s*(.+)$", re.IGNORECASE | re.MULTILINE)
+_RE_ARTICLE = re.compile(r'<article\s+class="md-content__inner[^"]*"\s*>(.*?)</article>', re.IGNORECASE | re.DOTALL)
+_RE_H1 = re.compile(r"<h1[^>]*>(.*?)</h1>", re.IGNORECASE | re.DOTALL)
+_RE_H2 = re.compile(r"<h2[^>]*>(.*?)</h2>", re.IGNORECASE | re.DOTALL)
+_RE_TRAILING_WS = re.compile(r"[ \t]+\n")
+_RE_MULTI_NEWLINE = re.compile(r"\n{3,}")
+_RE_CODE = re.compile(r"<code[^>]*>(.*?)</code>", re.IGNORECASE | re.DOTALL)
+_RE_LINK = re.compile(r"<a[^>]*href=([^\s>]+)[^>]*>(.*?)</a>", re.IGNORECASE | re.DOTALL)
+_RE_H1_REMOVE = re.compile(r"<h1[^>]*>.*?</h1>", re.IGNORECASE | re.DOTALL)
+_RE_HEADING = re.compile(r"<h([2-6])[^>]*>(.*?)</h\1>", re.IGNORECASE | re.DOTALL)
+_RE_P_CLOSE = re.compile(r"</p>", re.IGNORECASE)
+_RE_P_OPEN = re.compile(r"<p[^>]*>", re.IGNORECASE)
+_RE_BR = re.compile(r"<br\s*/?>", re.IGNORECASE)
+_RE_LI = re.compile(r"<li[^>]*>", re.IGNORECASE)
+_RE_LI_CLOSE = re.compile(r"</li>", re.IGNORECASE)
+_RE_LIST = re.compile(r"</?(ul|ol)[^>]*>", re.IGNORECASE)
+_RE_TABLE = re.compile(r"<table[^>]*>(.*?)</table>", re.IGNORECASE | re.DOTALL)
+_RE_TR = re.compile(r"<tr[^>]*>(.*?)</tr>", re.IGNORECASE | re.DOTALL)
+_RE_TD = re.compile(r"<t[hd][^>]*>(.*?)</t[hd]>", re.IGNORECASE | re.DOTALL)
+_RE_CODEBLOCK = re.compile(
+    r"(?:<span\s+class=filename>(.*?)</span>\s*)?"
+    r"<pre[^>]*>.*?<code[^>]*>(.*?)</code>.*?</pre>",
+    re.IGNORECASE | re.DOTALL,
+)
+_RE_EDIT_LINK = re.compile(r"<a[^>]*rel=edit[^>]*>.*?</a>", re.IGNORECASE | re.DOTALL)
+_RE_CODE_NAV = re.compile(r"<nav\s+class=md-code__nav>.*?</nav>", re.IGNORECASE | re.DOTALL)
+_RE_CODE_BUTTON = re.compile(r"<button[^>]*md-code__button[^>]*>.*?</button>", re.IGNORECASE | re.DOTALL)
+_RE_STRONG = re.compile(r"</?strong[^>]*>", re.IGNORECASE)
+_RE_EM = re.compile(r"</?em[^>]*>", re.IGNORECASE)
+
 
 TITLE_MAP = {
     "advanced-backtesting": "回测分析（高级）",
@@ -91,23 +129,18 @@ def _write_text(path: Path, content: str) -> None:
 def _strip_tags(text: str, *, collapse_ws: bool = True) -> str:
     if not text:
         return ""
-    text = re.sub(
-        r"<a\s+class=headerlink[^>]*>.*?</a>",
-        "",
-        text,
-        flags=re.IGNORECASE | re.DOTALL,
-    )
-    text = re.sub(r"<[^>]+>", "", text)
+    text = _RE_HEADERLINK.sub("", text)
+    text = _RE_HTML_TAG.sub("", text)
     text = html_lib.unescape(text)
     if collapse_ws:
-        text = re.sub(r"\s+", " ", text).strip()
+        text = _RE_WHITESPACE.sub(" ", text).strip()
     return text
 
 
 def _strip_tags_preserve_ws(text: str) -> str:
     if not text:
         return ""
-    text = re.sub(r"<[^>]+>", "", text)
+    text = _RE_HTML_TAG.sub("", text)
     text = html_lib.unescape(text)
     text = text.replace("\r\n", "\n").replace("\r", "\n")
     text = "\n".join(line.rstrip() for line in text.split("\n"))
@@ -118,11 +151,11 @@ def _guess_code_language(code: str) -> str:
     s = code.lstrip()
     if s.startswith("usage:"):
         return "text"
-    if re.search(r"(?m)^\s*(uv run )?freqtrade\b", code):
+    if _RE_FREQTRADE_CMD.search(code):
         return "bash"
     if s.startswith("{") or s.startswith("["):
         return "json"
-    if re.search(r"(?m)^\s*(def|class)\s+\w+", code) or "import " in code:
+    if _RE_PYTHON_DEF.search(code) or "import " in code:
         return "python"
     return "text"
 
@@ -130,18 +163,14 @@ def _guess_code_language(code: str) -> str:
 def _extract_head_info(html: str) -> tuple[str, str]:
     # canonical（兼容引号、href/rel 顺序差异）
     canonical = ""
-    canonical_patterns = (
-        r"<link\b[^>]*\brel=(?:\"|')?canonical(?:\"|')?[^>]*\bhref=(?:\"|')?([^\s\"'>]+)",
-        r"<link\b[^>]*\bhref=(?:\"|')?([^\s\"'>]+)[^>]*\brel=(?:\"|')?canonical(?:\"|')?",
-    )
-    for pat in canonical_patterns:
-        m = re.search(pat, html, flags=re.IGNORECASE)
+    for pat in (_RE_CANONICAL_1, _RE_CANONICAL_2):
+        m = pat.search(html)
         if m:
             canonical = m.group(1).strip()
             break
 
     # saved date
-    m = re.search(r"saved date:\s*(.+)$", html, flags=re.IGNORECASE | re.MULTILINE)
+    m = _RE_SAVED_DATE.search(html)
     saved_date = m.group(1).strip() if m else ""
     return canonical, saved_date
 
@@ -158,26 +187,22 @@ def _slug_from_canonical(canonical: str) -> str:
 
 
 def _md_name_from_slug(slug: str) -> str:
-    return re.sub(r"\s+", "_", slug.replace("-", "_")) + ".zh-CN.md"
+    return _RE_WHITESPACE.sub("_", slug.replace("-", "_")) + ".zh-CN.md"
 
 
 def _extract_article(html: str) -> str:
-    m = re.search(
-        r'<article\s+class="md-content__inner[^"]*"\s*>(.*?)</article>',
-        html,
-        flags=re.IGNORECASE | re.DOTALL,
-    )
+    m = _RE_ARTICLE.search(html)
     return m.group(1) if m else html
 
 
 def _extract_h1(article_html: str) -> str:
-    m = re.search(r"<h1[^>]*>(.*?)</h1>", article_html, flags=re.IGNORECASE | re.DOTALL)
+    m = _RE_H1.search(article_html)
     return _strip_tags(m.group(1)) if m else ""
 
 
 def _extract_h2_titles(article_html: str) -> list[str]:
     titles: list[str] = []
-    for m in re.finditer(r"<h2[^>]*>(.*?)</h2>", article_html, flags=re.IGNORECASE | re.DOTALL):
+    for m in _RE_H2.finditer(article_html):
         t = _strip_tags(m.group(1))
         if t:
             titles.append(t)
@@ -186,8 +211,8 @@ def _extract_h2_titles(article_html: str) -> list[str]:
 
 def _normalize_blank_lines(text: str) -> str:
     text = text.replace("\r\n", "\n").replace("\r", "\n")
-    text = re.sub(r"[ \t]+\n", "\n", text)
-    text = re.sub(r"\n{3,}", "\n\n", text)
+    text = _RE_TRAILING_WS.sub("\n", text)
+    text = _RE_MULTI_NEWLINE.sub("\n\n", text)
     return text.strip() + "\n"
 
 
@@ -196,17 +221,11 @@ def _convert_inline_code(html_text: str) -> str:
         inner = _strip_tags(m.group(1))
         if not inner:
             return "``"
-        # 简单处理：如果内容里含 `，就退化为普通文本
         if "`" in inner:
             return inner.replace("`", "'")
         return f"`{inner}`"
 
-    return re.sub(
-        r"<code[^>]*>(.*?)</code>",
-        repl,
-        html_text,
-        flags=re.IGNORECASE | re.DOTALL,
-    )
+    return _RE_CODE.sub(repl, html_text)
 
 
 def _convert_links(html_text: str) -> str:
@@ -217,59 +236,46 @@ def _convert_links(html_text: str) -> str:
             return href
         return f"[{text}]({href})"
 
-    # href 可能没有引号
-    return re.sub(
-        r"<a[^>]*href=([^\s>]+)[^>]*>(.*?)</a>",
-        repl,
-        html_text,
-        flags=re.IGNORECASE | re.DOTALL,
-    )
+    return _RE_LINK.sub(repl, html_text)
 
 
 def _convert_headings(html_text: str) -> str:
     def repl(m: re.Match[str]) -> str:
         level = int(m.group(1))
-        # 附录里整体下沉一级：h2 -> ###，h3 -> ####
         new_level = min(level + 1, 6)
         content = _strip_tags(m.group(2))
         if not content:
             return ""
         return f"\n\n{'#' * new_level} {content}\n\n"
 
-    # 先移除 h1（页面标题会在文档头部重复）
-    html_text = re.sub(r"<h1[^>]*>.*?</h1>", "", html_text, flags=re.IGNORECASE | re.DOTALL)
-    return re.sub(
-        r"<h([2-6])[^>]*>(.*?)</h\1>",
-        repl,
-        html_text,
-        flags=re.IGNORECASE | re.DOTALL,
-    )
+    html_text = _RE_H1_REMOVE.sub("", html_text)
+    return _RE_HEADING.sub(repl, html_text)
 
 
 def _convert_lists_and_paragraphs(html_text: str) -> str:
     # 段落
-    html_text = re.sub(r"</p>", "\n\n", html_text, flags=re.IGNORECASE)
-    html_text = re.sub(r"<p[^>]*>", "", html_text, flags=re.IGNORECASE)
+    html_text = _RE_P_CLOSE.sub("\n\n", html_text)
+    html_text = _RE_P_OPEN.sub("", html_text)
 
     # 换行
-    html_text = re.sub(r"<br\s*/?>", "\n", html_text, flags=re.IGNORECASE)
+    html_text = _RE_BR.sub("\n", html_text)
 
     # 列表（统一降级为无序列表，便于检索）
-    html_text = re.sub(r"<li[^>]*>", "\n- ", html_text, flags=re.IGNORECASE)
-    html_text = re.sub(r"</li>", "", html_text, flags=re.IGNORECASE)
-    html_text = re.sub(r"</?(ul|ol)[^>]*>", "\n", html_text, flags=re.IGNORECASE)
+    html_text = _RE_LI.sub("\n- ", html_text)
+    html_text = _RE_LI_CLOSE.sub("", html_text)
+    html_text = _RE_LIST.sub("\n", html_text)
 
     return html_text
 
 
 def _table_to_markdown(table_html: str) -> str:
-    rows = re.findall(r"<tr[^>]*>(.*?)</tr>", table_html, flags=re.IGNORECASE | re.DOTALL)
+    rows = _RE_TR.findall(table_html)
     if not rows:
         return ""
 
     parsed: list[list[str]] = []
     for row in rows:
-        cells = re.findall(r"<t[hd][^>]*>(.*?)</t[hd]>", row, flags=re.IGNORECASE | re.DOTALL)
+        cells = _RE_TD.findall(row)
         cell_texts = []
         for cell in cells:
             t = _strip_tags(cell)
@@ -306,24 +312,12 @@ def _convert_tables(html_text: str) -> tuple[str, list[str]]:
         tables.append(md)
         return f"\n\n@@TABLE_{idx}@@\n\n"
 
-    new_text = re.sub(
-        r"<table[^>]*>(.*?)</table>",
-        repl,
-        html_text,
-        flags=re.IGNORECASE | re.DOTALL,
-    )
+    new_text = _RE_TABLE.sub(repl, html_text)
     return new_text, tables
 
 
 def _convert_codeblocks(html_text: str) -> tuple[str, list[str]]:
     codeblocks: list[str] = []
-
-    # 同时捕获可选的“文件名”提示：<span class=filename>...</span>
-    pattern = re.compile(
-        r"(?:<span\s+class=filename>(.*?)</span>\s*)?"
-        r"<pre[^>]*>.*?<code[^>]*>(.*?)</code>.*?</pre>",
-        flags=re.IGNORECASE | re.DOTALL,
-    )
 
     def repl(m: re.Match[str]) -> str:
         filename_html = m.group(1) or ""
@@ -341,7 +335,7 @@ def _convert_codeblocks(html_text: str) -> tuple[str, list[str]]:
         codeblocks.append(fence)
         return f"\n\n@@CODE_{idx}@@\n\n"
 
-    new_text = pattern.sub(repl, html_text)
+    new_text = _RE_CODEBLOCK.sub(repl, html_text)
     return new_text, codeblocks
 
 
@@ -356,15 +350,10 @@ def _finalize_placeholders(text: str, *, codeblocks: list[str], tables: list[str
 
 def convert_article_to_markdown(article_html: str) -> str:
     # 清理一些与正文无关的 UI 元素
-    cleaned = re.sub(
-        r"<a[^>]*rel=edit[^>]*>.*?</a>",
-        "",
-        article_html,
-        flags=re.IGNORECASE | re.DOTALL,
-    )
-    cleaned = re.sub(r"<nav\s+class=md-code__nav>.*?</nav>", "", cleaned, flags=re.IGNORECASE | re.DOTALL)
-    cleaned = re.sub(r"<button[^>]*md-code__button[^>]*>.*?</button>", "", cleaned, flags=re.IGNORECASE | re.DOTALL)
-    cleaned = re.sub(r"<a\s+class=headerlink[^>]*>.*?</a>", "", cleaned, flags=re.IGNORECASE | re.DOTALL)
+    cleaned = _RE_EDIT_LINK.sub("", article_html)
+    cleaned = _RE_CODE_NAV.sub("", cleaned)
+    cleaned = _RE_CODE_BUTTON.sub("", cleaned)
+    cleaned = _RE_HEADERLINK.sub("", cleaned)
 
     cleaned, codeblocks = _convert_codeblocks(cleaned)
     cleaned, tables = _convert_tables(cleaned)
@@ -375,11 +364,11 @@ def convert_article_to_markdown(article_html: str) -> str:
     cleaned = _convert_lists_and_paragraphs(cleaned)
 
     # 强调/加粗（尽量晚做，避免影响内部替换）
-    cleaned = re.sub(r"</?strong[^>]*>", "**", cleaned, flags=re.IGNORECASE)
-    cleaned = re.sub(r"</?em[^>]*>", "*", cleaned, flags=re.IGNORECASE)
+    cleaned = _RE_STRONG.sub("**", cleaned)
+    cleaned = _RE_EM.sub("*", cleaned)
 
     # 去掉剩余标签
-    cleaned = re.sub(r"<[^>]+>", "", cleaned)
+    cleaned = _RE_HTML_TAG.sub("", cleaned)
     cleaned = html_lib.unescape(cleaned)
 
     cleaned = _finalize_placeholders(cleaned, codeblocks=codeblocks, tables=tables)

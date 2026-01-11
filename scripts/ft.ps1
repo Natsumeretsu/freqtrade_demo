@@ -1,10 +1,10 @@
 <#
 .SYNOPSIS
-    Freqtrade 命令包装器
+    Freqtrade command wrapper
 
 .DESCRIPTION
-    通过 uv run freqtrade 执行命令，自动设置 userdir 为仓库根目录。
-    所有参数透传给 freqtrade。
+    Run freqtrade via uv, auto-set userdir to repo root.
+    All arguments are passed through to freqtrade.
 
 .EXAMPLE
     .\ft.ps1 backtesting --config config.json
@@ -19,16 +19,22 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
-function Test-Command {
-  param([string]$Name)
-  return [bool](Get-Command $Name -ErrorAction SilentlyContinue)
+# Load common module
+$mcpCommon = Join-Path $PSScriptRoot "lib/common.ps1"
+if (Test-Path $mcpCommon) {
+  . $mcpCommon
+} else {
+  function Test-Command {
+    param([string]$Name)
+    return [bool](Get-Command $Name -ErrorAction SilentlyContinue)
+  }
 }
 
 if (-not (Test-Command "uv")) {
   throw "uv not found. Please install uv first, then re-run this script."
 }
 
-# 统一在 UTF-8 模式下运行，避免中文 Windows 默认 GBK 导致策略扫描时报 UnicodeDecodeError
+# Force UTF-8 mode to avoid GBK encoding issues on Chinese Windows
 $env:PYTHONUTF8 = "1"
 $env:PYTHONIOENCODING = "utf-8"
 
@@ -53,14 +59,14 @@ for ($i = 0; $i -lt $FreqtradeArgs.Count; $i++) {
 }
 
 if ($FreqtradeArgs.Count -eq 0) {
-  # 允许直接运行：.\scripts\ft.ps1 （例如仅查看 --help）
+  # Allow running without args: .\scripts\ft.ps1 (e.g. just --help)
 }
 elseif ($FreqtradeArgs[0].StartsWith("-")) {
-  # 例如：.\scripts\ft.ps1 --help / -V
+  # e.g. .\scripts\ft.ps1 --help / -V
   $argsList += $FreqtradeArgs
 }
 else {
-  # Freqtrade 的 --userdir 是子命令参数，必须放在 command 之后
+  # Freqtrade's --userdir is a subcommand arg, must come after command
   $argsList += $FreqtradeArgs[0]
   if (-not $hasUserdir) {
     $argsList += @("--userdir", ".")
@@ -72,8 +78,7 @@ else {
 }
 
 Write-Host ""
-Write-Host "运行命令："
-Write-Host ("uv " + ($argsList -join " "))
+Write-Host "Running: uv $($argsList -join ' ')"
 Write-Host ""
 
 & uv @argsList

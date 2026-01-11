@@ -44,9 +44,15 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
-function Test-Command {
-  param([string]$Name)
-  return [bool](Get-Command $Name -ErrorAction SilentlyContinue)
+# 加载公共模块
+$mcpCommon = Join-Path $PSScriptRoot "../lib/common.ps1"
+if (Test-Path $mcpCommon) {
+  . $mcpCommon
+} else {
+  function Test-Command {
+    param([string]$Name)
+    return [bool](Get-Command $Name -ErrorAction SilentlyContinue)
+  }
 }
 
 if (-not (Test-Command "uv")) {
@@ -57,7 +63,7 @@ if (-not (Test-Command "uv")) {
 $env:PYTHONUTF8 = "1"
 $env:PYTHONIOENCODING = "utf-8"
 
-$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "../..")).Path
 Set-Location $repoRoot
 
 $cfgPath = Resolve-Path $Config
@@ -79,7 +85,7 @@ if ($pairs.Count -eq 0) {
 
 Write-Host ""
 Write-Host "=== 1) 更新本地历史数据（增量） ==="
-& "./scripts/download_data.ps1" `
+& "$PSScriptRoot/download.ps1" `
   -Pairs $pairs `
   -Timeframes $Timeframes `
   -Config $Config `

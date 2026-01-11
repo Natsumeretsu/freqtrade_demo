@@ -73,7 +73,7 @@ powershell.exe -ExecutionPolicy Bypass -File "./scripts/bootstrap.ps1"
 powershell.exe -ExecutionPolicy Bypass -File "./scripts/mcp/setup_codex.ps1"
 ```
 
-更完整的同步/参数说明见：`other_doc/codex_mcp_sync.md`。
+更完整的同步/参数说明见：`project_docs/codex_mcp_sync.md`。
 
 仅预览将要执行的命令（不修改本机配置）：
 

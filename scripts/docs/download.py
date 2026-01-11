@@ -64,15 +64,24 @@ def _build_url(base_url: str, slug: str) -> str:
     return f"{base_url}{slug}/"
 
 
-def _fetch(url: str) -> bytes:
+def _fetch(url: str, max_retries: int = 3, retry_delay: float = 1.0) -> bytes:
+    """获取 URL 内容，支持重试。"""
     req = Request(
         url,
         headers={
             "User-Agent": "freqtrade_demo-docs-fetcher/1.0 (+https://www.freqtrade.io/)",
         },
     )
-    with urlopen(req, timeout=30) as resp:
-        return resp.read()
+    last_error: Exception | None = None
+    for attempt in range(max_retries):
+        try:
+            with urlopen(req, timeout=30) as resp:
+                return resp.read()
+        except (HTTPError, URLError, TimeoutError) as exc:
+            last_error = exc
+            if attempt < max_retries - 1:
+                time.sleep(retry_delay * (attempt + 1))  # 递增延迟
+    raise last_error or RuntimeError("fetch failed")
 
 
 def main() -> int:
@@ -81,8 +90,8 @@ def main() -> int:
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # scripts/ 同级导入
-    import generate_freqtrade_docs as gen
+    # scripts/docs 同级导入
+    import generate as gen
 
     slugs = sorted(gen.TITLE_MAP.keys())
     if args.only.strip():

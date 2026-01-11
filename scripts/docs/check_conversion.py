@@ -141,11 +141,11 @@ def main() -> int:
         print(f"HTML 目录为空：{raw_dir.as_posix()}")
         return 2
 
-    # scripts/generate_freqtrade_docs.py 位于同级目录，直接导入即可。
+    # scripts/docs 同级导入
     try:
-        import generate_freqtrade_docs as gen
-    except Exception as exc:  # noqa: BLE001 - 这里要把导入失败原因打印出来
-        print("导入 scripts/generate_freqtrade_docs.py 失败：")
+        import generate as gen
+    except Exception as exc:  # noqa: BLE001
+        print("导入 scripts/docs/generate.py 失败：")
         print(str(exc))
         return 2
 

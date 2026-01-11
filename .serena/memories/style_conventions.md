@@ -11,7 +11,7 @@
 
 ## 依赖与运行方式
 - 使用 `uv` 管理虚拟环境（`./.venv/`）与依赖（`uv sync --frozen` 以 `uv.lock` 为准）。
-- 运行命令优先：`uv run ...`；Freqtrade 子命令建议显式带 `--userdir "."`。
+- Python 脚本运行优先：`uv run python ...`；Freqtrade 子命令统一用 `./scripts/ft.ps1 ...`（自动补 `--userdir "."`，避免生成多余目录）。
 
 ## 策略/超参代码习惯
 - 策略实现遵循 Freqtrade `IStrategy`（示例 `SampleStrategy`：`INTERFACE_VERSION = 3`）。

@@ -9,13 +9,18 @@ stress_test.py - 回测结果压力测试
 from __future__ import annotations
 
 import argparse
-import json
 import math
 import random
 import sys
-import zipfile
 from dataclasses import dataclass
 from pathlib import Path
+
+import numpy as np
+
+# 添加 scripts/lib 到路径
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "lib"))
+
+from backtest_utils import pick_strategy_name, read_backtest_zip_with_config
 
 
 @dataclass(frozen=True)
@@ -84,28 +89,6 @@ def _parse_args() -> argparse.Namespace:
         ),
     )
     return parser.parse_args()
-
-
-def _read_backtest_zip(zip_path: Path) -> tuple[dict, dict]:
-    if not zip_path.is_file():
-        raise FileNotFoundError(f"未找到 zip：{zip_path}")
-
-    json_name = zip_path.with_suffix(".json").name
-    cfg_name = zip_path.with_suffix("").name + "_config.json"
-    with zipfile.ZipFile(zip_path) as zf:
-        data = json.loads(zf.read(json_name))
-        config = json.loads(zf.read(cfg_name)) if cfg_name in set(zf.namelist()) else {}
-    return data, config
-
-
-def _pick_strategy_name(data: dict, requested: str) -> str:
-    requested = (requested or "").strip()
-    if requested:
-        return requested
-    strategies = list((data.get("strategy") or {}).keys())
-    if len(strategies) != 1:
-        raise ValueError(f"无法自动判断策略名（zip 内策略数={len(strategies)}），请用 --strategy 指定")
-    return strategies[0]
 
 
 def _extract_trades(data: dict, strategy_name: str) -> tuple[float, list[TradePnl]]:
@@ -205,29 +188,11 @@ def _simulate_ratio(
     return float(equity), _max_drawdown(curve)
 
 
-def _percentile(values: list[float], q: float) -> float:
-    if not values:
-        return float("nan")
-    q = float(q)
-    if q <= 0:
-        return float(min(values))
-    if q >= 1:
-        return float(max(values))
-    vs = sorted(values)
-    pos = (len(vs) - 1) * q
-    lo = int(math.floor(pos))
-    hi = int(math.ceil(pos))
-    if lo == hi:
-        return float(vs[lo])
-    w = pos - lo
-    return float(vs[lo] * (1.0 - w) + vs[hi] * w)
-
-
 def main() -> int:
     args = _parse_args()
     zip_path = Path(str(args.zip))
-    data, config = _read_backtest_zip(zip_path)
-    strategy_name = _pick_strategy_name(data, str(args.strategy))
+    data, config = read_backtest_zip_with_config(zip_path)
+    strategy_name = pick_strategy_name(data, str(args.strategy))
     starting_balance, pnls_raw = _extract_trades(data, strategy_name)
 
     pnls = _apply_slippage(pnls_raw, float(args.slippage))
@@ -258,12 +223,12 @@ def main() -> int:
         finals.append(fin)
         mdds.append(mdd)
 
-    final_p5 = _percentile(finals, 0.05)
-    final_p50 = _percentile(finals, 0.50)
-    final_p95 = _percentile(finals, 0.95)
-    mdd_p5 = _percentile(mdds, 0.05)  # 更差（更负）的尾部
-    mdd_p50 = _percentile(mdds, 0.50)
-    mdd_p95 = _percentile(mdds, 0.95)
+    final_p5 = float(np.percentile(finals, 5))
+    final_p50 = float(np.percentile(finals, 50))
+    final_p95 = float(np.percentile(finals, 95))
+    mdd_p5 = float(np.percentile(mdds, 5))  # 更差（更负）的尾部
+    mdd_p50 = float(np.percentile(mdds, 50))
+    mdd_p95 = float(np.percentile(mdds, 95))
 
     print("")
     print("=== 压力测试摘要 ===")

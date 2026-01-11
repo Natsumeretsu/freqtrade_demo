@@ -11,3 +11,8 @@
 *.7z binary
 *.gz binary
 *.whl binary
+*.feather binary
+*.parquet binary
+*.sqlite binary
+*.db binary
+*.fthypt binary
