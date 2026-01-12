@@ -157,6 +157,19 @@ $runName = if ([string]::IsNullOrWhiteSpace($RunId)) { "small10_${TradingMode}_$
 $runDir = Join-Path "backtest_results" $runName
 New-Item -ItemType Directory -Force -Path $runDir | Out-Null
 
+# 若需要覆盖 tradable_balance_ratio，则在本次 runDir 内生成临时 config，避免污染基准配置文件
+$configToUse = $Config
+if ($PSBoundParameters.ContainsKey('TradableBalanceRatio') -and $TradableBalanceRatio -gt 0) {
+  try {
+    $cfg.tradable_balance_ratio = [double]$TradableBalanceRatio
+    $overrideCfgPath = Join-Path $runDir "config_override.json"
+    $cfg | ConvertTo-Json -Depth 100 | Set-Content -Encoding UTF8 -Path $overrideCfgPath
+    $configToUse = $overrideCfgPath
+  } catch {
+    throw "生成 config_override.json 失败：$($_.Exception.Message)"
+  }
+}
+
 $ftScript = Join-Path $repoRoot "scripts/ft.ps1"
 if (-not (Test-Path $ftScript)) {
   throw "未找到脚本：$ftScript"
@@ -164,7 +177,7 @@ if (-not (Test-Path $ftScript)) {
 
 $ftArgs = @(
   "backtesting",
-  "--config", $Config,
+  "--config", $configToUse,
   "--strategy", $Strategy,
   "--timeframe", $Timeframe,
   "--timerange", $Timerange,
@@ -255,5 +268,3 @@ if ($StressTest) {
     throw "压力测试失败（exit=$LASTEXITCODE）。"
   }
 }
-
-

@@ -14,6 +14,9 @@
 - 赛道选型总览（网格 / 均值回归 / 套利）：`project_docs/design/crypto_futures_strategy_options.md`
 - 交易策略深入分析（算法/理论/陷阱）：`project_docs/knowledge/crypto_exchange_strategy_deep_dive.md`
 - 小账户到大账户实践指南（风险/成本/流程）：`project_docs/knowledge/small_account_10_to_10000_practice_guide.md`
+- EMA/MACD 形态与 Vegas 隧道（可程序化落地笔记）：`project_docs/knowledge/ema_macd_vegas_playbook.md`
+- K线/Pin Bar（工程化落地笔记）：`project_docs/knowledge/candlestick_pinbar_playbook.md`
+- 流动性/微观结构（工程化落地笔记）：`project_docs/knowledge/crypto_liquidity_microstructure_playbook.md`
 - 策略唯一基底索引（策略类一对一）：`project_docs/freqai_core_strategy_guide.md`
 - 策略模式基底（非策略类）：动量回调（趋势内回撤）`project_docs/design/momentum_pullback_strategy_v1.md`
 

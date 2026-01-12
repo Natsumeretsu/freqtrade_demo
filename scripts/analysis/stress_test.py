@@ -30,6 +30,12 @@ class TradePnl:
     stake_amount: float
 
 
+@dataclass(frozen=True)
+class TradePolicy:
+    profit_ratio: float
+    stake_fraction: float
+
+
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
@@ -62,12 +68,13 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--mode",
-        choices=["abs", "ratio"],
+        choices=["abs", "ratio", "policy"],
         default="abs",
         help=(
             "模拟模式："
             "abs=按 profit_abs 加总（更贴近回测记录，但忽略复利/动态仓位）；"
-            "ratio=按 profit_ratio 复利（需要 stake_fraction 假设）。"
+            "ratio=按 profit_ratio 复利（需要 stake_fraction 假设）；"
+            "policy=按“每笔实际 stake_fraction”复利（从回测交易记录推导，更适合动态仓位）。"
         ),
     )
     parser.add_argument(
@@ -84,7 +91,7 @@ def _parse_args() -> argparse.Namespace:
         type=float,
         default=0.0,
         help=(
-            "滑点假设（单边比例，例如 0.0005=0.05%）。"
+            "滑点假设（单边比例，例如 0.0005=0.05%%）。"
             "会近似从每笔交易 profit_ratio 扣除 2*slippage（买入+卖出）。"
         ),
     )
@@ -130,6 +137,40 @@ def _resolve_stake_fraction(config: dict, user_value: float) -> float:
         return float(tradable)
     except (TypeError, ValueError):
         return 0.95
+
+
+def _derive_trade_policy(starting_balance: float, pnls: list[TradePnl]) -> list[TradePolicy]:
+    """
+    从历史交易序列推导“每笔 stake_fraction（相对账户权益的资金占比）”。
+
+    思路：
+    - 历史顺序下，回测记录里包含 stake_amount 与 profit_abs
+    - 可用 profit_abs 递推还原每笔交易前的权益 equity_before
+    - stake_fraction = stake_amount / equity_before
+
+    该 stake_fraction 近似代表“策略的仓位政策”，用于蒙特卡洛洗牌时更贴近动态仓位行为。
+    """
+    equity = float(starting_balance)
+    out: list[TradePolicy] = []
+    for p in pnls:
+        if not np.isfinite(equity) or equity <= 0:
+            break
+
+        stake_amount = float(p.stake_amount)
+        frac = stake_amount / equity if equity > 0 else 0.0
+        if not np.isfinite(frac) or frac <= 0:
+            # 兜底：异常值直接当作“该笔不参与”
+            equity += float(p.profit_abs)
+            continue
+
+        frac = float(max(0.0, min(1.0, frac)))
+        out.append(TradePolicy(profit_ratio=float(p.profit_ratio), stake_fraction=frac))
+
+        equity += float(p.profit_abs)
+
+    if not out:
+        raise ValueError("无法推导 policy stake_fraction（交易记录缺失或权益递推失败）")
+    return out
 
 
 def _apply_slippage(pnls: list[TradePnl], slippage: float) -> list[TradePnl]:
@@ -188,6 +229,27 @@ def _simulate_ratio(
     return float(equity), _max_drawdown(curve)
 
 
+def _simulate_policy(
+    starting_balance: float,
+    policies: list[TradePolicy],
+) -> tuple[float, float]:
+    equity = float(starting_balance)
+    curve = [equity]
+
+    for p in policies:
+        frac = float(p.stake_fraction)
+        if frac <= 0 or frac > 1 or not np.isfinite(frac):
+            continue
+
+        stake = equity * frac
+        equity += stake * float(p.profit_ratio)
+        curve.append(equity)
+        if equity <= 0:
+            break
+
+    return float(equity), _max_drawdown(curve)
+
+
 def main() -> int:
     args = _parse_args()
     zip_path = Path(str(args.zip))
@@ -200,13 +262,20 @@ def main() -> int:
     mode = str(args.mode).strip().lower()
     stake_fraction = _resolve_stake_fraction(config, float(args.stake_fraction))
 
+    # 不同模式下的“可洗牌序列”
     if mode == "abs":
+        seq_any: list = list(pnls)
         simulate = lambda seq: _simulate_abs(starting_balance, seq)  # noqa: E731
-    else:
+    elif mode == "ratio":
+        seq_any = list(pnls)
         simulate = lambda seq: _simulate_ratio(starting_balance, seq, stake_fraction)  # noqa: E731
+    else:
+        policy = _derive_trade_policy(starting_balance, pnls)
+        seq_any = list(policy)
+        simulate = lambda seq: _simulate_policy(starting_balance, seq)  # noqa: E731
 
     # 原始顺序（历史路径）
-    orig_final, orig_mdd = simulate(pnls)
+    orig_final, orig_mdd = simulate(seq_any)
 
     # 蒙特卡洛：洗牌交易序列，重构“平行宇宙”
     rng = random.Random(int(args.seed))
@@ -216,7 +285,7 @@ def main() -> int:
 
     finals: list[float] = []
     mdds: list[float] = []
-    seq = list(pnls)
+    seq = list(seq_any)
     for _ in range(sims):
         rng.shuffle(seq)
         fin, mdd = simulate(seq)
@@ -234,10 +303,17 @@ def main() -> int:
     print("=== 压力测试摘要 ===")
     print(f"- zip: {zip_path.as_posix()}")
     print(f"- strategy: {strategy_name}")
-    print(f"- trades: {len(pnls)}")
+    print(f"- trades: {len(seq_any)}")
     print(f"- mode: {mode}")
     if mode == "ratio":
         print(f"- stake_fraction: {stake_fraction:.3f}")
+    if mode == "policy":
+        fracs = [float(x.stake_fraction) for x in seq_any if np.isfinite(float(x.stake_fraction))]
+        if fracs:
+            print(
+                f"- stake_fraction(policy) min/p50/mean/max: "
+                f"{float(np.min(fracs)):.3f} / {float(np.median(fracs)):.3f} / {float(np.mean(fracs)):.3f} / {float(np.max(fracs)):.3f}"
+            )
     print(f"- slippage(one-way): {float(args.slippage):.4f}")
     print("")
     print("【历史路径】")

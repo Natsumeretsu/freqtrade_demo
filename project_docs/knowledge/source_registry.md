@@ -2011,3 +2011,535 @@
 - 引入原因：用户提供的“RSI+MACD 信号交易”参考链接，待提炼。
 - 落地到本仓库：
   - 实践指南：`project_docs/knowledge/small_account_10_to_10000_practice_guide.md`
+
+---
+
+## M) 用户提供：技术分析形态（EMA/MACD/Vegas）（已提炼）
+
+### S-928 acy.com：MACD 全指南（零轴/金叉/死叉/背离）
+
+- URL：https://acy.com/zh/market-news/trading-education/macd-full-guide-golden-cross-death-cross-divergence-zh-170812/
+- 抓取方式：MCP `markitdown`
+- 抓取状态：ok
+- 抓取状态备注：todo（待抓取）
+- 抓取日期：2026-01-12
+- 本地缓存：.vibe/knowledge/sources/S-928/markitdown.md
+- 引入原因：用户提供的 MACD 形态/零轴/鞭打 等参考，用于提炼可程序化条件与风险门控思路。
+- 落地到本仓库：
+  - 形态体系落地笔记：`project_docs/knowledge/ema_macd_vegas_playbook.md`
+
+### S-929 fidelity.com：MACD 指标指南（陷阱/假信号）
+
+- URL：https://www.fidelity.com/learning-center/trading-investing/technical-analysis/technical-indicator-guide/macd
+- 抓取方式：MCP `markitdown`
+- 抓取状态：ok
+- 抓取状态备注：todo（待抓取）
+- 抓取日期：2026-01-12
+- 本地缓存：.vibe/knowledge/sources/S-929/markitdown.md
+- 引入原因：用户提供的 MACD 指标使用注意事项（假信号/鞭打）参考链接，作为“减少交易噪声”的方法论补充。
+- 落地到本仓库：
+  - 形态体系落地笔记：`project_docs/knowledge/ema_macd_vegas_playbook.md`
+
+### S-930 investopedia.com：MACD（基础解释与注意事项）
+
+- URL：https://www.investopedia.com/trading/macd/
+- 抓取方式：MCP `playwright`
+- 抓取状态：ok
+- 抓取日期：2026-01-12
+- 本地缓存：.vibe/knowledge/sources/S-930/playwright_snapshot.md
+- 引入原因：用户提供的 MACD 基础解释参考，用于校准术语与避免概念误用。
+- 落地到本仓库：
+  - 形态体系落地笔记：`project_docs/knowledge/ema_macd_vegas_playbook.md`
+
+### S-931 binance.com：Golden Cross / Death Cross（均线交叉）
+
+- URL：https://www.binance.com/zh-CN/academy/articles/golden-cross-and-death-cross-explained
+- 抓取方式：MCP `playwright`
+- 抓取状态：ok
+- 抓取日期：2026-01-12
+- 本地缓存：.vibe/knowledge/sources/S-931/playwright_snapshot.md
+- 引入原因：用户提供的 EMA/均线交叉“金叉/死叉”解释参考，用于对齐“交叉事件”的定义与风险提示。
+- 落地到本仓库：
+  - 形态体系落地笔记：`project_docs/knowledge/ema_macd_vegas_playbook.md`
+
+### S-932 blog.tangly1024.com：Vegas Tunnel（隧道系统概述）
+
+- URL：https://blog.tangly1024.com/article/vegas-tunnel
+- 抓取方式：MCP `markitdown`
+- 抓取状态：ok
+- 抓取状态备注：todo（待抓取）
+- 抓取日期：2026-01-12
+- 本地缓存：.vibe/knowledge/sources/S-932/markitdown.md
+- 引入原因：用户提供的 Vegas 隧道系统说明，用于把“多层 EMA 过滤 + 中继/假突破”转成可落地的工程约束。
+- 落地到本仓库：
+  - 形态体系落地笔记：`project_docs/knowledge/ema_macd_vegas_playbook.md`
+
+### S-933 research-api.cbs.dk：Which Trend Is Your Friend（MACROSS ≡ TSMOM）
+
+- URL：https://research-api.cbs.dk/ws/files/60084063/lasse_heje_pedersen_et_al_which_trend_is_your_friend_publishersversion.pdf
+- 抓取方式：MCP `markitdown`
+- 抓取状态：ok
+- 抓取状态备注：todo（待抓取）
+- 抓取日期：2026-01-12
+- 本地缓存：.vibe/knowledge/sources/S-933/markitdown.md
+- 引入原因：用户提供的趋势追踪/均线交叉理论等价性参考，用于解释“为什么长周期趋势过滤具有统计意义”。
+- 落地到本仓库：
+  - 形态体系落地笔记：`project_docs/knowledge/ema_macd_vegas_playbook.md`
+
+### S-934 stockcharts.com：Reducing moving average whipsaws（鞭打减少）
+
+- URL：https://articles.stockcharts.com/article/articles-arthurhill-2018-10-systemtrader---reducing-moving-average-whipsaws-with-smoothing-and-quantifying-filters-/
+- 抓取方式：MCP `markitdown`
+- 抓取状态：ok
+- 抓取状态备注：todo（待抓取）
+- 抓取日期：2026-01-12
+- 本地缓存：.vibe/knowledge/sources/S-934/markitdown.md
+- 引入原因：用户提供的“减少 MA 鞭打”工程化思路参考，用于后续评估 ADX/Bollinger/平滑 等过滤手段的成本与收益。
+- 落地到本仓库：
+  - 形态体系落地笔记：`project_docs/knowledge/ema_macd_vegas_playbook.md`
+
+---
+
+## N) 用户提供：K线 / Pin Bar（已提炼）
+
+### S-935 priceaction.com：Pin Bar + Inside Bar Combo
+
+- URL：https://priceaction.com/price-action-university/strategies/pin-bar-inside-bar-combo/
+- 抓取方式：MCP `markitdown`
+- 抓取状态：ok
+- 抓取状态备注：todo（待抓取）
+- 抓取日期：2026-01-12
+- 本地缓存：.vibe/knowledge/sources/S-935/markitdown.md
+- 引入原因：用户提供的“Pin Bar + Inside Bar 组合确认框架”参考，用于提炼可程序化的多层确认与触发条件。
+- 落地到本仓库：
+  - 工程化落地笔记：`project_docs/knowledge/candlestick_pinbar_playbook.md`
+
+### S-936 priceaction.com：Pin Bar
+
+- URL：https://priceaction.com/price-action-university/strategies/pin-bar/
+- 抓取方式：MCP `markitdown`
+- 抓取状态：ok
+- 抓取状态备注：todo（待抓取）
+- 抓取日期：2026-01-12
+- 本地缓存：.vibe/knowledge/sources/S-936/markitdown.md
+- 引入原因：用户提供的 Pin Bar 定义与实战要点参考，用于校准“尾/实体比、确认K线”等规则口径。
+- 落地到本仓库：
+  - 工程化落地笔记：`project_docs/knowledge/candlestick_pinbar_playbook.md`
+
+### S-937 tradingwithrayner.com：Pinbar trading strategy
+
+- URL：https://www.tradingwithrayner.com/pinbar-trading-strategy/
+- 抓取方式：MCP `markitdown`
+- 抓取状态：ok
+- 抓取状态备注：todo（待抓取）
+- 抓取日期：2026-01-12
+- 本地缓存：.vibe/knowledge/sources/S-937/markitdown.md
+- 引入原因：用户提供的 Pin Bar 交易规则与案例参考，用于交叉验证“确认/进场/止损”常见写法。
+- 落地到本仓库：
+  - 工程化落地笔记：`project_docs/knowledge/candlestick_pinbar_playbook.md`
+
+### S-938 dukascopy.com：Reversal candlestick patterns
+
+- URL：https://www.dukascopy.com/swiss/english/marketwatch/articles/reversal-candlestick-patterns/
+- 抓取方式：MCP `playwright`
+- 抓取状态：ok
+- 抓取日期：2026-01-12
+- 本地缓存：.vibe/knowledge/sources/S-938/playwright_snapshot.md
+- 引入原因：用户提供的“反转类蜡烛形态”参考，用于补齐形态库与确认逻辑的背景。
+- 落地到本仓库：
+  - 工程化落地笔记：`project_docs/knowledge/candlestick_pinbar_playbook.md`
+
+### S-939 liquidityfinder.com：How to trade reversal patterns using price action
+
+- URL：https://liquidityfinder.com/news/how-to-trade-reversal-patterns-using-price-action-c385c
+- 抓取方式：MCP `playwright`
+- 抓取状态：ok
+- 抓取日期：2026-01-12
+- 本地缓存：.vibe/knowledge/sources/S-939/playwright_snapshot.md
+- 引入原因：用户提供的“流动性/止损猎取/拒绝”叙事参考，用于把 Pin Bar 解释映射到“工程化确认 + 风险预算”。
+- 落地到本仓库：
+  - 工程化落地笔记：`project_docs/knowledge/candlestick_pinbar_playbook.md`
+
+### S-940 dailypriceaction.com：Forex pin bar trading strategy
+
+- URL：https://dailypriceaction.com/blog/forex-pin-bar-trading-strategy/
+- 抓取方式：MCP `markitdown`
+- 抓取状态：ok
+- 抓取状态备注：todo（待抓取）
+- 抓取日期：2026-01-12
+- 本地缓存：.vibe/knowledge/sources/S-940/markitdown.md
+- 引入原因：用户提供的“Pin Bar 50% 回踩进场”参考，用于评估“赔率提升 vs 漏单/频率下降”的权衡。
+- 落地到本仓库：
+  - 工程化落地笔记：`project_docs/knowledge/candlestick_pinbar_playbook.md`
+
+### S-941 baogaobox.com：西南证券 K线形态量化研究（摘要页）
+
+- URL：https://www.baogaobox.com/insights/250527000010595.html
+- 抓取方式：MCP `playwright`
+- 抓取状态：ok
+- 抓取日期：2026-01-12
+- 本地缓存：.vibe/knowledge/sources/S-941/playwright_snapshot.md
+- 引入原因：用户提供的“形态数学化 + 量价状态权重更高”的实证摘要，用于指导“评分/门控”框架而非死磕单形态。
+- 落地到本仓库：
+  - 工程化落地笔记：`project_docs/knowledge/candlestick_pinbar_playbook.md`
+
+### S-942 reddit.com：40 years of candlestick pattern success rates（讨论帖）
+
+- URL：https://www.reddit.com/r/Daytrading/comments/1l4nrus/40_years_of_candlestick_pattern_success_rates_127/
+- 抓取方式：MCP `markitdown`
+- 抓取状态：ok
+- 抓取状态备注：todo（待抓取）
+- 抓取日期：2026-01-12
+- 本地缓存：.vibe/knowledge/sources/S-942/markitdown.md
+- 引入原因：用户提供的“形态有效性随年代变化（衰退/回归）”讨论线索，用于提醒必须做成本敏感性与跨年份验证。
+- 落地到本仓库：
+  - 工程化落地笔记：`project_docs/knowledge/candlestick_pinbar_playbook.md`
+
+### S-943 journals.kozminski.edu.pl：Zielonka et al（PDF）
+
+- URL：https://journals.kozminski.edu.pl/system/files/Zielonka%20et%20al.pdf
+- 抓取方式：MCP `playwright`
+- 抓取状态：blocked（too_short，详见本地缓存 meta_playwright.json）
+- 抓取状态备注：blocked（抓取失败，详见本地缓存 meta.json）
+- 抓取日期：2026-01-12
+- 本地缓存：.vibe/knowledge/sources/S-943/playwright_snapshot.md
+- 引入原因：用户提供的“认知偏差/形态识别偏差”研究线索，用于约束主观形态在工程化时的误用风险。
+- 落地到本仓库：
+  - 工程化落地笔记：`project_docs/knowledge/candlestick_pinbar_playbook.md`
+
+### S-944 arxiv.org：html/2501.16772v1
+
+- URL：https://arxiv.org/html/2501.16772v1
+- 抓取方式：MCP `markitdown`
+- 抓取状态：ok
+- 抓取状态备注：todo（待抓取）
+- 抓取日期：2026-01-12
+- 本地缓存：.vibe/knowledge/sources/S-944/markitdown.md
+- 引入原因：用户提供的“不同时间周期下形态有效性差异”研究线索，用于校准 4h/日线/更短周期的可行边界。
+- 落地到本仓库：
+  - 工程化落地笔记：`project_docs/knowledge/candlestick_pinbar_playbook.md`
+
+---
+
+## O) 用户提供：流动性 / 微观结构（已提炼）
+
+### S-945 emergentmind.com：Limit Order Book microstructure
+
+- URL：https://www.emergentmind.com/topics/limit-order-book-microstructure
+- 抓取方式：MCP `playwright`
+- 抓取状态：ok
+- 抓取日期：2026-01-12
+- 本地缓存：.vibe/knowledge/sources/S-945/playwright_snapshot.md
+- 引入原因：用户提供的 LOB 微观结构概念综述，用于对齐术语（spread/depth/slope 等）与工程化指标定义。
+- 落地到本仓库：
+  - 工程化落地笔记：`project_docs/knowledge/crypto_liquidity_microstructure_playbook.md`
+
+### S-946 people.hec.edu：limit_RFS_2009.pdf（LOB 理论/模型）
+
+- URL：https://people.hec.edu/rosu/wp-content/uploads/sites/43/2020/03/limit_RFS_2009.pdf
+- 抓取方式：MCP `markitdown`
+- 抓取状态：ok
+- 抓取状态备注：todo（待抓取）
+- 抓取日期：2026-01-12
+- 本地缓存：.vibe/knowledge/sources/S-946/markitdown.md
+- 引入原因：用户提供的 LOB 学术论文，用于理解订单簿动态与价格形成机制（理论侧对齐）。
+- 落地到本仓库：
+  - 工程化落地笔记：`project_docs/knowledge/crypto_liquidity_microstructure_playbook.md`
+
+### S-947 pmc.ncbi.nlm.nih.gov：PMC12315853（微观结构/LOB 研究）
+
+- URL：https://pmc.ncbi.nlm.nih.gov/articles/PMC12315853/
+- 抓取方式：MCP `playwright`
+- 抓取状态：ok
+- 抓取日期：2026-01-12
+- 本地缓存：.vibe/knowledge/sources/S-947/playwright_snapshot.md
+- 引入原因：用户提供的开放论文（PMC），用于补充 LOB/微观结构实证结论与可观测变量。
+- 落地到本仓库：
+  - 工程化落地笔记：`project_docs/knowledge/crypto_liquidity_microstructure_playbook.md`
+
+### S-948 arxiv.org：2411.08382（订单流/微观结构研究）
+
+- URL：http://arxiv.org/pdf/2411.08382.pdf
+- 抓取方式：MCP `markitdown`
+- 抓取状态：ok
+- 抓取状态备注：todo（待抓取）
+- 抓取日期：2026-01-12
+- 本地缓存：.vibe/knowledge/sources/S-948/markitdown.md
+- 引入原因：用户提供的微观结构相关论文，用于校验 OFI/订单簿变量与收益/风险的统计关系。
+- 落地到本仓库：
+  - 工程化落地笔记：`project_docs/knowledge/crypto_liquidity_microstructure_playbook.md`
+
+### S-949 pmc.ncbi.nlm.nih.gov：PMC10040314（比特币订单流/收益研究）
+
+- URL：https://pmc.ncbi.nlm.nih.gov/articles/PMC10040314/
+- 抓取方式：MCP `playwright`
+- 抓取状态：ok
+- 抓取日期：2026-01-12
+- 本地缓存：.vibe/knowledge/sources/S-949/playwright_snapshot.md
+- 引入原因：用户提供的 Bitcoin 订单流不平衡相关实证（含预测/极值风险线索），用于落地“风险预算门控”的理论支撑。
+- 落地到本仓库：
+  - 工程化落地笔记：`project_docs/knowledge/crypto_liquidity_microstructure_playbook.md`
+
+### S-950 emergentmind.com：Order Flow Imbalance（OFI）
+
+- URL：https://www.emergentmind.com/topics/order-flow-imbalance
+- 抓取方式：MCP `markitdown`
+- 抓取状态：ok
+- 抓取状态备注：todo（待抓取）
+- 抓取日期：2026-01-12
+- 本地缓存：.vibe/knowledge/sources/S-950/markitdown.md
+- 引入原因：用户提供的 OFI 概念综述，用于对齐 OFI 的定义口径（trade-based / book-based）与实现差异。
+- 落地到本仓库：
+  - 工程化落地笔记：`project_docs/knowledge/crypto_liquidity_microstructure_playbook.md`
+
+### S-951 electronictradinghub.com：LOB imbalance 深度解读（实践向）
+
+- URL：https://electronictradinghub.com/leveraging-limit-order-book-imbalances-for-profitable-trading-a-deep-dive-into-recent-research-and-practical-tools/
+- 抓取方式：MCP `markitdown`
+- 抓取状态：ok
+- 抓取状态备注：todo（待抓取）
+- 抓取日期：2026-01-12
+- 本地缓存：.vibe/knowledge/sources/S-951/markitdown.md
+- 引入原因：用户提供的实践向材料，用于提炼“制度识别 → 执行动作”的工程化流程。
+- 落地到本仓库：
+  - 工程化落地笔记：`project_docs/knowledge/crypto_liquidity_microstructure_playbook.md`
+
+### S-952 arxiv.org：2112.04245（价格冲击/执行成本）
+
+- URL：https://arxiv.org/pdf/2112.04245.pdf
+- 抓取方式：MCP `markitdown`
+- 抓取状态：ok
+- 抓取状态备注：todo（待抓取）
+- 抓取日期：2026-01-12
+- 本地缓存：.vibe/knowledge/sources/S-952/markitdown.md
+- 引入原因：用户提供的价格冲击相关研究，用于把“容量/滑点”的非线性机制工程化。
+- 落地到本仓库：
+  - 工程化落地笔记：`project_docs/knowledge/crypto_liquidity_microstructure_playbook.md`
+
+### S-953 arxiv.org：2306.00621（微观结构/制度转换）
+
+- URL：http://arxiv.org/pdf/2306.00621.pdf
+- 抓取方式：MCP `markitdown`
+- 抓取状态：ok
+- 抓取状态备注：todo（待抓取）
+- 抓取日期：2026-01-12
+- 本地缓存：.vibe/knowledge/sources/S-953/markitdown.md
+- 引入原因：用户提供的微观结构制度/状态相关研究线索，用于构建“深/薄/混乱”制度识别的可验证依据。
+- 落地到本仓库：
+  - 工程化落地笔记：`project_docs/knowledge/crypto_liquidity_microstructure_playbook.md`
+
+### S-954 proptrader.oanda.com：Order/Position book 支阻分析
+
+- URL：https://proptrader.oanda.com/en/lab-education/trading-knowledge/technical-analysis/support-resistance-analysis-with-order-position-book/
+- 抓取方式：MCP `markitdown`
+- 抓取状态：ok
+- 抓取状态备注：todo（待抓取）
+- 抓取日期：2026-01-12
+- 本地缓存：.vibe/knowledge/sources/S-954/markitdown.md
+- 引入原因：用户提供的“用订单簿解释支阻”实践向材料，用于把支阻从静态线升级为动态簇集。
+- 落地到本仓库：
+  - 工程化落地笔记：`project_docs/knowledge/crypto_liquidity_microstructure_playbook.md`
+
+### S-955 dspace.cuni.cz：120505902.pdf（支阻/微观结构论文）
+
+- URL：https://dspace.cuni.cz/bitstream/handle/20.500.11956/200516/120505902.pdf?sequence=1
+- 抓取方式：MCP `playwright`
+- 抓取状态：blocked（too_short，详见本地缓存 meta_playwright.json）
+- 抓取状态备注：blocked（抓取失败，详见本地缓存 meta.json）
+- 抓取日期：2026-01-12
+- 本地缓存：.vibe/knowledge/sources/S-955/playwright_snapshot.md
+- 引入原因：用户提供的论文线索，用于补充“支阻互换/订单簇集”相关实证结论。
+- 落地到本仓库：
+  - 工程化落地笔记：`project_docs/knowledge/crypto_liquidity_microstructure_playbook.md`
+
+### S-956 luxalgo.com：Support/Resistance（反转交易视角）
+
+- URL：https://www.luxalgo.com/blog/master-support-and-resistance-for-reversal-trading/
+- 抓取方式：MCP `markitdown`
+- 抓取状态：ok
+- 抓取状态备注：todo（待抓取）
+- 抓取日期：2026-01-12
+- 本地缓存：.vibe/knowledge/sources/S-956/markitdown.md
+- 引入原因：用户提供的实践向材料，用于对照“传统支阻 vs 流动性簇集”的叙事差异与落地边界。
+- 落地到本仓库：
+  - 工程化落地笔记：`project_docs/knowledge/crypto_liquidity_microstructure_playbook.md`
+
+### S-957 cmcmarkets.com：Support/Resistance guide
+
+- URL：https://www.cmcmarkets.com/en-sg/trading-guides/support-resistance
+- 抓取方式：MCP `markitdown`
+- 抓取状态：ok
+- 抓取状态备注：todo（待抓取）
+- 抓取日期：2026-01-12
+- 本地缓存：.vibe/knowledge/sources/S-957/markitdown.md
+- 引入原因：用户提供的支阻基础教程（作为“传统口径”对照），用于明确哪些结论需要微观结构变量才能成立。
+- 落地到本仓库：
+  - 工程化落地笔记：`project_docs/knowledge/crypto_liquidity_microstructure_playbook.md`
+
+### S-958 acy.com：SMC 视角的支阻绘制
+
+- URL：https://acy.com/en/market-news/education/how-to-plot-key-support-resistance-levels-the-smc-way-for-day-trading-142011/
+- 抓取方式：MCP `markitdown`
+- 抓取状态：ok
+- 抓取状态备注：todo（待抓取）
+- 抓取日期：2026-01-12
+- 本地缓存：.vibe/knowledge/sources/S-958/markitdown.md
+- 引入原因：用户提供的 SMC（Smart Money Concepts）视角支阻材料，用于补充“流动性猎取/止损簇集”叙事与可观测变量。
+- 落地到本仓库：
+  - 工程化落地笔记：`project_docs/knowledge/crypto_liquidity_microstructure_playbook.md`
+
+### S-959 arxiv.org：2304.02472（订单流/高频信号）
+
+- URL：https://arxiv.org/pdf/2304.02472.pdf
+- 抓取方式：MCP `markitdown`
+- 抓取状态：ok
+- 抓取状态备注：todo（待抓取）
+- 抓取日期：2026-01-12
+- 本地缓存：.vibe/knowledge/sources/S-959/markitdown.md
+- 引入原因：用户提供的订单流/信号时效研究线索，用于校准“信号半衰期 vs 交易周期”的工程结论。
+- 落地到本仓库：
+  - 工程化落地笔记：`project_docs/knowledge/crypto_liquidity_microstructure_playbook.md`
+
+### S-960 arxiv.org：2312.16190（订单流/价格影响）
+
+- URL：https://arxiv.org/pdf/2312.16190.pdf
+- 抓取方式：MCP `markitdown`
+- 抓取状态：ok
+- 抓取状态备注：todo（待抓取）
+- 抓取日期：2026-01-12
+- 本地缓存：.vibe/knowledge/sources/S-960/markitdown.md
+- 引入原因：用户提供的研究线索，用于补充“冲击分解（临时/永久）与时间衰减”的工程解释。
+- 落地到本仓库：
+  - 工程化落地笔记：`project_docs/knowledge/crypto_liquidity_microstructure_playbook.md`
+
+### S-961 arxiv.org：2010.01241（订单簿/微观结构信号）
+
+- URL：https://arxiv.org/pdf/2010.01241.pdf
+- 抓取方式：MCP `markitdown`
+- 抓取状态：ok
+- 抓取状态备注：todo（待抓取）
+- 抓取日期：2026-01-12
+- 本地缓存：.vibe/knowledge/sources/S-961/markitdown.md
+- 引入原因：用户提供的研究线索，用于对照“订单簿/订单流特征是否具有可交易边际优势”。
+- 落地到本仓库：
+  - 工程化落地笔记：`project_docs/knowledge/crypto_liquidity_microstructure_playbook.md`
+
+### S-962 arxiv.org：2306.08157（制度/极端事件）
+
+- URL：http://arxiv.org/pdf/2306.08157.pdf
+- 抓取方式：MCP `markitdown`
+- 抓取状态：ok
+- 抓取状态备注：todo（待抓取）
+- 抓取日期：2026-01-12
+- 本地缓存：.vibe/knowledge/sources/S-962/markitdown.md
+- 引入原因：用户提供的研究线索，用于补充“混乱流动性制度（事件/黑天鹅）”的识别与风险动作。
+- 落地到本仓库：
+  - 工程化落地笔记：`project_docs/knowledge/crypto_liquidity_microstructure_playbook.md`
+
+### S-963 arxiv.org：2502.19349（波动/风险框架）
+
+- URL：https://arxiv.org/pdf/2502.19349.pdf
+- 抓取方式：MCP `playwright`
+- 抓取状态：blocked（too_short，详见本地缓存 meta_playwright.json）
+- 抓取状态备注：blocked（抓取失败，详见本地缓存 meta.json）
+- 抓取日期：2026-01-12
+- 本地缓存：.vibe/knowledge/sources/S-963/playwright_snapshot.md
+- 引入原因：用户提供的研究线索，用于补充“高波动制度下的风险预算/仓位调整”方法论。
+- 落地到本仓库：
+  - 工程化落地笔记：`project_docs/knowledge/crypto_liquidity_microstructure_playbook.md`
+
+### S-964 arxiv.org：2411.12748（加密市场/微观结构）
+
+- URL：https://arxiv.org/pdf/2411.12748.pdf
+- 抓取方式：MCP `playwright`
+- 抓取状态：blocked（too_short，详见本地缓存 meta_playwright.json）
+- 抓取状态备注：blocked（抓取失败，详见本地缓存 meta.json）
+- 抓取日期：2026-01-12
+- 本地缓存：.vibe/knowledge/sources/S-964/playwright_snapshot.md
+- 引入原因：用户提供的研究线索，用于补充加密市场微观结构的实证结果与边界条件。
+- 落地到本仓库：
+  - 工程化落地笔记：`project_docs/knowledge/crypto_liquidity_microstructure_playbook.md`
+
+### S-965 arxiv.org：2411.06327（加密订单流/微观结构）
+
+- URL：https://arxiv.org/pdf/2411.06327.pdf
+- 抓取方式：MCP `markitdown`
+- 抓取状态：ok
+- 抓取状态备注：todo（待抓取）
+- 抓取日期：2026-01-12
+- 本地缓存：.vibe/knowledge/sources/S-965/markitdown.md
+- 引入原因：用户提供的研究线索，用于补充“订单流/深度变化与价格”的统计关系与可交易性评估。
+- 落地到本仓库：
+  - 工程化落地笔记：`project_docs/knowledge/crypto_liquidity_microstructure_playbook.md`
+
+### S-966 sciencedirect.com：S0275531925004192（论文）
+
+- URL：https://www.sciencedirect.com/science/article/pii/S0275531925004192
+- 抓取方式：MCP `playwright`
+- 抓取状态：blocked（检测到人机验证/风控页面（需要人工验证）；如有合法访问权限可用 --interactive）
+- 抓取状态备注：blocked（抓取失败，详见本地缓存 meta.json）
+- 抓取日期：2026-01-12
+- 本地缓存：.vibe/knowledge/sources/S-966/playwright_snapshot.md
+- 引入原因：用户提供的论文线索（可能存在付费墙），用于补充微观结构/冲击模型的实证与方法。
+- 落地到本仓库：
+  - 工程化落地笔记：`project_docs/knowledge/crypto_liquidity_microstructure_playbook.md`
+
+### S-967 investinglive.com：Orderflow intel（案例）
+
+- URL：https://investinglive.com/Cryptocurrency/ethereurm-price-prediction-with-orderflow-intel-by-investinglivecom-20250820/
+- 抓取方式：MCP `playwright`
+- 抓取状态：blocked（检测到人机验证/风控页面（需要人工验证）；如有合法访问权限可用 --interactive）
+- 抓取状态备注：blocked（抓取失败，详见本地缓存 meta.json）
+- 抓取日期：2026-01-12
+- 本地缓存：.vibe/knowledge/sources/S-967/playwright_snapshot.md
+- 引入原因：用户提供的案例向材料，用于对照“订单流指标如何在叙事层被使用”，避免把营销话术当成工程结论。
+- 落地到本仓库：
+  - 工程化落地笔记：`project_docs/knowledge/crypto_liquidity_microstructure_playbook.md`
+
+### S-968 ieeexplore.ieee.org：10781336.pdf（论文）
+
+- URL：https://ieeexplore.ieee.org/iel8/6287639/10380310/10781336.pdf
+- 抓取方式：MCP `playwright`
+- 抓取状态：blocked（too_short，详见本地缓存 meta_playwright.json）
+- 抓取状态备注：blocked（抓取失败，详见本地缓存 meta.json）
+- 抓取日期：2026-01-12
+- 本地缓存：.vibe/knowledge/sources/S-968/playwright_snapshot.md
+- 引入原因：用户提供的 IEEE 论文线索，用于补充订单簿/订单流建模与信号评估方法。
+- 落地到本仓库：
+  - 工程化落地笔记：`project_docs/knowledge/crypto_liquidity_microstructure_playbook.md`
+
+### S-969 arxiv.org：abs/2511.20606（研究线索）
+
+- URL：https://arxiv.org/abs/2511.20606
+- 抓取方式：MCP `markitdown`
+- 抓取状态：ok
+- 抓取状态备注：todo（待抓取）
+- 抓取日期：2026-01-12
+- 本地缓存：.vibe/knowledge/sources/S-969/markitdown.md
+- 引入原因：用户提供的研究线索，用于补充最新的订单流/微观结构研究方向与方法。
+- 落地到本仓库：
+  - 工程化落地笔记：`project_docs/knowledge/crypto_liquidity_microstructure_playbook.md`
+
+### S-970 capital.com：Support/Resistance trading strategy（对照）
+
+- URL：https://capital.com/en-int/learn/technical-analysis/support-and-resistance-trading-strategy
+- 抓取方式：MCP `markitdown`
+- 抓取状态：ok
+- 抓取状态备注：todo（待抓取）
+- 抓取日期：2026-01-12
+- 本地缓存：.vibe/knowledge/sources/S-970/markitdown.md
+- 引入原因：用户提供的支阻教程（传统口径对照），用于明确哪些结论在加密市场需要“流动性变量”才能稳定成立。
+- 落地到本仓库：
+  - 工程化落地笔记：`project_docs/knowledge/crypto_liquidity_microstructure_playbook.md`
+
+### S-971 research.utwente.nl：eth_29478_02.pdf（论文）
+
+- URL：https://research.utwente.nl/files/283902161/eth_29478_02.pdf
+- 抓取方式：MCP `playwright`
+- 抓取状态：blocked（检测到人机验证/风控页面（需要人工验证）；如有合法访问权限可用 --interactive）
+- 抓取状态备注：blocked（抓取失败，详见本地缓存 meta.json）
+- 抓取日期：2026-01-12
+- 本地缓存：.vibe/knowledge/sources/S-971/playwright_snapshot.md
+- 引入原因：用户提供的论文线索，用于补充执行成本/冲击模型/微观结构变量的实证与方法。
+- 落地到本仓库：
+  - 工程化落地笔记：`project_docs/knowledge/crypto_liquidity_microstructure_playbook.md`

@@ -257,7 +257,7 @@ def _cmd_doctor(repo_root: Path, args: argparse.Namespace) -> int:
     failed = False
     for name, path in checks:
         ok = path.exists()
-        print(f"- {name}: {'ok' if ok else 'missing'}  ({str(path).replace('\\', '/')})")
+        print(f"- {name}: {'ok' if ok else 'missing'}  ({path.as_posix()})")
         failed = failed or (not ok)
     return 0 if not failed else 1
 
@@ -411,7 +411,7 @@ def _cmd_dedupe_insights(repo_root: Path, args: argparse.Namespace) -> int:
             import shutil
 
             shutil.copy2(db_path, backup_path)
-            print(f"已备份：{str(backup_path).replace('\\', '/')}")
+            print(f"已备份：{backup_path.as_posix()}")
         except Exception as e:
             print(f"备份失败：{e}", file=sys.stderr)
             return 1
@@ -864,7 +864,7 @@ def _cmd_pack(repo_root: Path, args: argparse.Namespace) -> int:
     if out.is_dir():
         out = out / f"vbrain_pack_{args.profile}.zip"
     if out.exists() and not args.overwrite:
-        print(f"已存在：{str(out).replace('\\', '/')}（如需覆盖请加 --overwrite）", file=sys.stderr)
+        print(f"已存在：{out.as_posix()}（如需覆盖请加 --overwrite）", file=sys.stderr)
         return 2
 
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -874,7 +874,7 @@ def _cmd_pack(repo_root: Path, args: argparse.Namespace) -> int:
             zf.write(abs_path, arcname=rel.replace("\\", "/"))
 
     print("")
-    print(f"已生成：{str(out).replace('\\', '/')}")
+    print(f"已生成：{out.as_posix()}")
     return 0
 
 
@@ -909,6 +909,9 @@ def _parse_args() -> argparse.Namespace:
 
     p_sources = sub.add_parser("ingest-sources", help="透传调用 local_rag_ingest_sources.py")
     p_sources.add_argument("args", nargs=argparse.REMAINDER, help="透传参数（推荐用 -- 分隔）")
+
+    p_research = sub.add_parser("ingest-research", help="索引 remp_research/research（研究资料）到 Local RAG")
+    p_research.add_argument("args", nargs=argparse.REMAINDER, help="透传参数（推荐用 -- 分隔）")
 
     p_search = sub.add_parser("search", help="查询 Local RAG（vbrain 召回验收）")
     p_search.add_argument("query", help="查询语句")
@@ -961,6 +964,13 @@ def main() -> int:
             repo_root,
             "scripts/tools/local_rag_ingest_project_docs.py",
             _strip_passthrough(list(args.args)),
+        )
+    if args.cmd == "ingest-research":
+        extra = ["--base-dir", "remp_research/research"] + _strip_passthrough(list(args.args))
+        return _run_python(
+            repo_root,
+            "scripts/tools/local_rag_ingest_project_docs.py",
+            extra,
         )
     if args.cmd == "ingest-sources":
         return _run_python(

@@ -8,6 +8,7 @@
   "dry_run": true,
   "dry_run_wallet": 10,
   "cancel_open_orders_on_exit": false,
+  "enable_protections": true,
   "trading_mode": "spot",
   "timeframe": "4h",
   "unfilledtimeout": {

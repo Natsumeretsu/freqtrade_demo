@@ -3,11 +3,31 @@
   "params": {
     "buy": {
       "buy_ema_short_len": 20,
-      "buy_ema_long_len": 120,
+      "buy_ema_long_len": 160,
       "buy_adx": 20,
-      "buy_ema_slope_lookback": 6
+      "buy_ema_slope_lookback": 6,
+      "buy_ema_long_min_slope": 0.0,
+      "buy_max_ema_short_offset": 0.06,
+      "buy_bull_ema_long_offset": 0.08,
+      "buy_min_ema_spread": 0.0,
+      "buy_reentry_min_ema_long_offset": 0.02,
+      "buy_reentry_min_ema_spread": 0.01,
+      "buy_stake_frac_bull": 1.0,
+      "buy_stake_frac_strong": 1.0,
+      "buy_stake_frac_normal": 0.95,
+      "buy_stake_frac_weak": 0.5,
+      "buy_stake_frac_bull_weak": 0.25,
+      "buy_stake_weak_regime_lookback": 72,
+      "buy_stake_strong_adx_delta": 5,
+      "buy_stake_strong_spread_delta": 0.01,
+      "buy_stake_strong_slope_delta": 0.005
+    },
+    "sell": {
+      "sell_ema_slope_lookback": 24,
+      "sell_stop_atr_mult": 4.0,
+      "sell_stop_min_loss": 0.03,
+      "sell_bear_max_loss": 0.06
     }
   },
   "ft_stratparam_v": 1
 }
-

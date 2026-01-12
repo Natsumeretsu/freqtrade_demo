@@ -1,14 +1,20 @@
 """
-批量将本仓库的 project_docs 文档 ingest 到 mcp-local-rag（本地向量库）。
+批量将仓库内的 Markdown 文档 ingest 到 mcp-local-rag（本地向量库）。
+
+默认仅索引 `project_docs/`（避免扫全仓库代码/数据），但也支持显式指定其它文档目录
+（例如 `remp_research/research/`），用于把研究资料纳入“可检索知识层”。
 
 设计目标：
-- 让 Local RAG 作为“资料索引加速器”，只索引 project_docs（避免扫全仓库代码/数据）
+- Local RAG 作为“资料索引加速器”，用于语义召回 + 关键词 boost
 - 向量库落在 `.vibe/local-rag/lancedb/`（默认不提交，可随时重建）
 - 模型/嵌入器缓存默认落在设备级目录（`$CODEX_HOME/cache/local-rag/models/` 或 `~/.codex/cache/local-rag/models/`）
 - 不依赖任何第三方 Python 包（仅 stdlib），便于跨设备复用
 
 用法（推荐在仓库根目录运行）：
   python -X utf8 scripts/tools/local_rag_ingest_project_docs.py
+
+索引其它目录（示例）：
+  python -X utf8 scripts/tools/local_rag_ingest_project_docs.py --base-dir "remp_research/research"
 
 可选：
   python -X utf8 scripts/tools/local_rag_ingest_project_docs.py --limit 5
@@ -32,7 +38,15 @@ from typing import Any
 
 
 def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="批量 ingest project_docs 到 mcp-local-rag")
+    parser = argparse.ArgumentParser(description="批量 ingest Markdown 文档到 mcp-local-rag")
+    parser.add_argument(
+        "--base-dir",
+        default="project_docs",
+        help=(
+            "要 ingest 的文档根目录（相对仓库根目录，或绝对路径）。"
+            "默认：project_docs（建议保持结论层/权威文档在此目录）。"
+        ),
+    )
     parser.add_argument(
         "--limit",
         type=int,
@@ -291,7 +305,10 @@ def _print_progress(line: str) -> None:
 def main() -> int:
     args = _parse_args()
     repo_root = _repo_root()
-    base_dir = repo_root / "project_docs"
+    raw_base = str(args.base_dir or "").strip() or "project_docs"
+    base_dir = Path(raw_base).expanduser()
+    if not base_dir.is_absolute():
+        base_dir = (repo_root / base_dir).resolve()
     if not base_dir.exists():
         print(f"未找到目录：{base_dir}", file=sys.stderr)
         return 2
