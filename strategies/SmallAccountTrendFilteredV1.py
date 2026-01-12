@@ -9,7 +9,13 @@ from pandas import DataFrame
 from technical import qtpylib
 
 from freqtrade.persistence import Order, Trade
-from freqtrade.strategy import DecimalParameter, IStrategy, IntParameter
+from freqtrade.strategy import (
+    BooleanParameter,
+    DecimalParameter,
+    IStrategy,
+    IntParameter,
+    merge_informative_pair,
+)
 from freqtrade.strategy.strategy_helper import stoploss_from_absolute
 
 
@@ -136,6 +142,55 @@ class SmallAccountTrendFilteredV1(IStrategy):
         0.0, 0.05, default=0.01, decimals=3, space="buy", optimize=False
     )
 
+    # --- 风险开关因子（可回测，默认关闭）---
+    # 高阶趋势（宏观体制）过滤：用日线均线做 risk-on / risk-off 门控
+    macro_pair = "BTC/USDT"
+    macro_timeframe = "1d"
+
+    buy_use_macro_trend_filter = BooleanParameter(default=False, space="buy", optimize=False)
+    buy_macro_sma_period = IntParameter(100, 300, default=200, space="buy", optimize=False)
+    buy_macro_sma_slope_lookback = IntParameter(5, 60, default=20, space="buy", optimize=False)
+    buy_macro_sma_min_slope = DecimalParameter(0.0, 0.05, default=0.0, decimals=3, space="buy", optimize=False)
+
+    # 波动率上限过滤：避免极端波动时“追涨/抄底”导致止损链条
+    buy_use_atr_pct_max_filter = BooleanParameter(default=False, space="buy", optimize=False)
+    buy_atr_pct_max = DecimalParameter(0.01, 0.20, default=0.10, decimals=3, space="buy", optimize=False)
+
+    # 流动性代理：用成交量相对均值过滤“低流动性/低活跃”时段（对 BTC 通常影响很小）
+    buy_use_volume_ratio_filter = BooleanParameter(default=False, space="buy", optimize=False)
+    buy_volume_ratio_lookback = IntParameter(12, 240, default=72, space="buy", optimize=False)
+    buy_volume_ratio_min = DecimalParameter(0.5, 1.5, default=0.8, decimals=3, space="buy", optimize=False)
+
+    # --- 风险预算折扣（软风险开关，默认关闭）---
+    # 说明：不改变“信号逻辑”，只在仓位层面做 0~1 的折扣，
+    # 用于降低熊段/高波动/低流动性时的尾部风险，避免出现长期“0 trades”的回测假象。
+    buy_use_macro_trend_stake_scale = BooleanParameter(default=False, space="buy", optimize=False)
+    buy_macro_stake_scale_floor = DecimalParameter(
+        0.05, 1.00, default=0.25, decimals=3, space="buy", optimize=False
+    )
+
+    buy_use_atr_pct_stake_scale = BooleanParameter(default=False, space="buy", optimize=False)
+    buy_atr_pct_soft_start = DecimalParameter(
+        0.01, 0.20, default=0.06, decimals=3, space="buy", optimize=False
+    )
+    buy_atr_pct_soft_end = DecimalParameter(
+        0.01, 0.20, default=0.12, decimals=3, space="buy", optimize=False
+    )
+    buy_atr_pct_soft_floor = DecimalParameter(
+        0.05, 1.00, default=0.25, decimals=3, space="buy", optimize=False
+    )
+
+    buy_use_volume_ratio_stake_scale = BooleanParameter(default=False, space="buy", optimize=False)
+    buy_volume_ratio_soft_min = DecimalParameter(
+        0.20, 1.50, default=0.70, decimals=3, space="buy", optimize=False
+    )
+    buy_volume_ratio_soft_target = DecimalParameter(
+        0.20, 1.50, default=1.00, decimals=3, space="buy", optimize=False
+    )
+    buy_volume_ratio_soft_floor = DecimalParameter(
+        0.05, 1.00, default=0.25, decimals=3, space="buy", optimize=False
+    )
+
     # ATR 自适应止损：把“最坏单笔亏损”从固定 -10% 收敛到“随波动率变化”的区间
     # 说明：止损触发的“趋势走弱判断”使用 sell_ema_slope_lookback（更长窗口），
     # 避免牛市回撤中的短暂 EMA 回落就过早触发止损。
@@ -179,6 +234,51 @@ class SmallAccountTrendFilteredV1(IStrategy):
     buy_stake_strong_slope_delta = DecimalParameter(
         0.0, 0.02, default=0.005, decimals=3, space="buy", optimize=False
     )
+
+    def informative_pairs(self):
+        """
+        宏观过滤需要额外 timeframe 数据（默认：BTC/USDT 1d）。
+        """
+        return [(str(self.macro_pair), str(self.macro_timeframe))]
+
+    def _get_macro_informative_dataframe(self) -> DataFrame | None:
+        dp = getattr(self, "dp", None)
+        if dp is None:
+            return None
+
+        cached = getattr(self, "_macro_inf_df", None)
+        if isinstance(cached, DataFrame) and not cached.empty:
+            return cached
+
+        pair = str(getattr(self, "macro_pair", "BTC/USDT"))
+        inf_tf = str(getattr(self, "macro_timeframe", "1d"))
+
+        try:
+            informative = dp.get_pair_dataframe(pair=pair, timeframe=inf_tf)
+        except Exception:
+            return None
+        if informative is None or informative.empty:
+            return None
+
+        informative = informative.copy()
+        informative["macro_close"] = informative["close"]
+
+        sma_period = max(1, int(self.buy_macro_sma_period.value))
+        informative["macro_sma"] = ta.SMA(informative, timeperiod=sma_period)
+
+        informative_small = informative[["date", "macro_close", "macro_sma"]].copy()
+        informative_small = informative_small.replace([np.inf, -np.inf], np.nan)
+
+        setattr(self, "_macro_inf_df", informative_small)
+        return informative_small
+
+    def _merge_macro_indicators(self, dataframe: DataFrame) -> DataFrame:
+        informative = self._get_macro_informative_dataframe()
+        if informative is None:
+            return dataframe
+
+        inf_tf = str(getattr(self, "macro_timeframe", "1d"))
+        return merge_informative_pair(dataframe, informative, self.timeframe, inf_tf, ffill=True)
 
     def custom_stake_amount(
         self,
@@ -247,6 +347,9 @@ class SmallAccountTrendFilteredV1(IStrategy):
             return float(proposed_stake)
 
         stake_frac = float(max(0.0, min(1.0, stake_frac)))
+        risk_mult = self._risk_stake_multiplier(df=df)
+        if np.isfinite(risk_mult) and risk_mult > 0:
+            stake_frac = float(max(0.0, min(1.0, stake_frac * float(min(1.0, risk_mult)))))
 
         # unlimited 模式下用 max_stake 作为基准；固定 stake 下只做“缩小”，不做放大
         cfg_stake_amount = str(getattr(self, "config", {}).get("stake_amount", "")).strip().lower()
@@ -339,6 +442,91 @@ class SmallAccountTrendFilteredV1(IStrategy):
         except Exception:
             return 1.0
 
+    def _risk_stake_multiplier(self, *, df: DataFrame) -> float:
+        """
+        软风险开关：把宏观/波动率/流动性映射为 0~1 的仓位折扣（仅在仓位层面生效）。
+        """
+        try:
+            if df is None or df.empty:
+                return 1.0
+
+            last = df.iloc[-1]
+            mult = 1.0
+
+            # 宏观体制：日线收盘在 SMA 下方时，仓位打折；SMA 斜率越弱，折扣越大
+            if bool(self.buy_use_macro_trend_stake_scale.value):
+                floor = float(self.buy_macro_stake_scale_floor.value)
+                if np.isfinite(floor):
+                    floor = float(max(0.0, min(1.0, floor)))
+                    inf_tf = str(getattr(self, "macro_timeframe", "1d"))
+                    macro_close_col = f"macro_close_{inf_tf}"
+                    macro_sma_col = f"macro_sma_{inf_tf}"
+                    macro_close = float(last.get(macro_close_col, np.nan))
+                    macro_sma = float(last.get(macro_sma_col, np.nan))
+                    if np.isfinite(macro_close) and np.isfinite(macro_sma) and macro_sma > 0:
+                        if macro_close <= macro_sma:
+                            mult *= floor
+                        else:
+                            lb = int(self.buy_macro_sma_slope_lookback.value)
+                            min_slope = float(self.buy_macro_sma_min_slope.value)
+                            if (
+                                lb > 0
+                                and np.isfinite(min_slope)
+                                and min_slope > 0
+                                and len(df) > lb
+                                and macro_sma_col in df.columns
+                            ):
+                                sma_then = float(df[macro_sma_col].iloc[-1 - lb])
+                                if np.isfinite(sma_then) and sma_then > 0:
+                                    slope = (macro_sma / sma_then) - 1.0
+                                    if slope <= 0:
+                                        mult *= floor
+                                    elif slope >= min_slope:
+                                        mult *= 1.0
+                                    else:
+                                        mult *= float(floor + (1.0 - floor) * (slope / min_slope))
+
+            # 波动率上限：atr_pct 越高，仓位越小（线性折扣）
+            if bool(self.buy_use_atr_pct_stake_scale.value):
+                atr_pct = float(last.get("atr_pct", np.nan))
+                if np.isfinite(atr_pct) and atr_pct > 0:
+                    start = float(self.buy_atr_pct_soft_start.value)
+                    end = float(self.buy_atr_pct_soft_end.value)
+                    floor = float(self.buy_atr_pct_soft_floor.value)
+                    if np.isfinite(start) and np.isfinite(end) and np.isfinite(floor):
+                        floor = float(max(0.0, min(1.0, floor)))
+                        start = float(max(0.0, start))
+                        end = float(max(start, end))
+                        if end > start and atr_pct > start:
+                            if atr_pct >= end:
+                                mult *= floor
+                            else:
+                                ratio = (atr_pct - start) / (end - start)
+                                mult *= float(1.0 - (1.0 - floor) * ratio)
+
+            # 流动性代理：volume_ratio 越低，仓位越小（从 min -> target 线性恢复）
+            if bool(self.buy_use_volume_ratio_stake_scale.value):
+                vr = float(last.get("volume_ratio", np.nan))
+                if np.isfinite(vr) and vr > 0:
+                    vr_min = float(self.buy_volume_ratio_soft_min.value)
+                    vr_target = float(self.buy_volume_ratio_soft_target.value)
+                    floor = float(self.buy_volume_ratio_soft_floor.value)
+                    if np.isfinite(vr_min) and np.isfinite(vr_target) and np.isfinite(floor):
+                        floor = float(max(0.0, min(1.0, floor)))
+                        if vr_target <= vr_min:
+                            mult *= (1.0 if vr >= vr_target else floor)
+                        elif vr <= vr_min:
+                            mult *= floor
+                        elif vr >= vr_target:
+                            mult *= 1.0
+                        else:
+                            ratio = (vr - vr_min) / (vr_target - vr_min)
+                            mult *= float(floor + (1.0 - floor) * ratio)
+
+            return float(max(0.0, min(1.0, mult)))
+        except Exception:
+            return 1.0
+
     def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         short_len = int(self.buy_ema_short_len.value)
         long_len = int(self.buy_ema_long_len.value)
@@ -349,10 +537,19 @@ class SmallAccountTrendFilteredV1(IStrategy):
         df["adx"] = ta.ADX(df, timeperiod=14)
         df["atr"] = ta.ATR(df, timeperiod=14)
         df["atr_pct"] = df["atr"] / df["close"]
+
+        # 流动性代理：成交量相对均值（可用于过滤“低活跃时段”）
+        vol_lb = int(self.buy_volume_ratio_lookback.value)
+        if vol_lb > 0:
+            vol_mean = df["volume"].rolling(vol_lb).mean()
+            df["volume_ratio"] = df["volume"] / vol_mean.replace(0, np.nan)
+
         macd = ta.MACD(df, fastperiod=12, slowperiod=26, signalperiod=9)
         df["macd"] = macd["macd"]
         df["macdsignal"] = macd["macdsignal"]
         df["macdhist"] = macd["macdhist"]
+
+        df = self._merge_macro_indicators(df)
 
         return df.replace([np.inf, -np.inf], np.nan)
 
@@ -550,6 +747,24 @@ class SmallAccountTrendFilteredV1(IStrategy):
         ema_s = df[f"ema_short_{short_len}"]
         ema_l = df[f"ema_long_{long_len}"]
 
+        # 宏观体制过滤（默认关闭）：日线 close 必须高于 SMA，且 SMA 在窗口内“有效上行”
+        macro_ok = df["volume"] > 0
+        if bool(self.buy_use_macro_trend_filter.value):
+            inf_tf = str(getattr(self, "macro_timeframe", "1d"))
+            macro_close_col = f"macro_close_{inf_tf}"
+            macro_sma_col = f"macro_sma_{inf_tf}"
+            if macro_close_col not in df.columns or macro_sma_col not in df.columns:
+                return df
+
+            macro_ok = df[macro_close_col] > df[macro_sma_col]
+
+            macro_lb = int(self.buy_macro_sma_slope_lookback.value)
+            macro_min_slope = float(self.buy_macro_sma_min_slope.value)
+            if macro_lb > 0 and np.isfinite(macro_min_slope) and macro_min_slope > 0:
+                macro_ok = macro_ok & (
+                    df[macro_sma_col] > (df[macro_sma_col].shift(macro_lb) * (1.0 + macro_min_slope))
+                )
+
         # 趋势过滤：EMA 长期必须“有效上行”（避免震荡市频繁“假突破”）
         ema_l_up = ema_l > (ema_l.shift(slope_n) * (1.0 + min_slope))
 
@@ -563,6 +778,10 @@ class SmallAccountTrendFilteredV1(IStrategy):
 
         # 波动率过滤：必须有足够波动覆盖手续费与噪声（经验阈值：0.4%）
         vol_ok = df["atr_pct"] > 0.004
+        if bool(self.buy_use_atr_pct_max_filter.value):
+            atr_max = float(self.buy_atr_pct_max.value)
+            if np.isfinite(atr_max) and atr_max > 0:
+                vol_ok = vol_ok & (df["atr_pct"] < atr_max)
 
         trend_up = ema_s > ema_l
 
@@ -590,8 +809,18 @@ class SmallAccountTrendFilteredV1(IStrategy):
         # 动量二次确认：优先在“向上推进”的 K 线上入场，避免下跌过程里反复抄底
         momentum_up = df["close"] > df["close"].shift(1)
 
+        # 流动性代理：低活跃时段降低入场（对 BTC 通常影响很小，但对多币种更关键）
+        liq_ok = df["volume"] > 0
+        if bool(self.buy_use_volume_ratio_filter.value):
+            if "volume_ratio" not in df.columns:
+                return df
+            liq_min = float(self.buy_volume_ratio_min.value)
+            if np.isfinite(liq_min) and liq_min > 0:
+                liq_ok = df["volume_ratio"] >= liq_min
+
         conds = [
             df["volume"] > 0,
+            macro_ok.fillna(False),
             entry_signal.fillna(False),
             trend_up.fillna(False),
             (df["close"] > ema_s),
@@ -602,6 +831,7 @@ class SmallAccountTrendFilteredV1(IStrategy):
             ema_spread_ok.fillna(False),
             vol_ok.fillna(False),
             macd_ok.fillna(False),
+            liq_ok.fillna(False),
         ]
 
         enter = reduce(lambda x, y: x & y, conds)

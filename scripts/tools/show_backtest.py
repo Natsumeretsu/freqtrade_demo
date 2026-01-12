@@ -34,8 +34,22 @@ def main():
 
         # Exit reasons
         print("\n--- Exit Reasons ---")
-        for reason, count in strat.get('exit_reason_summary', {}).items():
-            print(f"  {reason}: {count}")
+        exit_summary = strat.get("exit_reason_summary", {})
+        if isinstance(exit_summary, dict):
+            for reason, count in exit_summary.items():
+                print(f"  {reason}: {count}")
+        elif isinstance(exit_summary, list):
+            # 新版回测结果里 exit_reason_summary 通常是 list[dict]，每行包含 key/trades 等字段
+            for row in exit_summary:
+                if not isinstance(row, dict):
+                    continue
+                reason = row.get("key", "")
+                trades = row.get("trades", "")
+                if reason == "":
+                    continue
+                print(f"  {reason}: {trades}")
+        else:
+            print("  (exit_reason_summary 格式未知)")
 
 if __name__ == '__main__':
     main()

@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     下载历史 K 线数据
 
@@ -158,3 +158,4 @@ if ($NormalizeSpotLayout -and $TradingMode -eq "spot") {
     Write-Host "spot 数据目录归一化失败（不影响下载结果）：$($_.Exception.Message)"
   }
 }
+

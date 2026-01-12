@@ -9,6 +9,7 @@ stress_test.py - 回测结果压力测试
 from __future__ import annotations
 
 import argparse
+import json
 import math
 import random
 import sys
@@ -94,6 +95,11 @@ def _parse_args() -> argparse.Namespace:
             "滑点假设（单边比例，例如 0.0005=0.05%%）。"
             "会近似从每笔交易 profit_ratio 扣除 2*slippage（买入+卖出）。"
         ),
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="以 JSON 一行输出摘要，便于脚本/CI 解析。",
     )
     return parser.parse_args()
 
@@ -298,6 +304,43 @@ def main() -> int:
     mdd_p5 = float(np.percentile(mdds, 5))  # 更差（更负）的尾部
     mdd_p50 = float(np.percentile(mdds, 50))
     mdd_p95 = float(np.percentile(mdds, 95))
+
+    if bool(args.json):
+        out: dict[str, object] = {
+            "zip": zip_path.as_posix(),
+            "strategy": strategy_name,
+            "trades": int(len(seq_any)),
+            "mode": mode,
+            "simulations": int(sims),
+            "seed": int(args.seed),
+            "slippage_one_way": float(args.slippage),
+            "starting_balance": float(starting_balance),
+            "orig_final_balance": float(orig_final),
+            "orig_profit_ratio": float(orig_final / starting_balance - 1.0),
+            "orig_max_drawdown": float(orig_mdd),
+            "final_balance_p05": float(final_p5),
+            "final_balance_p50": float(final_p50),
+            "final_balance_p95": float(final_p95),
+            "profit_ratio_p05": float(final_p5 / starting_balance - 1.0),
+            "profit_ratio_p50": float(final_p50 / starting_balance - 1.0),
+            "profit_ratio_p95": float(final_p95 / starting_balance - 1.0),
+            "max_drawdown_p05": float(mdd_p5),
+            "max_drawdown_p50": float(mdd_p50),
+            "max_drawdown_p95": float(mdd_p95),
+        }
+
+        if mode == "ratio":
+            out["stake_fraction"] = float(stake_fraction)
+        if mode == "policy":
+            fracs = [float(x.stake_fraction) for x in seq_any if np.isfinite(float(x.stake_fraction))]
+            if fracs:
+                out["stake_fraction_policy_min"] = float(np.min(fracs))
+                out["stake_fraction_policy_p50"] = float(np.median(fracs))
+                out["stake_fraction_policy_mean"] = float(np.mean(fracs))
+                out["stake_fraction_policy_max"] = float(np.max(fracs))
+
+        print(json.dumps(out, ensure_ascii=False))
+        return 0
 
     print("")
     print("=== 压力测试摘要 ===")
