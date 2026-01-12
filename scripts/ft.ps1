@@ -19,6 +19,11 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
+# 兼容：当脚本被不带参数调用（或只用了 PowerShell 的通用参数）时，这里可能是 $null
+if ($null -eq $FreqtradeArgs) {
+  $FreqtradeArgs = @()
+}
+
 # Load common module
 $mcpCommon = Join-Path $PSScriptRoot "lib/common.ps1"
 if (Test-Path $mcpCommon) {

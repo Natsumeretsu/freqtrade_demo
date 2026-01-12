@@ -1,0 +1,13 @@
+{
+  "strategy_name": "SmallAccountTrendFilteredV1",
+  "params": {
+    "buy": {
+      "buy_ema_short_len": 20,
+      "buy_ema_long_len": 120,
+      "buy_adx": 20,
+      "buy_ema_slope_lookback": 6
+    }
+  },
+  "ft_stratparam_v": 1
+}
+

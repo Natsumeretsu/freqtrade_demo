@@ -41,7 +41,11 @@ param(
   [switch]$NoParallelDownload,
 
   [ValidateSet("json", "jsongz", "feather", "parquet")]
-  [string]$DataFormatOhlcv = "feather"
+  [string]$DataFormatOhlcv = "feather",
+
+  # 下载后自动修复旧版 spot 数据目录结构（data/<exchange>/spot -> data/<exchange>）
+  # 仅在 -TradingMode spot 时生效；默认不启用，避免对本地数据做批量改动。
+  [switch]$NormalizeSpotLayout
 )
 
 $ErrorActionPreference = 'Stop'
@@ -139,3 +143,18 @@ Write-Host ("uv " + ($argsList -join " "))
 Write-Host ""
 
 & uv @argsList
+
+# 兼容旧数据布局：部分历史环境会把 spot 数据写到 data/<exchange>/spot 下，
+# 但 Freqtrade 现版本读取 spot 数据默认在 data/<exchange>/。
+if ($NormalizeSpotLayout -and $TradingMode -eq "spot") {
+  try {
+    $normalizeScript = Join-Path $PSScriptRoot "normalize_data_layout.ps1"
+    if (Test-Path $normalizeScript) {
+      & $normalizeScript -DataRoot "data" -Mode "copy"
+    } else {
+      Write-Host "未找到归一化脚本：$normalizeScript"
+    }
+  } catch {
+    Write-Host "spot 数据目录归一化失败（不影响下载结果）：$($_.Exception.Message)"
+  }
+}

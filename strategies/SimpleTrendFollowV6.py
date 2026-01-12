@@ -42,6 +42,28 @@ class SimpleTrendFollowV6(IStrategy):
 
     use_exit_signal = True
 
+    # --- 保护机制（小资金优先“少亏、可持续”）---
+    # 说明：避免震荡市出现连续止损后的“越做越亏”。
+    protections = [
+        {"method": "CooldownPeriod", "stop_duration_candles": 1},
+        {
+            "method": "StoplossGuard",
+            "lookback_period_candles": 48,
+            "trade_limit": 2,
+            "stop_duration_candles": 24,
+            "required_profit": 0.0,
+            "only_per_pair": True,
+            "only_per_side": False,
+        },
+        {
+            "method": "MaxDrawdown",
+            "lookback_period_candles": 96,
+            "trade_limit": 4,
+            "stop_duration_candles": 24,
+            "max_allowed_drawdown": 0.2,
+        },
+    ]
+
     # --- Hyperopt 参数（仅 buy 空间）---
     buy_ema_short_len = IntParameter(10, 45, default=20, space="buy", optimize=True)
     buy_ema_long_len = IntParameter(50, 200, default=200, space="buy", optimize=True)

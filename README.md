@@ -94,8 +94,49 @@ powershell.exe -ExecutionPolicy Bypass -File "./scripts/mcp/setup_codex.ps1"
 ## 生成配置（注意：`config*.json` 默认忽略，不要提交密钥）
 
 ```powershell
-uv run freqtrade --userdir "." new-config --config "./config.json"
+.\scripts\ft.ps1 new-config --config "./config.json"
 ```
+
+## 小资金策略系统（10 USDT → 100/1000/10000）
+
+本仓库的“小资金主线”目标是：把策略做成**可回测复现 + 跨窗口稳定**，再逐步扩大资金与交易对数量。
+
+- 主线策略：`strategies/SmallAccountTrendFilteredV1.py`（`SmallAccountTrendFilteredV1`）
+- 一键回测：`scripts/analysis/small_account_backtest.ps1`
+- 跨年份稳定性评估：`scripts/analysis/small_account_benchmark.ps1`
+
+### 1) 下载数据（现货）
+
+```powershell
+./scripts/data/download.ps1 `
+  -TradingMode spot `
+  -Pairs @("BTC/USDT") `
+  -Timeframes @("4h") `
+  -Timerange "20230101-" `
+  -NormalizeSpotLayout
+```
+
+说明：`-NormalizeSpotLayout` 用于兼容旧数据布局（`data/<exchange>/spot/` → `data/<exchange>/`），避免出现“有数据但 list-data 识别不到”的问题。
+
+### 2) 小资金回测（10 USDT 基线）
+
+```powershell
+./scripts/analysis/small_account_backtest.ps1 `
+  -Pairs "BTC/USDT" `
+  -Timerange "20240101-20241231"
+```
+
+### 3) 跨年份稳定性评估（推荐先跑单币种）
+
+```powershell
+./scripts/analysis/small_account_benchmark.ps1 `
+  -Pairs "BTC/USDT" `
+  -Timeframe "4h"
+```
+
+输出：
+- `artifacts/benchmarks/<run>/summary.csv`：每个窗口的收益/回撤/交易数
+- `artifacts/benchmarks/<run>/summary.md`：汇总结论（PASS/FAIL）
 
 ## FreqAI + LightGBM 示例（滚动训练）
 

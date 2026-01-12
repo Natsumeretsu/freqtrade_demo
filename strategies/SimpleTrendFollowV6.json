@@ -1,0 +1,11 @@
+{
+  "strategy_name": "SimpleTrendFollowV6",
+  "params": {
+    "buy": {
+      "buy_ema_short_len": 20,
+      "buy_ema_long_len": 200,
+      "buy_adx": 25
+    }
+  },
+  "ft_stratparam_v": 1
+}

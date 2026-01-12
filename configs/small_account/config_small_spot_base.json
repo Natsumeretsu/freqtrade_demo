@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.freqtrade.io/schema.json",
-  "max_open_trades": 3,
+  "max_open_trades": 1,
   "stake_currency": "USDT",
   "stake_amount": "unlimited",
   "tradable_balance_ratio": 0.95,
@@ -9,7 +9,7 @@
   "dry_run_wallet": 10,
   "cancel_open_orders_on_exit": false,
   "trading_mode": "spot",
-  "strategy": "SmallAccountTrendFilteredV1",
+  "timeframe": "4h",
   "unfilledtimeout": {
     "entry": 10,
     "exit": 10,
@@ -35,12 +35,11 @@
     "name": "okx",
     "key": "",
     "secret": "",
+    "password": "",
     "ccxt_config": {},
     "ccxt_async_config": {},
     "pair_whitelist": [
-      "BTC/USDT",
-      "ETH/USDT",
-      "DOGE/USDT"
+      "BTC/USDT"
     ],
     "pair_blacklist": []
   },
@@ -67,7 +66,7 @@
     "password": "<strong_password>"
   },
   "bot_name": "freqtrade",
-  "initial_state": "running",
+  "initial_state": "stopped",
   "force_entry_enable": false,
   "internals": {
     "process_throttle_secs": 5
