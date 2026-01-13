@@ -41,7 +41,7 @@ vbrain 不是单一工具，而是一套“**核心闭环 + 可选外设**”的
 
 - 用 `local_rag` 查外部证据（全文/片段），确认“依据来自哪里”。
 - 用 `in_memoria` 查本仓库已有套路/坑点/路径（避免重复造轮子）。
-- 用仓库文档（`project_docs` + `.serena/memories`）确认已有“权威结论”是否已覆盖。
+- 用仓库文档（`docs/` + `.serena/memories`）确认已有“权威结论”是否已覆盖。
 
 ### 2.2 Distill（提炼：把原文变成可执行资产）
 
@@ -97,7 +97,8 @@ vbrain 不是单一工具，而是一套“**核心闭环 + 可选外设**”的
 
 当“权威知识层”更新后，默认同步检索加速器：
 
-- 索引 `project_docs`：`python -X utf8 scripts/tools/vbrain.py ingest-docs -- --rebuild`（首次/大改）或 `python -X utf8 scripts/tools/vbrain.py ingest-docs`（增量）
+- 索引 `docs/`：`python -X utf8 scripts/tools/vbrain.py ingest-docs -- --rebuild`（首次/大改）或 `python -X utf8 scripts/tools/vbrain.py ingest-docs`（增量）
+- 默认使用带进度条的 ingest 脚本（vbrain 内部调用 `scripts/tools/local_rag_ingest_project_docs.py`），避免手工逐个调用 `local_rag.ingest_file` 导致无进度与易重复。
 - 索引 feed（可选）：`python -X utf8 scripts/tools/vbrain.py ingest-sources -- --only-new`
 
 统一入口（推荐，用于降低摩擦）：

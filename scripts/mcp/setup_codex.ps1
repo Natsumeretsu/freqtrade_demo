@@ -70,6 +70,72 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "codex mcp add 失败：$Name" }
   }
 
+  function Ensure-CodexMcpServerCwd {
+    <#
+    .SYNOPSIS
+      为指定 MCP server 写入/更新 cwd（Codex CLI 目前的 `codex mcp add` 不支持直接设置 cwd）
+    #>
+    param(
+      [Parameter(Mandatory = $true)][string]$Name,
+      [Parameter(Mandatory = $true)][string]$CwdValue
+    )
+
+    $codexHome = Get-DefaultCodexHome
+    if ([string]::IsNullOrWhiteSpace($codexHome)) {
+      Write-Warning "未找到 CODEX_HOME 或默认 ~/.codex，跳过写入 cwd。"
+      return
+    }
+
+    $configPath = Join-Path $codexHome "config.toml"
+    if (-not (Test-Path $configPath)) {
+      Write-Warning ("未找到 Codex 配置文件，跳过写入 cwd：{0}" -f $configPath)
+      return
+    }
+
+    $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+    $lines = [System.IO.File]::ReadAllLines($configPath, $utf8NoBom)
+    $header = "[mcp_servers.$Name]"
+    $start = [Array]::IndexOf($lines, $header)
+    if ($start -lt 0) {
+      Write-Warning ("未找到 MCP server 段落，跳过写入 cwd：{0}" -f $header)
+      return
+    }
+
+    # 仅在 server 段落内查找/插入（遇到下一个 `[` 段落头就停止）
+    $end = $lines.Length
+    for ($i = $start + 1; $i -lt $lines.Length; $i++) {
+      if ($lines[$i] -match '^\[') {
+        $end = $i
+        break
+      }
+    }
+
+    $cwdLine = ('cwd = "{0}"' -f $CwdValue)
+    $updated = $false
+    for ($i = $start + 1; $i -lt $end; $i++) {
+      if ($lines[$i] -match '^\s*cwd\s*=') {
+        if ($lines[$i] -ne $cwdLine) {
+          $lines[$i] = $cwdLine
+        }
+        $updated = $true
+        break
+      }
+    }
+
+    if (-not $updated) {
+      $list = New-Object System.Collections.Generic.List[string]
+      $list.AddRange($lines[0..$start])
+      $list.Add($cwdLine)
+      if ($start + 1 -lt $lines.Length) {
+        $list.AddRange($lines[($start + 1)..($lines.Length - 1)])
+      }
+      $lines = $list.ToArray()
+    }
+
+    [System.IO.File]::WriteAllLines($configPath, $lines, $utf8NoBom)
+    Write-Host ("已写入 cwd：{0} -> {1}" -f $Name, $CwdValue)
+  }
+
   # MCP 服务器列表（从 common.ps1 获取）
   $servers = @(Get-DefaultMcpServers -LocalRagCacheDir $LocalRagModelCacheDir -LocalRagModelName $LocalRagModelName)
   if (-not $hasUvx) {
@@ -129,6 +195,15 @@ try {
       $stats.Failed++
       Write-Warning ("配置失败：{0} - {1}" -f $name, $_.Exception.Message)
       continue
+    }
+  }
+
+  # 额外补丁：local_rag 需要 cwd 才能让 BASE_DIR/DB_PATH 以“项目目录”为基准解析（跨设备不依赖绝对路径）
+  if ($PSCmdlet.ShouldProcess("local_rag", "ensure cwd")) {
+    try {
+      Ensure-CodexMcpServerCwd -Name "local_rag" -CwdValue "."
+    } catch {
+      Write-Warning ("写入 local_rag.cwd 失败（可忽略，但跨设备可能需要手动补齐）：{0}" -f $_.Exception.Message)
     }
   }
 

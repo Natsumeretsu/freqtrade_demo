@@ -296,7 +296,8 @@ function Get-DefaultMcpServers {
 
   $localRagEnv = @(
     "npm_config_cache=.vibe/npm-cache",
-    "BASE_DIR=docs",
+    # BASE_DIR 用于限制 ingest_file/delete_file 的可访问路径；设为 "." 以便基于“项目工作目录”动态解析，跨设备无需改绝对路径。
+    "BASE_DIR=.",
     "DB_PATH=.vibe/local-rag/lancedb",
     ("CACHE_DIR={0}" -f $cacheDir),
     ("MODEL_NAME={0}" -f $modelName),
