@@ -8,7 +8,7 @@
 
 ## 深入分析报告（算法/理论/陷阱）
 
-- 详见：`project_docs/knowledge/crypto_exchange_strategy_deep_dive.md`
+- 详见：`docs/knowledge/crypto_exchange_strategy_deep_dive.md`
 
 ---
 

@@ -42,13 +42,13 @@ def _parse_args() -> argparse.Namespace:
         description=(
             "压力测试：对 Freqtrade 回测结果做参数敏感性/蒙特卡洛（交易序列洗牌）\n"
             "- 适用：评估“运气好/坏”对回撤与最终收益的影响\n"
-            "- 输入：backtest_results/*.zip（Freqtrade 回测输出）\n"
+            "- 输入：01_freqtrade/backtest_results/*.zip（Freqtrade 回测输出）\n"
         )
     )
     parser.add_argument(
         "--zip",
         required=True,
-        help="回测结果 zip 路径，例如 backtest_results/backtest-result-xxx.zip",
+        help="回测结果 zip 路径，例如 01_freqtrade/backtest_results/backtest-result-xxx.zip",
     )
     parser.add_argument(
         "--strategy",

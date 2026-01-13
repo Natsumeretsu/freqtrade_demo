@@ -1,5 +1,5 @@
 """
-把 freqtrade_docs/raw_html 下的离线 Freqtrade 文档 HTML，批量整理成更适合“vibe coding 查阅使用”的中文 Markdown。
+把 docs/archive/freqtrade_docs/raw_html 下的离线 Freqtrade 文档 HTML，批量整理成更适合“vibe coding 查阅使用”的中文 Markdown。
 
 目标：
 - 结构化：统一的“元信息 + 仓库运行方式 + 目录速览 + 原文（自动 Markdown 化）”
@@ -18,7 +18,7 @@ import re
 from pathlib import Path
 
 
-DOCS_DIR_DEFAULT = Path("freqtrade_docs")
+DOCS_DIR_DEFAULT = Path("docs/archive/freqtrade_docs")
 RAW_HTML_DIRNAME = "raw_html"
 
 SKIP_OVERWRITE_MD = {
@@ -431,7 +431,7 @@ def main() -> None:
                 [
                     f"未找到目录：{raw_dir.as_posix()}",
                     "说明：该目录可能被 gitignore（用于减小仓库体积）。",
-                    '如需重新生成，请先运行：uv run python "scripts/download_freqtrade_docs_html.py"',
+                    '如需重新生成，请先运行：uv run python "scripts/docs/download.py"',
                 ]
             )
         )

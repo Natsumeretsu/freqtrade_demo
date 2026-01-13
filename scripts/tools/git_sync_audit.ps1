@@ -5,7 +5,7 @@
 .DESCRIPTION
   这个脚本只做审计与建议输出：
   - 列出“已被 Git 跟踪，但按当前策略不应同步”的路径（例如 data/、config*.json、.claude/settings.local.json）
-  - 列出“未跟踪，但建议纳入 Git 同步”的权威层目录（例如 project_docs/、.serena/memories/、scripts/tools/）
+  - 列出“未跟踪，但建议纳入 Git 同步”的权威层目录（例如 docs/、.serena/memories/、scripts/tools/）
   - 提醒可能导致跨设备差异的 Git 配置（如 core.autocrlf）
 
   注意：脚本默认不会执行 git rm / git add 等修改操作，只会输出建议命令。
@@ -68,12 +68,14 @@ Write-Host ""
 
 # --- 规则：哪些路径不应该被 Git 跟踪（但可能历史上已经被跟踪） ---
 $shouldNotTrackPrefixes = @(
-  "data/",
-  "logs/",
-  "backtest_results/",
-  "hyperopt_results/",
-  "plot/",
-  "models/",
+  "01_freqtrade/data/",
+  "01_freqtrade/logs/",
+  "01_freqtrade/backtest_results/",
+  "01_freqtrade/hyperopt_results/",
+  "01_freqtrade/plot/",
+  "01_freqtrade/models/",
+  "02_qlib_research/qlib_data/",
+  "02_qlib_research/models/",
   "artifacts/",
   "temp/",
   ".vibe/",
@@ -133,8 +135,8 @@ if ($trackedShouldNotTrack.Count -gt 0) {
   Write-Host ""
   Write-Host "建议（仅输出，不自动执行）："
 
-  if ($trackedShouldNotTrack | Where-Object { $_.StartsWith("data/") }) {
-    Write-Host "  git rm --cached -r -- data/"
+  if ($trackedShouldNotTrack | Where-Object { $_.StartsWith("01_freqtrade/data/") }) {
+    Write-Host "  git rm --cached -r -- 01_freqtrade/data/"
   }
 
   if ($trackedShouldNotTrack -contains ".claude/settings.local.json") {
@@ -154,15 +156,14 @@ if ($trackedShouldNotTrack.Count -gt 0) {
 
 # --- 规则：哪些路径通常应该纳入 Git（但当前未跟踪） ---
 $recommendedTrackPrefixes = @(
-  "project_docs/",
+  "docs/",
   ".serena/memories/",
-  "configs/",
-  "strategies/",
+  "04_shared/config/",
+  "04_shared/configs/",
+  "01_freqtrade/strategies/",
   "scripts/tools/",
   "scripts/lib/",
-  "scripts/mcp/",
-  "vbrain/",
-  "vharvest/"
+  "scripts/mcp/"
 )
 
 $recommendedTrackExact = @(

@@ -1,28 +1,24 @@
 # freqtrade_demo
 
-这是一个“纯 userdir”的 Freqtrade 示例仓库：仓库根目录就是 userdir（策略/超参/笔记本/文档）。
-`strategies_ref_docs/` 以 Git 子模块形式提供策略参考文档。
+这是一个面向 Windows + `uv` 的 **Freqtrade（回测/实盘）+ Qlib 风格研究（因子/模型）** 的工程化仓库。
 
-## 目录结构
+> 重要变化：本仓库不再把 repo root 当作 userdir。Freqtrade `userdir` 固定在：`01_freqtrade/`。
 
-- `strategies/`：策略源码
-- `hyperopts/`：超参 loss 等
-- `scripts/`：辅助脚本（推荐统一入口 `./scripts/ft.ps1`）
-- `configs/`：可提交、可复制的配置模板（脱敏）
-- `experiments/`：实验记录（命令/结论；不存训练产物）
-- `freqaimodels/`：自定义 FreqAI 预测模型代码（可选）
-- `notebooks/`：分析笔记本
-- `freqtrade_book/`：渐进式学习手册（中文）
-- `freqtrade_docs/`：离线整理的参考库（中文）
-- `strategies_ref_docs/`：策略参考文档（Git 子模块）
-- `.claude/CONVENTIONS.md`：项目规范文档（必读）
-- `models/`：FreqAI 训练/预测产物（默认忽略，不建议手工改动）
-- `artifacts/`：本地归档/历史产物（默认忽略）
-- `.serena/`：Serena 项目配置与记忆（建议跨设备同步 `memories/` 与 `project.yml`；`cache/`/`logs/` 默认忽略）
-- `pyproject.toml`：依赖声明（唯一来源）
-- `uv.lock`：依赖锁文件（锁死传递依赖）
-- `.python-version`：固定 Python 版本（uv 自动使用）
-- `.venv/`：本地虚拟环境（不提交）
+---
+
+## 目录结构（最重要）
+
+- `01_freqtrade/`：Freqtrade userdir（策略/运行配置/数据/回测产物）
+- `02_qlib_research/`：研究层（notebooks/experiments；`qlib_data/` 与 `models/` 默认不提交）
+- `03_integration/`：集成层（桥接代码：`trading_system/`，策略侧可 `import`）
+- `04_shared/`：共享配置  
+  - `04_shared/configs/`：Freqtrade JSON 配置模板（脱敏、可提交）  
+  - `04_shared/config/`：Qlib 相关 YAML（路径/交易对/符号映射，可提交）
+- `scripts/`：统一脚本入口（强制使用）
+- `docs/`：权威文档；`docs/archive/`：离线参考与归档（含子模块 `docs/archive/strategies_ref_docs/`）
+- `artifacts/`：本地 benchmark 产物（默认不提交）
+
+---
 
 ## 克隆（含子模块）
 
@@ -31,167 +27,111 @@ git clone --recurse-submodules "<your_repo_url>"
 git submodule update --init --recursive
 ```
 
+---
+
 ## 环境配置（推荐：uv 管理 `./.venv`）
 
 ```powershell
 uv python install "3.11"
 uv sync --frozen
 
-.\scripts\ft.ps1 trade --help
+./scripts/ft.ps1 --help
 ```
 
-### Windows 编码说明（重要）
-
-中文 Windows 的默认编码常为 GBK，Freqtrade 在扫描 `strategies/*.py` 时可能触发 `UnicodeDecodeError`。
-本仓库已提供统一入口脚本 `./scripts/ft.ps1`，会强制使用 UTF-8 模式运行 Freqtrade，建议用它替代直接运行 `uv run freqtrade ...`。
-
-如果你希望 VSCode 的 Python 扩展（运行/调试）也默认启用 UTF-8，可复制示例环境变量文件：
+也可以一键初始化（含依赖同步）：
 
 ```powershell
-Copy-Item ".env.example" ".env"
+./scripts/bootstrap.ps1
 ```
 
-说明：`.env` 默认被 git 忽略，避免误提交环境变量；请只在 `.env.example` 放非敏感内容。
-
-也可以一键初始化（含子模块 + 依赖同步）：
-
-```powershell
-& "./scripts/bootstrap.ps1"
-```
-
-如果系统限制执行脚本，可用：
+若系统限制执行脚本：
 
 ```powershell
 powershell.exe -ExecutionPolicy Bypass -File "./scripts/bootstrap.ps1"
 ```
 
+---
+
+## 关键约定（避免路径与产物混乱）
+
+- **所有 Freqtrade 命令必须用** `./scripts/ft.ps1 <命令> ...`  
+  - 脚本会自动补 `--userdir "./01_freqtrade"`  
+  - 禁止直接运行 `freqtrade` / `uv run freqtrade`（容易生成意外 `user_data/` 子目录）
+- 私密信息只放 `.env` 或 `01_freqtrade/config-private.json`（默认 gitignore）
+- 市场数据/回测产物/训练模型默认不随 Git 同步（见：`docs/setup/git_sync_policy.md`）
+
+### Windows 编码说明（重要）
+
+中文 Windows 默认编码常为 GBK，Freqtrade 在扫描 `01_freqtrade/strategies/*.py` 时可能触发 `UnicodeDecodeError`。  
+本仓库脚本入口会强制 UTF-8 模式运行，建议始终用 `./scripts/ft.ps1`。
+
+如需让 IDE/调试也统一 UTF-8，可复制：
+
+```powershell
+Copy-Item ".env.example" ".env"
+```
+
+---
+
+## Quickstart（最小可跑通）
+
+### 1) 生成运行配置
+
+```powershell
+Copy-Item "04_shared/configs/config.example.json" "01_freqtrade/config.json"
+Copy-Item "04_shared/configs/config-private.example.json" "01_freqtrade/config-private.json"
+```
+
+### 2) 验证策略能被识别
+
+```powershell
+./scripts/ft.ps1 list-strategies --config "01_freqtrade/config.json"
+```
+
+### 3) 下载数据（示例：OKX 永续，4h + 1d）
+
+```powershell
+./scripts/data/download.ps1 `
+  -Pairs "BTC/USDT:USDT" `
+  -Timeframes "4h","1d" `
+  -TradingMode "futures" `
+  -Timerange "20200101-"
+```
+
+### 4) 回测（示例：小资金合约趋势）
+
+```powershell
+./scripts/analysis/small_account_backtest.ps1 `
+  -Config "04_shared/configs/small_account/config_small_futures_base.json" `
+  -Strategy "SmallAccountFuturesTrendV1" `
+  -Pairs "BTC/USDT:USDT" `
+  -Timeframe "4h" `
+  -TradingMode "futures" `
+  -Timerange "20200101-20251231"
+```
+
+（可选）### 5) 研究层：一键转换 + 训练（Qlib 风格）
+
+```powershell
+./scripts/qlib/pipeline.ps1 -Timeframe "4h" -ModelVersion "v1"
+```
+
+---
+
+## 典型入口（策略/示例）
+
+- 小资金现货主线：`01_freqtrade/strategies/SmallAccountTrendFilteredV1.py`
+- 小资金合约趋势：`01_freqtrade/strategies/SmallAccountFuturesTrendV1.py`
+- 其它历史/实验策略（含 FreqAI）已归档：`01_freqtrade/strategies_archive/`（配置示例见：`04_shared/configs/archive/`）
+
+---
+
 ## Codex MCP（可选）
 
-如果团队使用 Codex CLI，并希望启用常用 MCP（Serena / Context7 / MarkItDown / Playwright / Chrome DevTools / Wolfram），克隆后在仓库根目录执行一次：
+如需一键写入本机 Codex CLI 配置（Serena / Context7 / MarkItDown / Playwright / Chrome DevTools / Wolfram 等）：
 
 ```powershell
 powershell.exe -ExecutionPolicy Bypass -File "./scripts/mcp/setup_codex.ps1"
 ```
 
-更完整的同步/参数说明见：`project_docs/codex_mcp_sync.md`。
-
-仅预览将要执行的命令（不修改本机配置）：
-
-```powershell
-./scripts/mcp/setup_codex.ps1 -WhatIf
-```
-
-如果你已经添加过同名 MCP server，但想按脚本版本覆盖：
-
-```powershell
-./scripts/mcp/setup_codex.ps1 -Force
-```
-
-前置：已安装 `codex`（Codex CLI）、`node`（含 `npx`）、`uv`（含 `uvx`）。本仓库默认使用 Wolfram 的 **Python 模式**（默认使用 `~/.codex/tools/Wolfram-MCP/`，脚本会按需克隆/更新该仓库并自动初始化其 `.venv`）；如需改用 `wolframscript` + Paclet 请使用 `-WolframMode paclet`。如需强制重建 `~/.codex/tools/Wolfram-MCP/.venv`，可加 `-BootstrapWolframPython`。如需指定 Wolfram-MCP 仓库位置/地址，可用 `-WolframMcpRepoDir` / `-WolframMcpRepoUrl`。
-
-说明：该脚本只会写入你本机的 `~/.codex/config.toml`（Codex CLI 的用户配置），不会修改或提交仓库文件。
-
-## 生成配置（注意：`config*.json` 默认忽略，不要提交密钥）
-
-```powershell
-.\scripts\ft.ps1 new-config --config "./config.json"
-```
-
-## 小资金策略系统（10 USDT → 100/1000/10000）
-
-本仓库的“小资金主线”目标是：把策略做成**可回测复现 + 跨窗口稳定**，再逐步扩大资金与交易对数量。
-
-- 主线策略：`strategies/SmallAccountTrendFilteredV1.py`（`SmallAccountTrendFilteredV1`）
-- 一键回测：`scripts/analysis/small_account_backtest.ps1`
-- 跨年份稳定性评估：`scripts/analysis/small_account_benchmark.ps1`
-
-### 1) 下载数据（现货）
-
-```powershell
-./scripts/data/download.ps1 `
-  -TradingMode spot `
-  -Pairs @("BTC/USDT") `
-  -Timeframes @("4h") `
-  -Timerange "20230101-" `
-  -NormalizeSpotLayout
-```
-
-说明：`-NormalizeSpotLayout` 用于兼容旧数据布局（`data/<exchange>/spot/` → `data/<exchange>/`），避免出现“有数据但 list-data 识别不到”的问题。
-
-### 2) 小资金回测（10 USDT 基线）
-
-```powershell
-./scripts/analysis/small_account_backtest.ps1 `
-  -Pairs "BTC/USDT" `
-  -Timerange "20240101-20241231"
-```
-
-### 3) 跨年份稳定性评估（推荐先跑单币种）
-
-```powershell
-./scripts/analysis/small_account_benchmark.ps1 `
-  -Pairs "BTC/USDT" `
-  -Timeframe "4h"
-```
-
-输出：
-- `artifacts/benchmarks/<run>/summary.csv`：每个窗口的收益/回撤/交易数
-- `artifacts/benchmarks/<run>/summary.md`：汇总结论（PASS/FAIL）
-
-## FreqAI + LightGBM 示例（滚动训练）
-
-本仓库提供：
-
-- 策略：`strategies/FreqaiLGBMTrendStrategy.py`（`FreqaiLGBMTrendStrategy`）
-- 示例配置：`configs/freqai/lgbm_trend_v1.json`
-
-### 开发约定（避免重复造轮子）
-
-- 技术指标：统一用 `talib.abstract` / `technical.qtpylib`，不要手写 RSI/ATR/布林带等。
-- 风控/退出：优先使用 Freqtrade 回调 `custom_roi` / `custom_stoploss`（以及配置里的 `trailing_stop` 等），不要用自定义 `custom_exit` 充当止损系统。
-- FreqAI 训练产物：默认会写入 `models/<identifier>/`，该目录已在 `.gitignore` 中忽略，避免误提交。
-
-回测示例：
-
-```powershell
-.\scripts\ft.ps1 backtesting `
-  --config "configs/freqai/lgbm_trend_v1.json" `
-  --strategy "FreqaiLGBMTrendStrategy" `
-  --freqaimodel "LightGBMRegressor" `
-  --timeframe "1h" `
-  --timerange "20250101-20270101"
-```
-
-扫参示例（跨多个窗口评估阈值稳健性）：
-
-```powershell
-uv run python "scripts/analysis/param_sweep.py" --configs "configs/freqai/lgbm_trend_v1_eval.json" --pairs "BTC/USDT" --timeframe-detail "5m" --fee 0.0015
-```
-
-提示：扫参脚本也支持把入场过滤参数一起纳入网格（用于提升“熊市/暴跌窗口”的抗性），详见 `scripts/analysis/param_sweep.py --help`。
-
-## 市场仪表盘（大盘均值/相对强弱）
-
-如果你希望从**最早数据到最新**，查看“交易对等权大盘”的归一化走势，以及每个交易对相对大盘的**强弱/排名变化**：
-
-```powershell
-uv run python "scripts/data/dashboard.py" `
-  --config "configs/config_moonshot.json" `
-  --datadir "data/okx" `
-  --timeframe "1h" `
-  --resample "1D" `
-  --benchmark "rebalanced" `
-  --anchor "pair" `
-  --heatmap-resample "1W" `
-  --out "plot/market_dashboard_moonshot.html"
-```
-
-周期同步更新（适合 Dry Run / Live 前的“实盘节奏”监控）：
-
-```powershell
-powershell.exe -ExecutionPolicy Bypass -File "./scripts/data/update_dashboard.ps1" `
-  -Config "configs/config_moonshot.json" `
-  -Days 10 `
-  -Timeframes @("1h") `
-  -Out "plot/market_dashboard_moonshot.html"
-```
+更完整的说明见：`docs/setup/codex_mcp_sync.md`。

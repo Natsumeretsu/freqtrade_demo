@@ -17,9 +17,9 @@ param(
   # K线周期（建议至少包含训练/回测用到的周期）
   [string[]]$Timeframes = @("1h"),
 
-  # 配置文件（仓库根目录默认就是 userdir）
-  [string]$Config = "config.json",
-  [string]$UserDir = ".",
+  # 配置文件与 userdir（本仓库默认 userdir=01_freqtrade）
+  [string]$Config = "01_freqtrade/config.json",
+  [string]$UserDir = "./01_freqtrade",
 
   # 下载范围：二选一
   [int]$Days = 0,
@@ -150,7 +150,7 @@ if ($NormalizeSpotLayout -and $TradingMode -eq "spot") {
   try {
     $normalizeScript = Join-Path $PSScriptRoot "normalize_data_layout.ps1"
     if (Test-Path $normalizeScript) {
-      & $normalizeScript -DataRoot "data" -Mode "copy"
+      & $normalizeScript -DataRoot "$UserDir/data" -Mode "copy"
     } else {
       Write-Host "未找到归一化脚本：$normalizeScript"
     }
@@ -158,4 +158,3 @@ if ($NormalizeSpotLayout -and $TradingMode -eq "spot") {
     Write-Host "spot 数据目录归一化失败（不影响下载结果）：$($_.Exception.Message)"
   }
 }
-

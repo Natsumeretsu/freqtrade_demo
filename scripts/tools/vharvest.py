@@ -81,7 +81,7 @@ def _run_python(repo_root: Path, script_rel: str, extra_args: list[str]) -> int:
 
 
 def _cmd_status(repo_root: Path) -> int:
-    source_registry = repo_root / "project_docs" / "knowledge" / "source_registry.md"
+    source_registry = repo_root / "docs" / "knowledge" / "source_registry.md"
     sources_dir = repo_root / ".vibe" / "knowledge" / "sources"
 
     print("vharvest 状态（粗粒度）：")
@@ -90,7 +90,7 @@ def _cmd_status(repo_root: Path) -> int:
         st = source_registry.stat()
         print(f"- source_registry: ok  ({_fmt_bytes(st.st_size)}, mtime={_fmt_mtime(st.st_mtime)})")
     else:
-        print("- source_registry: missing（建议先创建/维护 project_docs/knowledge/source_registry.md）")
+        print("- source_registry: missing（建议先创建/维护 docs/knowledge/source_registry.md）")
 
     s_cnt = _count_dirs_matching(sources_dir, "S-")
     if sources_dir.exists():

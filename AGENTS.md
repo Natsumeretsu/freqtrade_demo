@@ -13,7 +13,7 @@
 - 统一使用 `uv` 管理虚拟环境，虚拟环境放在：`./.venv/`。
 - 依赖安装统一使用 `uv sync --frozen`（以 `uv.lock` 为准）。
 - **⚠️ 所有操作必须通过 `scripts/` 文件夹中的脚本执行：**
-  - Freqtrade 命令：`./scripts/ft.ps1 <命令> ...`（自动补 `--userdir "."`）
+  - Freqtrade 命令：`./scripts/ft.ps1 <命令> ...`（自动补 `--userdir "./01_freqtrade"`，并注入 `PYTHONPATH=03_integration` 供策略侧导入桥接代码）
   - 数据下载：`./scripts/data/download.ps1`
   - 初始化：`./scripts/bootstrap.ps1`
   - **禁止直接运行 `freqtrade` 或 `uv run freqtrade`**，否则会创建多余的 `user_data/` 子目录
@@ -40,12 +40,15 @@
 
 ## 仓库结构与约定
 
-- 仓库根目录即 Freqtrade userdir（策略/超参/笔记本/文档）。
-- `strategies_ref_docs/`：策略参考文档（Git 子模块）。
+- 本仓库采用分层结构，Freqtrade `userdir` 位于：`01_freqtrade/`。
+- 配置模板：`04_shared/configs/`（脱敏、可提交）；运行配置：`01_freqtrade/config.json`（可提交但禁止写入密钥）；私密覆盖：`01_freqtrade/config-private.json` 与 `.env`（必须保持 gitignore）。
+- 研究层：`02_qlib_research/`（Notebook/实验记录；`qlib_data/` 与 `models/` 默认 gitignore）。
+- 集成层：`03_integration/`（桥接代码，例如 `trading_system/`）。
+- 参考资料/归档：`docs/archive/`（包含 `docs/archive/strategies_ref_docs/` 子模块）。
 - `pyproject.toml`：依赖声明（唯一来源）。
 - `uv.lock`：依赖锁文件（锁死传递依赖）。
 - `.python-version`：固定 Python 版本（uv 自动使用）。
-- 安全：`config*.json` 默认忽略，避免误提交密钥；提交前务必 `git status` 复核。
+- 安全：严禁提交任何密钥/Token/个人路径；提交前务必 `git status` 复核。
 
 ## 提交规范（Conventional Commits）
 

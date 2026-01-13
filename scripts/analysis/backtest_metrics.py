@@ -6,7 +6,7 @@ backtest_metrics.py - 回测结果关键指标提取
   - 输出一行 JSON（便于 PowerShell/CI 管道解析）
 
 用法：
-  uv run python scripts/analysis/backtest_metrics.py --zip "backtest_results/xxx.zip"
+  uv run python scripts/analysis/backtest_metrics.py --zip "01_freqtrade/backtest_results/xxx.zip"
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--zip",
         required=True,
-        help="回测结果 zip 路径，例如 backtest_results/backtest-result-xxx.zip",
+        help="回测结果 zip 路径，例如 01_freqtrade/backtest_results/backtest-result-xxx.zip",
     )
     parser.add_argument(
         "--strategy",
@@ -108,4 +108,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

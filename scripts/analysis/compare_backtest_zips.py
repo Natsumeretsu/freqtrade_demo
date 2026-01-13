@@ -10,8 +10,8 @@ compare_backtest_zips.py - 对比两份 Freqtrade 回测结果 zip（逐笔交�
 
 用法：
   uv run python -X utf8 scripts/analysis/compare_backtest_zips.py \
-    --left-zip "backtest_results/xxx.zip" \
-    --right-zip "backtest_results/yyy.zip" \
+    --left-zip "01_freqtrade/backtest_results/xxx.zip" \
+    --right-zip "01_freqtrade/backtest_results/yyy.zip" \
     --strategy "YourStrategy" \
     --out-md "artifacts/benchmarks/compare.md"
 """
@@ -356,4 +356,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

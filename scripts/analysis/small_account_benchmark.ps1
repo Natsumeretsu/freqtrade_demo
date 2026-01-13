@@ -9,7 +9,7 @@
 
   注意：
   - 本脚本的目标是“可验证、可迭代”，不承诺任何实盘收益。
-  - 回测结果体积较大，默认写入 backtest_results/（已在 .gitignore 忽略）。
+  - 回测结果体积较大，默认写入 01_freqtrade/backtest_results/（已在 .gitignore 忽略）。
 
 .EXAMPLE
   ./scripts/analysis/small_account_benchmark.ps1 -Strategy "SimpleTrendFollowV6" -Pairs "BTC/USDT"
@@ -22,7 +22,7 @@
 #>
 [CmdletBinding()]
 param(
-  [string]$Config = "configs/small_account/config_small_spot_base.json",
+  [string]$Config = "04_shared/configs/small_account/config_small_spot_base.json",
   [string]$Strategy = "SmallAccountTrendFilteredV1",
   [string[]]$Pairs = @("BTC/USDT"),
   [string]$Timeframe = "4h",
@@ -97,12 +97,12 @@ function Resolve-LatestBacktestZip {
     }
   }
 
-  $fallbackLast = Join-Path "backtest_results" ".last_result.json"
+  $fallbackLast = Join-Path "01_freqtrade/backtest_results" ".last_result.json"
   if (Test-Path $fallbackLast) {
     $last = Get-Content -Raw -Encoding UTF8 $fallbackLast | ConvertFrom-Json
     $name = [string]$last.latest_backtest
     if (-not [string]::IsNullOrWhiteSpace($name)) {
-      $p = Join-Path "backtest_results" $name
+      $p = Join-Path "01_freqtrade/backtest_results" $name
       if (Test-Path $p) {
         return (Resolve-Path $p).Path
       }
@@ -114,7 +114,7 @@ function Resolve-LatestBacktestZip {
     return $latest.FullName
   }
 
-  throw "无法定位回测输出 zip（请检查 backtest_results/ 目录）。"
+  throw "无法定位回测输出 zip（请检查 01_freqtrade/backtest_results/ 目录）。"
 }
 
 Write-Host ""
@@ -167,7 +167,7 @@ foreach ($tr in $Timeranges) {
     throw "窗口回测失败（timerange=$tr, exit=$LASTEXITCODE）"
   }
 
-  $runDir = Join-Path "backtest_results" $btRunId
+  $runDir = Join-Path "01_freqtrade/backtest_results" $btRunId
   $zipPath = Resolve-LatestBacktestZip -PreferredDir $runDir
 
   $metricsJson = & uv run python -X utf8 $metricsScript --zip $zipPath --strategy $Strategy

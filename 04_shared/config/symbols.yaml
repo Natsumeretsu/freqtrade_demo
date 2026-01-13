@@ -1,0 +1,20 @@
+# 交易对与符号映射（Freqtrade ⇄ Qlib/研究层）
+#
+# 注意：
+# - futures 交易对通常含有 ":"，例如 "BTC/USDT:USDT"；YAML 中必须加引号，避免被解析成字典。
+# - qlib_symbols 建议与本地数据文件命名一致（例如 01_freqtrade/data/okx/BTC_USDT-4h.feather → BTC_USDT）
+
+pairs:
+  - "BTC/USDT:USDT"
+  - "ETH/USDT:USDT"
+
+qlib_symbols:
+  - "BTC_USDT"
+  - "ETH_USDT"
+
+market: "crypto_futures"
+
+# 交易对权重（用于研究脚本里的优先级/抽样权重）
+weights:
+  "BTC/USDT:USDT": 0.5
+  "ETH/USDT:USDT": 0.5

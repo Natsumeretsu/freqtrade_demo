@@ -1,9 +1,9 @@
 """
-校验 freqtrade_docs/raw_html/*.html 是否被正确转换为对应的 *.zh-CN.md。
+校验 docs/archive/freqtrade_docs/raw_html/*.html 是否被正确转换为对应的 *.zh-CN.md。
 
 目标（偏“防漏”而非逐句翻译校对）：
 1) 覆盖率：每个 HTML 都能定位到对应 Markdown 文件。
-2) 一致性：Markdown 内容与 scripts/generate_freqtrade_docs.py 的生成结果一致（避免手改漂移/转换遗漏）。
+2) 一致性：Markdown 内容与 scripts/docs/generate.py 的生成结果一致（避免手改漂移/转换遗漏）。
 3) 结构健全：H2 标题可在正文中找到；代码块 fence 成对；尽量不残留明显 HTML 标签。
 
 运行（本仓库推荐）：
@@ -111,8 +111,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--docs-dir",
-        default="freqtrade_docs",
-        help="文档目录（默认：freqtrade_docs）。",
+        default="docs/archive/freqtrade_docs",
+        help="文档目录（默认：docs/archive/freqtrade_docs）。",
     )
     parser.add_argument(
         "--raw-html-dirname",

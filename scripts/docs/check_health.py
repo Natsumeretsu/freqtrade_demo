@@ -23,10 +23,10 @@ from pathlib import Path
 from urllib.parse import unquote
 
 
-DEFAULT_LINK_ROOTS = (Path("freqtrade_book"), Path("freqtrade_docs"))
-DEFAULT_SECRET_ROOTS = (Path("freqtrade_book"),)
+DEFAULT_LINK_ROOTS = (Path("docs/archive/freqtrade_book"), Path("docs/archive/freqtrade_docs"))
+DEFAULT_SECRET_ROOTS = (Path("docs/archive/freqtrade_book"),)
 
-BOOK_DIR = Path("freqtrade_book")
+BOOK_DIR = Path("docs/archive/freqtrade_book")
 BOOK_CHAPTERS_DIR = BOOK_DIR / "chapters"
 BOOK_SUMMARY_PATH = BOOK_DIR / "SUMMARY.zh-CN.md"
 
@@ -200,7 +200,7 @@ def run_command(argv: list[str]) -> tuple[int, str]:
 def check_config_examples() -> list[str]:
     issues: list[str] = []
 
-    config_example = Path("configs") / "config.example.json"
+    config_example = Path("04_shared/configs") / "config.example.json"
     if not config_example.exists():
         return [f"{config_example.as_posix()}: 不存在"]
 
@@ -211,7 +211,7 @@ def check_config_examples() -> list[str]:
             "freqtrade",
             "show-config",
             "--userdir",
-            ".",
+            "01_freqtrade",
             "--config",
             config_example.as_posix(),
         ],
@@ -221,7 +221,7 @@ def check_config_examples() -> list[str]:
             "freqtrade",
             "list-strategies",
             "--userdir",
-            ".",
+            "01_freqtrade",
             "--config",
             config_example.as_posix(),
         ],
@@ -242,17 +242,17 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--include-reference-secrets",
         action="store_true",
-        help="同时扫描 freqtrade_docs 的脱敏风险（默认只扫 freqtrade_book）。",
+        help="同时扫描 docs/archive/freqtrade_docs 的脱敏风险（默认只扫 docs/archive/freqtrade_book）。",
     )
     parser.add_argument(
         "--skip-structure",
         action="store_true",
-        help="跳过 freqtrade_book 的章节结构与目录覆盖检查。",
+        help="跳过 docs/archive/freqtrade_book 的章节结构与目录覆盖检查。",
     )
     parser.add_argument(
         "--check-config-examples",
         action="store_true",
-        help="额外校验 configs/config.example.json 是否能通过 show-config/list-strategies（需要已安装依赖）。",
+        help="额外校验 04_shared/configs/config.example.json 是否能通过 show-config/list-strategies（需要已安装依赖）。",
     )
     return parser
 
@@ -265,7 +265,7 @@ def main() -> int:
 
     secret_roots = DEFAULT_SECRET_ROOTS
     if args.include_reference_secrets:
-        secret_roots = (Path("freqtrade_book"), Path("freqtrade_docs"))
+        secret_roots = (Path("docs/archive/freqtrade_book"), Path("docs/archive/freqtrade_docs"))
     secret_files = iter_markdown_files(secret_roots)
     secret_issues = check_secrets(secret_files)
 

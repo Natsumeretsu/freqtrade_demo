@@ -50,7 +50,7 @@
 ## 6) 时间序列验证（防信息泄露）
 
 - 原则：时间序列强自相关，传统随机切分容易产生信息泄露。
-- 方向建议：采用清除与禁运（Purged-Embargo）等隔离逻辑（后续可补抓取开放来源并登记到 `project_docs/knowledge/source_registry.md`）。
+- 方向建议：采用清除与禁运（Purged-Embargo）等隔离逻辑（后续可补抓取开放来源并登记到 `docs/knowledge/source_registry.md`）。
 
 ---
 

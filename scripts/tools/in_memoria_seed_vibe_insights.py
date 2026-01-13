@@ -3,7 +3,7 @@
 
 目的：
 - 让 In-Memoria 在未来跨会话时，优先记住本仓库的工作流/约定/坑点
-- 这些内容偏“最佳实践/坑点修复”，而不是具体策略参数（策略参数仍以 project_docs 为权威）
+- 这些内容偏“最佳实践/坑点修复”，而不是具体策略参数（策略参数仍以 docs 为权威）
 
 用法（在仓库根目录运行）：
   python -X utf8 scripts/tools/in_memoria_seed_vibe_insights.py
@@ -252,11 +252,11 @@ def main() -> int:
         {
             "type": "best_practice",
             "content": {
-                "practice": "vibe coding 采用职责分离：In-Memoria 负责跨会话记忆/代码画像；Local RAG 只负责 project_docs 等资料语义召回；Serena 只负责符号级代码检索与固化流程/约定。",
+                "practice": "vibe coding 采用职责分离：In-Memoria 负责跨会话记忆/代码画像；Local RAG 只负责 docs 等资料语义召回；Serena 只负责符号级代码检索与固化流程/约定。",
                 "reasoning": "把“可进化大脑”和“资料召回”交给专业 MCP，避免 Serena 记忆膨胀与检索噪声，提高跨会话一致性与检索命中率。",
                 "files": [
-                    "project_docs/setup/vibe_brain_workflow.md",
-                    "project_docs/knowledge/source_registry.md",
+                    "docs/setup/vibe_brain_workflow.md",
+                    "docs/knowledge/source_registry.md",
                     ".serena/memories/freqai_index.md",
                 ],
             },
@@ -266,11 +266,11 @@ def main() -> int:
         {
             "type": "best_practice",
             "content": {
-                "practice": "Local RAG 只索引 project_docs；向量库 `.vibe/local-rag/lancedb` 作为可重建缓存（默认 gitignore 忽略），跨设备用 `python -X utf8 scripts/tools/vbrain.py preheat --rebuild-docs --skip-sources` 预热重建即可；模型缓存 `CACHE_DIR` 设为设备级目录（默认 `$CODEX_HOME/cache/local-rag/models` 或 `~/.codex/cache/local-rag/models`），并可用 `MODEL_NAME` 切换嵌入模型（切换需重建 DB）。",
-                "reasoning": "project_docs 是“结论落盘层”，索引面更干净；默认不提交向量库可以显著减轻 Git 同步负担（大量小文件），同时避免把第三方正文片段同步进仓库历史；把模型缓存上移到设备级能减少多仓库重复下载。",
+                "practice": "Local RAG 默认只索引 docs；向量库 `.vibe/local-rag/lancedb` 作为可重建缓存（默认 gitignore 忽略），跨设备用 `python -X utf8 scripts/tools/vbrain.py preheat --rebuild-docs --skip-sources` 预热重建即可；模型缓存 `CACHE_DIR` 设为设备级目录（默认 `$CODEX_HOME/cache/local-rag/models` 或 `~/.codex/cache/local-rag/models`），并可用 `MODEL_NAME` 切换嵌入模型（切换需重建 DB）。",
+                "reasoning": "docs 是“结论落盘层”，索引面更干净；默认不提交向量库可以显著减轻 Git 同步负担（大量小文件），同时避免把第三方正文片段同步进仓库历史；把模型缓存上移到设备级能减少多仓库重复下载。",
                 "mcpServer": "local_rag",
                 "env": {
-                    "BASE_DIR": "project_docs",
+                    "BASE_DIR": "docs",
                     "DB_PATH": ".vibe/local-rag/lancedb",
                     "CACHE_DIR": "$CODEX_HOME/cache/local-rag/models",
                     "MODEL_NAME": "Xenova/all-MiniLM-L6-v2",
@@ -297,7 +297,7 @@ def main() -> int:
                 "command": "./scripts/tools/fix_chrome_for_mcp.ps1",
                 "files": [
                     "scripts/tools/fix_chrome_for_mcp.ps1",
-                    "project_docs/setup/codex_mcp_sync.md",
+                    "docs/setup/codex_mcp_sync.md",
                 ],
             },
             "confidence": 0.8,

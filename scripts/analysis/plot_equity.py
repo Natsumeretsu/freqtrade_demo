@@ -35,19 +35,19 @@ def _parse_args() -> argparse.Namespace:
         description=(
             "生成\"策略资金曲线 vs 大盘（归一化）\"对比图（HTML）。\n"
             "\n"
-            "输入：Freqtrade 回测结果 zip（backtest_results/*.zip）。\n"
+            "输入：Freqtrade 回测结果 zip（01_freqtrade/backtest_results/*.zip）。\n"
             "输出：Plotly HTML（默认引用 CDN，无需本地 plotly.js）。\n"
         )
     )
     parser.add_argument(
         "--zip",
         required=True,
-        help="回测结果 zip 路径，例如 backtest_results/backtest-result-xxx.zip",
+        help="回测结果 zip 路径，例如 01_freqtrade/backtest_results/backtest-result-xxx.zip",
     )
     parser.add_argument(
         "--out",
         default="",
-        help="输出 HTML 路径（默认写入 plot/ 目录并按区间命名）。",
+        help="输出 HTML 路径（默认写入 01_freqtrade/plot/ 目录并按区间命名）。",
     )
     parser.add_argument(
         "--strategy",
@@ -66,8 +66,8 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--datadir",
-        default="data/okx",
-        help="历史数据目录（默认 data/okx）。用于 benchmark=bh 构建大盘曲线。",
+        default="01_freqtrade/data/okx",
+        help="历史数据目录（默认 01_freqtrade/data/okx）。用于 benchmark=bh 构建大盘曲线。",
     )
     parser.add_argument(
         "--timeframe",

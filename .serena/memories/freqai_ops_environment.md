@@ -15,7 +15,7 @@
 
 ## 2) 回测输出与分析（强制）
 
-- 回测汇报标准：`.serena/memories/backtest_reporting_standard.md`（文档侧：`project_docs/guidelines/backtest_reporting_standard.md`）。
+- 回测汇报标准：`.serena/memories/backtest_reporting_standard.md`（文档侧：`docs/guidelines/backtest_reporting_standard.md`）。
 - 每次回测至少输出“逐交易对 vs Market change”的报表（HTML 优先，其次 CSV）。
 
 ---
@@ -31,7 +31,7 @@
 
 - 若 `playwright_mcp` / `chrome_devtools_mcp` 因缺少 `chrome.exe` 不可用：运行脚本（无需管理员权限）：
   - `./scripts/tools/fix_chrome_for_mcp.ps1`
-- 手动等价步骤见：`project_docs/setup/codex_mcp_sync.md`
+- 手动等价步骤见：`docs/setup/codex_mcp_sync.md`
 
 ---
 

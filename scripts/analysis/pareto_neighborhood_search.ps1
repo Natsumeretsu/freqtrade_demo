@@ -4,7 +4,7 @@
 
 .DESCRIPTION
   - 面向 SmallAccountTrendFilteredV1 这类以参数 JSON 为权威口径的策略：
-    通过临时改写 strategies/<Strategy>.json，重复运行回测，抽取关键指标，
+    通过临时改写 01_freqtrade/strategies/<Strategy>.json，重复运行回测，抽取关键指标，
     生成候选点集（收益-回撤-交易数）并计算帕累托非支配集合。
 
   - 这是轻量邻域搜索，不是完整 hyperopt：
@@ -21,7 +21,7 @@
 [CmdletBinding()]
 param(
   [string]$Strategy = "SmallAccountTrendFilteredV1",
-  [string]$Config = "configs/small_account/config_small_spot_base.json",
+  [string]$Config = "04_shared/configs/small_account/config_small_spot_base.json",
   [string[]]$Pairs = @("BTC/USDT"),
   [string]$Timeframe = "4h",
   [string]$Timerange = "20200101-20251231",
@@ -63,7 +63,7 @@ $env:PYTHONIOENCODING = "utf-8"
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "../..")).Path
 Set-Location $repoRoot
 
-$paramFile = Join-Path "strategies" ("{0}.json" -f $Strategy)
+$paramFile = Join-Path "01_freqtrade/strategies" ("{0}.json" -f $Strategy)
 if (-not (Test-Path $paramFile)) {
   throw "未找到策略参数文件：$paramFile"
 }
@@ -96,7 +96,7 @@ function Clone-JsonObject {
 function Resolve-LatestBacktestZip {
   param([string]$RunId)
 
-  $runDir = Join-Path "backtest_results" $RunId
+  $runDir = Join-Path "01_freqtrade/backtest_results" $RunId
   $lastFile = Join-Path $runDir ".last_result.json"
   if (Test-Path $lastFile) {
     $last = Get-Content -Raw -Encoding UTF8 $lastFile | ConvertFrom-Json

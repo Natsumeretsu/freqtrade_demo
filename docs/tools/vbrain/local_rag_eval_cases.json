@@ -1,0 +1,136 @@
+{
+  "version": 1,
+  "updated_date_utc": "2026-01-13",
+  "description": "Local RAG 嵌入模型评估用查询回归集（面向本仓库 docs 结论层；用于对比 bge-m3 / bge-large-zh 等模型在中文技术文档检索上的召回质量）。",
+  "default_k": 5,
+  "cases": [
+    {
+      "id": "Q001",
+      "query": "硬门控和软门控有什么区别？宏观体制应该怎么用？",
+      "expect_any": ["docs/knowledge/factor_ablation_checklist_smallaccount_futures.md"]
+    },
+    {
+      "id": "Q002",
+      "query": "单因子 vs 多因子：通俗解释，加密择时怎么落地？",
+      "expect_any": ["docs/knowledge/factor_single_vs_multi_timing.md"]
+    },
+    {
+      "id": "Q003",
+      "query": "Freqtrade + Qlib 的工程化 workflow 是什么？怎么把模型接进策略？",
+      "expect_any": ["docs/knowledge/freqtrade_qlib_engineering_workflow.md"]
+    },
+    {
+      "id": "Q004",
+      "query": "Qlib 自带 Alpha158 是什么？有哪些因子？怎么用在加密市场？",
+      "expect_any": ["docs/remp_research/qlib自带哪些因子？因子库？怎么使用和研究？针对加密市场.md"]
+    },
+    {
+      "id": "Q005",
+      "query": "Qlib 结合 Freqtrade 研究 alpha 因子与风险因子：整体思路是什么？",
+      "expect_any": ["docs/remp_research/qlib结合freqtrade研究alpha因子与风险因子.md"]
+    },
+    {
+      "id": "Q006",
+      "query": "业界如何做因子与策略分离？依赖倒置（DIP）怎么实践？",
+      "expect_any": [
+        "docs/remp_research/业界实现深度调查：因子与策略分离、依赖倒置的设计与实践.md",
+        "docs/remp_research/业界实现深度调查：因子与策略分离、依赖倒置的设计与实践2.md"
+      ]
+    },
+    {
+      "id": "Q007",
+      "query": "Freqtrade + Qlib 工程改造的文件夹结构建议是什么？",
+      "expect_any": ["docs/remp_research/Freqtrade + Qlib 工程改造/folder_structure.md"]
+    },
+    {
+      "id": "Q008",
+      "query": "Freqtrade + Qlib 的 QUICK_REFERENCE 快速参考在哪里？",
+      "expect_any": ["docs/remp_research/Freqtrade + Qlib 工程改造/QUICK_REFERENCE.md"]
+    },
+    {
+      "id": "Q009",
+      "query": "vbrain 是什么？控制平面包含哪些内容？",
+      "expect_any": ["docs/tools/vbrain/README.md"]
+    },
+    {
+      "id": "Q010",
+      "query": "vharvest 的职责是什么？如何采集外部资料供 vbrain ingest？",
+      "expect_any": ["docs/tools/vharvest/README.md"]
+    },
+    {
+      "id": "Q011",
+      "query": "source_registry 里 S-xxx 是什么？怎么登记来源？",
+      "expect_any": ["docs/knowledge/source_registry.md"]
+    },
+    {
+      "id": "Q012",
+      "query": "本项目的 Knowledge & Memory MCP 选型建议是什么？",
+      "expect_any": ["docs/knowledge/mcp_knowledge_memory_landscape.md"]
+    },
+    {
+      "id": "Q013",
+      "query": "浏览器自动化相关 MCP 方案有哪些？什么时候用 Playwright / DevTools？",
+      "expect_any": ["docs/knowledge/mcp_browser_automation_landscape.md"]
+    },
+    {
+      "id": "Q014",
+      "query": "小资金（10-10,000 USDT）合约交易：生存优先路线有哪些关键建议？",
+      "expect_any": ["docs/knowledge/small_account_10_to_10000_practice_guide.md"]
+    },
+    {
+      "id": "Q015",
+      "query": "回测报告应该怎么写？本仓库的 backtest reporting standard 是什么？",
+      "expect_any": ["docs/guidelines/backtest_reporting_standard.md"]
+    },
+    {
+      "id": "Q016",
+      "query": "如何做 crypto 交易所策略的深度拆解？",
+      "expect_any": ["docs/knowledge/crypto_exchange_strategy_deep_dive.md"]
+    },
+    {
+      "id": "Q017",
+      "query": "加密市场的流动性与微观结构有哪些要点？",
+      "expect_any": ["docs/knowledge/crypto_liquidity_microstructure_playbook.md"]
+    },
+    {
+      "id": "Q018",
+      "query": "Pinbar 形态的交易要点是什么？有没有 playbook？",
+      "expect_any": ["docs/knowledge/candlestick_pinbar_playbook.md"]
+    },
+    {
+      "id": "Q019",
+      "query": "EMA + MACD + Vegas 的交易框架在哪里？",
+      "expect_any": ["docs/knowledge/ema_macd_vegas_playbook.md"]
+    },
+    {
+      "id": "Q020",
+      "query": "FreqAI triple barrier v3 设计要点是什么？",
+      "expect_any": ["docs/archive/design/freqai_triple_barrier_v3.md"]
+    },
+    {
+      "id": "Q021",
+      "query": "FreqAI volatility grid v1 的设计文档在哪里？",
+      "expect_any": ["docs/archive/design/freqai_volatility_grid_v1.md"]
+    },
+    {
+      "id": "Q022",
+      "query": "FreqAI meta label v2：标签与训练集怎么构造？",
+      "expect_any": ["docs/archive/design/freqai_meta_label_v2.md"]
+    },
+    {
+      "id": "Q023",
+      "query": "momentum pullback 策略 v1 的设计思路是什么？",
+      "expect_any": ["docs/archive/design/momentum_pullback_strategy_v1.md"]
+    },
+    {
+      "id": "Q024",
+      "query": "加密合约策略选项清单（crypto futures strategy options）在哪里？",
+      "expect_any": ["docs/archive/design/crypto_futures_strategy_options.md"]
+    },
+    {
+      "id": "Q025",
+      "query": "FreqAI CTA trend v3 的设计文档在哪里？",
+      "expect_any": ["docs/archive/design/freqai_cta_trend_v3.md"]
+    }
+  ]
+}

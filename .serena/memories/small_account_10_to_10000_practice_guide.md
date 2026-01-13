@@ -8,7 +8,7 @@
 
 ## 主文档（可检索、可复用）
 
-- 详见：`project_docs/knowledge/small_account_10_to_10000_practice_guide.md`
+- 详见：`docs/knowledge/small_account_10_to_10000_practice_guide.md`
 
 ---
 
@@ -23,5 +23,5 @@
 
 ## 来源映射（以 source_registry 为准）
 
-- 本次参考链接登记在：`project_docs/knowledge/source_registry.md` 的 `L)` 分区（S-886..S-927）。
+- 本次参考链接登记在：`docs/knowledge/source_registry.md` 的 `L)` 分区（S-886..S-927）。
 

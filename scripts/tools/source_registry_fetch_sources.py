@@ -1,5 +1,5 @@
 """
-批量抓取 project_docs/knowledge/source_registry.md 中登记的外部来源，并落盘为本地缓存。
+批量抓取 docs/knowledge/source_registry.md 中登记的外部来源，并落盘为本地缓存。
 
 设计目标：
 - 让“来源登记（source_registry.md）”从“人工记录”进化为“可复现抓取 + 可追踪状态”。
@@ -54,7 +54,7 @@ def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="批量抓取 source_registry 外部来源到本地缓存（markitdown）")
     parser.add_argument(
         "--registry",
-        default="project_docs/knowledge/source_registry.md",
+        default="docs/knowledge/source_registry.md",
         help="来源登记文件路径（相对仓库根目录）",
     )
     parser.add_argument(
@@ -618,7 +618,7 @@ def main() -> int:
 
         if args.update_registry and updated_lines != lines:
             _write_text(registry_path, updated_lines)
-            print(f"已写回来源登记：{str(registry_path).replace('\\', '/')}")
+            print(f"已写回来源登记：{registry_path.as_posix()}")
 
         return 0 if not failed else 1
     finally:

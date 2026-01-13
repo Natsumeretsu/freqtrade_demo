@@ -25,7 +25,7 @@
 #>
 [CmdletBinding()]
 param(
-  [string]$Config = "configs/small_account/config_small_spot_base.json",
+  [string]$Config = "04_shared/configs/small_account/config_small_spot_base.json",
   [string]$Strategy = "SmallAccountTrendFilteredV1",
   [string[]]$Pairs = @("BTC/USDT"),
   [string]$Timeframe = "4h",
@@ -47,7 +47,7 @@ param(
   # - 传入正数则强制覆盖（可能更贴近“固定下单金额”的假设，但要注意小资金会在亏损后出现“余额不足无法再开仓”）
   [double]$StakeAmount = -1,
 
-  # 输出目录（位于 backtest_results/ 下）
+  # 输出目录（位于 01_freqtrade/backtest_results/ 下）
   [string]$RunId = "",
 
   [switch]$PairReport,
@@ -154,7 +154,7 @@ if ($StakeAmount -gt 0) {
 $ts = Get-Date -Format "yyyy-MM-dd_HH-mm-ss"
 $safeStrategy = ($Strategy -replace "[^0-9A-Za-z._-]", "_")
 $runName = if ([string]::IsNullOrWhiteSpace($RunId)) { "small10_${TradingMode}_${safeStrategy}_${Timeframe}_${ts}" } else { $RunId }
-$runDir = Join-Path "backtest_results" $runName
+$runDir = Join-Path "01_freqtrade/backtest_results" $runName
 New-Item -ItemType Directory -Force -Path $runDir | Out-Null
 
 # 若需要覆盖 tradable_balance_ratio，则在本次 runDir 内生成临时 config，避免污染基准配置文件
@@ -221,12 +221,12 @@ function Resolve-LatestBacktestZip {
   }
 
   # 兜底：如果 .last_result.json 不在 runDir，则去 backtest_results 根目录找
-  $fallbackLast = Join-Path "backtest_results" ".last_result.json"
+  $fallbackLast = Join-Path "01_freqtrade/backtest_results" ".last_result.json"
   if (Test-Path $fallbackLast) {
     $last = Get-Content -Raw -Encoding UTF8 $fallbackLast | ConvertFrom-Json
     $name = [string]$last.latest_backtest
     if (-not [string]::IsNullOrWhiteSpace($name)) {
-      $p = Join-Path "backtest_results" $name
+      $p = Join-Path "01_freqtrade/backtest_results" $name
       if (Test-Path $p) {
         return (Resolve-Path $p).Path
       }
@@ -239,7 +239,7 @@ function Resolve-LatestBacktestZip {
     return $latest.FullName
   }
 
-  throw "无法定位回测输出 zip（请检查 backtest_results/ 目录）。"
+  throw "无法定位回测输出 zip（请检查 01_freqtrade/backtest_results/ 目录）。"
 }
 
 $zipPath = Resolve-LatestBacktestZip -PreferredDir $runDir
@@ -250,7 +250,7 @@ if ($PairReport) {
   if ([string]::IsNullOrWhiteSpace($exchangeName)) {
     Write-Host "跳过逐交易对报表：无法从 config 解析 exchange.name"
   } else {
-    $datadir = ("data/{0}" -f $exchangeName)
+    $datadir = ("01_freqtrade/data/{0}" -f $exchangeName)
     Write-Host ""
     Write-Host "=== 逐交易对报表 ==="
     uv run python -X utf8 "scripts/analysis/pair_report.py" --zip $zipPath --datadir $datadir --timeframe $Timeframe --trading-mode $TradingMode

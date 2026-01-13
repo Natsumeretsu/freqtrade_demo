@@ -71,7 +71,7 @@ def _utc_date_str() -> str:
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="用 Playwright（浏览器渲染）抓取 source_registry 来源到本地缓存")
-    parser.add_argument("--registry", default="project_docs/knowledge/source_registry.md", help="来源登记文件（相对仓库根）")
+    parser.add_argument("--registry", default="docs/knowledge/source_registry.md", help="来源登记文件（相对仓库根）")
     parser.add_argument("--out-dir", default=".vibe/knowledge/sources", help="缓存输出目录（相对仓库根）")
     parser.add_argument("--limit", type=int, default=0, help="最多抓取条目数（0=不限制）")
     parser.add_argument("--ids", default="", help="仅抓取指定 S-ID（逗号分隔），如 S-003,S-701")

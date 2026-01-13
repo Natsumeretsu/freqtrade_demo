@@ -8,8 +8,8 @@
 
 ## 1) 唯一登记表（文档侧权威）
 
-- 外部来源唯一清单：`project_docs/knowledge/source_registry.md`
-- 知识索引入口：`project_docs/knowledge/index.md`
+- 外部来源唯一清单：`docs/knowledge/source_registry.md`
+- 知识索引入口：`docs/knowledge/index.md`
 
 ---
 
@@ -19,7 +19,7 @@
 2. 再采集（vharvest）：静态优先（markitdown）→ 需要 JS/交互则浏览器渲染（playwright）→ 失败则标注 blocked。
 3. 只沉淀“可复用要点”：参数、风险、边界、工程落地提示；避免粘贴大段原文。
 4. 回灌到正确位置：
-   - 赛道级结论回灌到 `project_docs/design/crypto_futures_strategy_options.md`
+   - 赛道级结论回灌到 `docs/design/crypto_futures_strategy_options.md`
    - 策略级结论回灌到对应“策略唯一基底文档”
    - 索引文件只挂链接，不重复写内容
 

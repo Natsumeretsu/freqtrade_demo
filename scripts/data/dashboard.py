@@ -277,7 +277,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--pairs-file",
         default="",
-        help="交易对列表文件（每行一个，例如 configs/pairs_moonshot_top36.txt）。",
+        help="交易对列表文件（每行一个，例如 04_shared/configs/archive/pairs_moonshot_top36.txt）。",
     )
     parser.add_argument(
         "--pairs",
@@ -287,8 +287,8 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--datadir",
-        default="data/okx",
-        help="历史数据目录（默认 data/okx）。",
+        default="01_freqtrade/data/okx",
+        help="历史数据目录（默认 01_freqtrade/data/okx）。",
     )
     parser.add_argument(
         "--timeframe",
@@ -331,7 +331,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--out",
         default="",
-        help="输出 HTML 路径（默认写入 plot/market_dashboard_*.html）。",
+        help="输出 HTML 路径（默认写入 01_freqtrade/plot/market_dashboard_*.html）。",
     )
     parser.add_argument(
         "--csv-out",
@@ -524,7 +524,7 @@ def main() -> int:
     elif str(args.pairs_file).strip():
         universe = Path(str(args.pairs_file)).stem
 
-    default_out = Path("plot") / f"market_dashboard_{universe}_{timeframe}_{resample}_{start}_{end}.html"
+    default_out = Path("01_freqtrade/plot") / f"market_dashboard_{universe}_{timeframe}_{resample}_{start}_{end}.html"
     out_path = Path(str(args.out)) if str(args.out).strip() else default_out
     out_path.parent.mkdir(parents=True, exist_ok=True)
 

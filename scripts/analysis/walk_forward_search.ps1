@@ -23,7 +23,7 @@
 [CmdletBinding()]
 param(
   [string]$Strategy = "SmallAccountTrendFilteredV1",
-  [string]$Config = "configs/small_account/config_small_spot_base.json",
+  [string]$Config = "04_shared/configs/small_account/config_small_spot_base.json",
   [string[]]$Pairs = @("BTC/USDT"),
   [string]$Timeframe = "4h",
 
@@ -69,7 +69,7 @@ $env:PYTHONIOENCODING = "utf-8"
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "../..")).Path
 Set-Location $repoRoot
 
-$paramFile = Join-Path "strategies" ("{0}.json" -f $Strategy)
+$paramFile = Join-Path "01_freqtrade/strategies" ("{0}.json" -f $Strategy)
 if (-not (Test-Path $paramFile)) {
   throw "未找到策略参数文件：$paramFile"
 }
@@ -129,7 +129,7 @@ function Set-StrategyParam {
 function Resolve-LatestBacktestZip {
   param([string]$RunId)
 
-  $runDir = Join-Path "backtest_results" $RunId
+  $runDir = Join-Path "01_freqtrade/backtest_results" $RunId
   $lastFile = Join-Path $runDir ".last_result.json"
   if (Test-Path $lastFile) {
     $last = Get-Content -Raw -Encoding UTF8 $lastFile | ConvertFrom-Json
@@ -570,6 +570,5 @@ Write-Host "- output: $runRoot"
 Write-Host "- train_candidates: $trainCsv"
 Write-Host "- walk_forward_results: $wfCsv"
 Write-Host "- report: $mdPath"
-
 
 

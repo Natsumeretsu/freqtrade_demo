@@ -419,7 +419,7 @@ def main() -> int:
     repo_root = _repo_root()
     sources_dir = (repo_root / args.sources_dir).resolve()
     if not sources_dir.exists():
-        print(f"未找到抓取缓存目录：{str(sources_dir).replace('\\', '/')}", file=sys.stderr)
+        print(f"未找到抓取缓存目录：{sources_dir.as_posix()}", file=sys.stderr)
         return 2
 
     ids = _normalize_sid_list(args.ids)
@@ -473,12 +473,12 @@ def main() -> int:
                 print(f"- {item}")
         return 0
 
-    print(f"将 ingest {len(candidates)} 个来源缓存到 Local RAG（SOURCES_DIR={str(sources_dir).replace('\\', '/')}）")
+    print(f"将 ingest {len(candidates)} 个来源缓存到 Local RAG（SOURCES_DIR={sources_dir.as_posix()}）")
     print("提示：首次 ingest 可能会下载嵌入/分词等模型，耗时取决于网速与磁盘。")
 
     _, db_path, cache_dir = _local_rag_paths(repo_root, model_cache_dir=args.model_cache_dir)
-    print(f"DB_PATH={str(db_path).replace('\\', '/')}")
-    print(f"CACHE_DIR={str(cache_dir).replace('\\', '/')}")
+    print(f"DB_PATH={db_path.as_posix()}")
+    print(f"CACHE_DIR={cache_dir.as_posix()}")
     if args.model_name:
         print(f"MODEL_NAME={args.model_name}")
 

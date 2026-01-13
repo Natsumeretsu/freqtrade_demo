@@ -296,7 +296,7 @@ function Get-DefaultMcpServers {
 
   $localRagEnv = @(
     "npm_config_cache=.vibe/npm-cache",
-    "BASE_DIR=project_docs",
+    "BASE_DIR=docs",
     "DB_PATH=.vibe/local-rag/lancedb",
     ("CACHE_DIR={0}" -f $cacheDir),
     ("MODEL_NAME={0}" -f $modelName),

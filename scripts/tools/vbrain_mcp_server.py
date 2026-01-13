@@ -99,7 +99,7 @@ def _tools() -> list[_Tool]:
         ),
         _Tool(
             name="vbrain.preheat",
-            description="预热 vbrain：索引 project_docs（可选重建）+ 可选索引 sources（增量推荐）",
+            description="预热 vbrain：索引 docs（可选重建）+ 可选索引 sources（增量推荐）",
             input_schema={
                 "type": "object",
                 "additionalProperties": False,
@@ -116,7 +116,7 @@ def _tools() -> list[_Tool]:
         ),
         _Tool(
             name="vbrain.ingest_project_docs",
-            description="单独索引 project_docs（local-rag ingest）",
+            description="单独索引 docs（local-rag ingest）",
             input_schema={
                 "type": "object",
                 "additionalProperties": False,
@@ -143,8 +143,39 @@ def _tools() -> list[_Tool]:
             },
         ),
         _Tool(
+            name="vbrain.eval_embeddings",
+            description="评估 local-rag 嵌入模型（回归集 + hit@k/MRR；默认使用评估用 profile DB，不破坏主 DB）",
+            input_schema={
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "models": {"type": "string", "default": "", "description": "逗号分隔模型列表（空则用默认对比集）"},
+                    "build": {
+                        "type": "string",
+                        "default": "missing",
+                        "enum": ["none", "missing", "update", "rebuild"],
+                        "description": "是否构建索引：none/missing/rebuild",
+                    },
+                    "k": {"type": "integer", "default": 0, "minimum": 0, "description": "TopK（0 表示使用回归集默认）"},
+                    "cases": {"type": "string", "default": "", "description": "回归集 JSON 路径（空则用仓库默认）"},
+                    "query_timeout_sec": {
+                        "type": "integer",
+                        "default": 90,
+                        "minimum": 1,
+                        "description": "单次 query 超时秒数（默认 90）",
+                    },
+                    "timeout_sec": {
+                        "type": "integer",
+                        "default": 3600,
+                        "minimum": 1,
+                        "description": "整体子进程超时秒数（默认 3600；模型下载/索引可能较慢）",
+                    },
+                },
+            },
+        ),
+        _Tool(
             name="vbrain.search",
-            description="查询 local-rag（外部全文与 project_docs 的语义召回）",
+            description="查询 local-rag（外部全文与 docs 的语义召回）",
             input_schema={
                 "type": "object",
                 "additionalProperties": False,
@@ -303,6 +334,27 @@ def _call_tool(repo_root: Path, name: str, arguments: dict[str, Any]) -> dict[st
         code, out = _run_vbrain_cli(repo_root, args, timeout_sec)
         return _tool_text_result(code=code, text=out)
 
+    if name == "vbrain.eval_embeddings":
+        args = ["eval-embeddings", "--"]
+        models = _as_str(arguments.get("models", ""), default="").strip()
+        if models:
+            args += ["--models", models]
+        build = _as_str(arguments.get("build", ""), default="missing").strip() or "missing"
+        if build not in {"none", "missing", "update", "rebuild"}:
+            return _tool_text_result(code=2, text="参数错误：build 必须是 none/missing/update/rebuild")
+        args += ["--build", build]
+        k = _as_int(arguments.get("k"), 0)
+        if k > 0:
+            args += ["--k", str(k)]
+        cases = _as_str(arguments.get("cases", ""), default="").strip()
+        if cases:
+            args += ["--cases", cases]
+        q_to = _as_int(arguments.get("query_timeout_sec"), 90)
+        if q_to > 0:
+            args += ["--query-timeout-sec", str(q_to)]
+        code, out = _run_vbrain_cli(repo_root, args, timeout_sec)
+        return _tool_text_result(code=code, text=out)
+
     if name == "vbrain.search":
         query = _as_str(arguments.get("query", ""), default="").strip()
         if not query:
@@ -382,7 +434,7 @@ def _handle_request(msg: dict[str, Any]) -> dict[str, Any] | None:
             "result": {
                 "protocolVersion": protocol_version,
                 "capabilities": {"tools": {}},
-                "serverInfo": {"name": "vbrain", "version": "0.1.1"},
+                "serverInfo": {"name": "vbrain", "version": "0.1.2"},
             },
         }
 

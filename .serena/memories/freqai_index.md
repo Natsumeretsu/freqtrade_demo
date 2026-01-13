@@ -30,12 +30,12 @@
 
 ## 2) 仓库内“权威入口”（优先查这里）
 
-- 策略唯一基底索引：`project_docs/freqai_core_strategy_guide.md`
-- 项目知识索引（文档侧入口）：`project_docs/knowledge/index.md`
+- 策略唯一基底索引：`docs/freqai_core_strategy_guide.md`
+- 项目知识索引（文档侧入口）：`docs/knowledge/index.md`
 - vbrain 控制平面（清单/索引/蓝图）：`vbrain/README.md`
-- 外部来源登记表（唯一清单）：`project_docs/knowledge/source_registry.md`
-- 回测汇报标准（强制）：`project_docs/guidelines/backtest_reporting_standard.md`
-- MCP/环境一键初始化：`project_docs/setup/codex_mcp_sync.md`
+- 外部来源登记表（唯一清单）：`docs/knowledge/source_registry.md`
+- 回测汇报标准（强制）：`docs/guidelines/backtest_reporting_standard.md`
+- MCP/环境一键初始化：`docs/setup/codex_mcp_sync.md`
 
 ---
 

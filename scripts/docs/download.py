@@ -1,5 +1,5 @@
 """
-下载 Freqtrade 官方文档 HTML 到 freqtrade_docs/raw_html/（用于离线保存 + 再生成 Markdown）。
+下载 Freqtrade 官方文档 HTML 到 docs/archive/freqtrade_docs/raw_html/（用于离线保存 + 再生成 Markdown）。
 
 背景：
 - raw_html 体积较大，适合本地缓存，不一定要纳入 Git。
@@ -26,11 +26,11 @@ BASE_URL_DEFAULT = "https://www.freqtrade.io/en/stable/"
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="下载 Freqtrade 文档 HTML（写入 freqtrade_docs/raw_html）")
+    parser = argparse.ArgumentParser(description="下载 Freqtrade 文档 HTML（写入 docs/archive/freqtrade_docs/raw_html）")
     parser.add_argument(
         "--output-dir",
-        default="freqtrade_docs/raw_html",
-        help="输出目录（默认：freqtrade_docs/raw_html）。",
+        default="docs/archive/freqtrade_docs/raw_html",
+        help="输出目录（默认：docs/archive/freqtrade_docs/raw_html）。",
     )
     parser.add_argument(
         "--base-url",
@@ -134,4 +134,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

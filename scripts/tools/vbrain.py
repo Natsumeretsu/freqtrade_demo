@@ -3,7 +3,7 @@ vbrain 统一入口（控制平面 CLI）
 
 目标：
 - 用一个命令入口把 vbrain 的常用动作“收拢”起来，降低日常操作摩擦
-- 不搬动数据平面（in-memoria.db / .serena / project_docs / .vibe），只做编排与状态查看
+- 不搬动数据平面（in-memoria.db / .serena / docs / .vibe），只做编排与状态查看
 - 仅使用 Python stdlib，便于复制到其它仓库作为“婴儿 vbrain”的一部分
 
 用法（在仓库根目录）：
@@ -104,9 +104,9 @@ def _cmd_status(repo_root: Path) -> int:
     in_memoria_db = repo_root / "in-memoria.db"
     local_rag_db = repo_root / ".vibe" / "local-rag" / "lancedb"
     sources_dir = repo_root / ".vibe" / "knowledge" / "sources"
-    project_docs = repo_root / "project_docs"
+    docs_dir = repo_root / "docs"
     serena_memories = repo_root / ".serena" / "memories"
-    manifest = repo_root / "vbrain" / "manifest.json"
+    manifest = repo_root / "docs" / "tools" / "vbrain" / "manifest.json"
 
     print("vbrain 状态（粗粒度）：")
 
@@ -128,11 +128,11 @@ def _cmd_status(repo_root: Path) -> int:
     else:
         print("- .serena/memories: missing")
 
-    if project_docs.exists():
-        md_cnt = sum(1 for p in project_docs.rglob("*.md") if p.is_file())
-        print(f"- project_docs: ok  (md={md_cnt})")
+    if docs_dir.exists():
+        md_cnt = sum(1 for p in docs_dir.rglob("*.md") if p.is_file())
+        print(f"- docs: ok  (md={md_cnt})")
     else:
-        print("- project_docs: missing")
+        print("- docs: missing")
 
     if local_rag_db.exists():
         # 只做轻量检查：避免递归计算总大小（可能很慢）
@@ -163,7 +163,7 @@ def _cmd_preheat(repo_root: Path, args: argparse.Namespace) -> int:
     if args.no_progress:
         docs_args.append("--no-progress")
 
-    print("vbrain preheat：阶段 1/2：索引 project_docs…", flush=True)
+    print("vbrain preheat：阶段 1/2：索引 docs…", flush=True)
     t0 = time.time()
     code = _run_python(repo_root, "scripts/tools/local_rag_ingest_project_docs.py", docs_args)
     if code != 0:
@@ -248,9 +248,9 @@ def _cmd_doctor(repo_root: Path, args: argparse.Namespace) -> int:
         print(f"- {c}: {'ok' if which(c) else 'missing'}")
 
     checks: list[tuple[str, Path]] = [
-        ("vbrain manifest", repo_root / "vbrain" / "manifest.json"),
+        ("vbrain manifest", repo_root / "docs" / "tools" / "vbrain" / "manifest.json"),
         ("vbrain workflow", repo_root / ".serena" / "memories" / "vbrain_workflow.md"),
-        ("project_docs", repo_root / "project_docs"),
+        ("docs", repo_root / "docs"),
         ("local_rag ingest docs", repo_root / "scripts" / "tools" / "local_rag_ingest_project_docs.py"),
         ("local_rag ingest sources", repo_root / "scripts" / "tools" / "local_rag_ingest_sources.py"),
     ]
@@ -579,7 +579,7 @@ def _start_local_rag(repo_root: Path) -> tuple[subprocess.Popen[str], _LineReade
     env = os.environ.copy()
     env["npm_config_cache"] = str(npm_cache_dir)
 
-    env.setdefault("BASE_DIR", env_from_codex.get("BASE_DIR", "project_docs"))
+    env.setdefault("BASE_DIR", env_from_codex.get("BASE_DIR", "docs"))
     env.setdefault("DB_PATH", env_from_codex.get("DB_PATH", ".vibe/local-rag/lancedb"))
 
     cache_dir = env_from_codex.get("CACHE_DIR", "")
@@ -727,21 +727,25 @@ def _cmd_lint(repo_root: Path, args: argparse.Namespace) -> int:
     """
     vbrain 轻量质量闸门：
     - 检查文档中的 S-xxx 引用是否都在 source_registry 中登记
-    - 检查 vbrain/manifest.json 是否可解析，且 entrypoints 指向的脚本存在
+    - 检查 docs/tools/vbrain/manifest.json 是否可解析，且 entrypoints 指向的脚本存在
     """
 
     warnings: list[str] = []
     errors: list[str] = []
 
-    registry = repo_root / "project_docs" / "knowledge" / "source_registry.md"
+    registry = repo_root / "docs" / "knowledge" / "source_registry.md"
     registry_ids = _load_registry_ids(registry)
     if not registry_ids:
         warnings.append("未解析到任何来源登记 S-xxx（或 source_registry.md 不存在）。")
 
     check_roots = [
-        repo_root / "project_docs",
+        repo_root / "docs" / "design",
+        repo_root / "docs" / "guidelines",
+        repo_root / "docs" / "knowledge",
+        repo_root / "docs" / "reports",
+        repo_root / "docs" / "setup",
+        repo_root / "docs" / "tools",
         repo_root / ".serena" / "memories",
-        repo_root / "vbrain",
     ]
     md_files: list[Path] = []
     for root in check_roots:
@@ -760,9 +764,9 @@ def _cmd_lint(repo_root: Path, args: argparse.Namespace) -> int:
     for rel, sids in sorted(unknown_refs.items()):
         warnings.append(f"{rel}: 未登记来源引用 {', '.join(sorted(sids))}")
 
-    manifest = repo_root / "vbrain" / "manifest.json"
+    manifest = repo_root / "docs" / "tools" / "vbrain" / "manifest.json"
     if not manifest.exists():
-        errors.append("缺少 vbrain/manifest.json")
+        errors.append("缺少 docs/tools/vbrain/manifest.json")
     else:
         try:
             data = json.loads(manifest.read_text(encoding="utf-8"))
@@ -815,13 +819,13 @@ def _pack_file_list(profile: str) -> list[str]:
 
     说明：
     - 只打包控制平面与脚本化工作流，不包含任何缓存/DB（.vibe/、in-memoria.db 等）。
-    - 新仓库落地后：按需调整 `.serena/memories/` 与 `project_docs/` 的索引入口即可。
+    - 新仓库落地后：按需调整 `.serena/memories/` 与 `docs/` 的索引入口即可。
     """
 
     minimal = [
-        "vbrain/README.md",
-        "vbrain/manifest.json",
-        "vbrain/mcp_blueprint.md",
+        "docs/tools/vbrain/README.md",
+        "docs/tools/vbrain/manifest.json",
+        "docs/tools/vbrain/mcp_blueprint.md",
         "scripts/tools/vbrain.py",
         "scripts/tools/vbrain_mcp_server.py",
         "scripts/tools/local_rag_ingest_project_docs.py",
@@ -891,9 +895,9 @@ def _parse_args() -> argparse.Namespace:
 
     sub.add_parser("seed-insights", help="写入 vbrain 的种子记忆（In-Memoria contribute_insights）")
 
-    p_preheat = sub.add_parser("preheat", help="预热索引：project_docs +（可选）feed")
-    p_preheat.add_argument("--rebuild-docs", action="store_true", help="重建 project_docs 的 Local RAG 索引")
-    p_preheat.add_argument("--docs-limit", type=int, default=0, help="仅 ingest 前 N 个 project_docs 文件（0 表示不限制）")
+    p_preheat = sub.add_parser("preheat", help="预热索引：docs +（可选）feed")
+    p_preheat.add_argument("--rebuild-docs", action="store_true", help="重建 docs 的 Local RAG 索引")
+    p_preheat.add_argument("--docs-limit", type=int, default=0, help="仅 ingest 前 N 个 docs 文件（0 表示不限制）")
     p_preheat.add_argument("--skip-sources", action="store_true", help="跳过 feed 索引（.vibe/knowledge/sources）")
     p_preheat.add_argument(
         "--only-new-sources",
@@ -912,6 +916,9 @@ def _parse_args() -> argparse.Namespace:
 
     p_research = sub.add_parser("ingest-research", help="索引 remp_research/research（研究资料）到 Local RAG")
     p_research.add_argument("args", nargs=argparse.REMAINDER, help="透传参数（推荐用 -- 分隔）")
+
+    p_eval = sub.add_parser("eval-embeddings", help="评估 Local RAG 嵌入模型（回归集 + hit@k/MRR）")
+    p_eval.add_argument("args", nargs=argparse.REMAINDER, help="透传参数（推荐用 -- 分隔）")
 
     p_search = sub.add_parser("search", help="查询 Local RAG（vbrain 召回验收）")
     p_search.add_argument("query", help="查询语句")
@@ -976,6 +983,12 @@ def main() -> int:
         return _run_python(
             repo_root,
             "scripts/tools/local_rag_ingest_sources.py",
+            _strip_passthrough(list(args.args)),
+        )
+    if args.cmd == "eval-embeddings":
+        return _run_python(
+            repo_root,
+            "scripts/tools/local_rag_eval_models.py",
             _strip_passthrough(list(args.args)),
         )
 

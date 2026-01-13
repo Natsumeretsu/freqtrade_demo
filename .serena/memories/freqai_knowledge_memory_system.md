@@ -27,7 +27,7 @@
 落地关键点：
 
 - In-Memoria 默认会在仓库根目录生成 `in-memoria.db`（建议随 Git 同步，用于跨设备“同一个大脑”）。
-- `mcp-local-rag` 的向量库建议只 ingest `project_docs/`（我们自己写的摘要/结论）；索引层在 `.vibe/local-rag/lancedb/`，默认 gitignore 忽略，跨设备用脚本预热重建即可（重建时有进度条）。模型缓存（`CACHE_DIR`）默认放在设备级目录 `~/.codex/cache/local-rag/models/`（可通过 `CODEX_HOME` 改变），并可用 `MODEL_NAME` 切换嵌入模型（切换需重建 DB）。
+- `mcp-local-rag` 的向量库建议只 ingest `docs/`（我们自己写的摘要/结论）；索引层在 `.vibe/local-rag/lancedb/`，默认 gitignore 忽略，跨设备用脚本预热重建即可（重建时有进度条）。模型缓存（`CACHE_DIR`）默认放在设备级目录 `~/.codex/cache/local-rag/models/`（可通过 `CODEX_HOME` 改变），并可用 `MODEL_NAME` 切换嵌入模型（切换需重建 DB）。
 - “进化闭环”的关键不是存很多资料，而是把你确认过的**决策/套路/坑点**写回 In-Memoria（`contribute_insights`）。
 
 ### B) 人类可读「知识库」（可选）
@@ -74,12 +74,12 @@
 
 - MCP 一键配置脚本（Codex）：`./scripts/mcp/setup_codex.ps1`
   - 默认服务器列表定义在：`./scripts/lib/common.ps1`（新增 `in_memoria` 与 `local_rag`）
-- vibe coding 工作流文档：`project_docs/setup/vibe_brain_workflow.md`
+- vibe coding 工作流文档：`docs/setup/vibe_brain_workflow.md`
 - vbrain 默认闭环 SOP（让“不说也会做”）：`.serena/memories/vbrain_workflow.md`
 - Local RAG 缓存目录说明：`.vibe/README.md`（本仓库默认忽略 `.vibe/local-rag/`，需要时用脚本预热重建）
 - 资料侧权威入口（仍然建议保留）：
-  - `project_docs/knowledge/source_registry.md`（来源登记）
-  - `project_docs/knowledge/index.md`（索引）
+  - `docs/knowledge/source_registry.md`（来源登记）
+  - `docs/knowledge/index.md`（索引）
 
 ---
 
@@ -114,5 +114,5 @@
 - `scripts/tools/source_registry_fetch_sources_playwright.py`（实现细节）
 
 选型说明文档：
-- `project_docs/knowledge/mcp_browser_automation_landscape.md`
+- `docs/knowledge/mcp_browser_automation_landscape.md`
 

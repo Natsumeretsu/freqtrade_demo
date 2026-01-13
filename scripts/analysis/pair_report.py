@@ -41,12 +41,12 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--zip",
         required=True,
-        help="回测结果 zip 路径，例如 backtest_results/backtest-result-xxx.zip",
+        help="回测结果 zip 路径，例如 01_freqtrade/backtest_results/backtest-result-xxx.zip",
     )
     parser.add_argument(
         "--datadir",
-        default="data/okx",
-        help="历史数据目录（默认 data/okx）。用于计算每个交易对自身的 market change。",
+        default="01_freqtrade/data/okx",
+        help="历史数据目录（默认 01_freqtrade/data/okx）。用于计算每个交易对自身的 market change。",
     )
     parser.add_argument(
         "--timeframe",
@@ -67,7 +67,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--out-html",
         default="",
-        help="输出 HTML 路径（默认写入 plot/ 并按区间命名）。",
+        help="输出 HTML 路径（默认写入 01_freqtrade/plot/ 并按区间命名）。",
     )
     parser.add_argument(
         "--out-csv",
@@ -121,7 +121,7 @@ def _default_out_base(strategy_name: str, start: pd.Timestamp, end: pd.Timestamp
     safe = "".join(c if c.isalnum() or c in ("-", "_") else "_" for c in strategy_name)
     s = start.strftime("%Y%m%d")
     e = end.strftime("%Y%m%d")
-    return Path("plot") / f"{safe}_per_pair_report_{s}_{e}"
+    return Path("01_freqtrade/plot") / f"{safe}_per_pair_report_{s}_{e}"
 
 
 def _fmt_pct_display(v: float) -> str:

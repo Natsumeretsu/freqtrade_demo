@@ -7,15 +7,15 @@
     适合 Dry Run / Live 前的周期性监控。
 
 .EXAMPLE
-    .\update_dashboard.ps1 -Config "configs/config_moonshot.json" -Days 10
+    .\update_dashboard.ps1 -Config "04_shared/configs/small_account/config_small_spot_base.json" -Days 10
 #>
 [CmdletBinding()]
 param(
   # 使用的配置文件：用于读取 exchange.pair_whitelist，并提供 download-data 的交易所配置
-  [string]$Config = "configs/config_moonshot.json",
+  [string]$Config = "04_shared/configs/small_account/config_small_spot_base.json",
 
-  # userdir（本仓库根目录默认就是 userdir）
-  [string]$UserDir = ".",
+  # userdir（本仓库默认 userdir=01_freqtrade）
+  [string]$UserDir = "./01_freqtrade",
 
   # 下载更新的 timeframe（必须包含仪表盘要用的 timeframe，例如 1h）
   [string[]]$Timeframes = @("1h"),
@@ -38,7 +38,7 @@ param(
   [string]$HeatmapResample = "1W",
 
   # 输出文件
-  [string]$Out = "plot/market_dashboard.html"
+  [string]$Out = "01_freqtrade/plot/market_dashboard.html"
 )
 
 $ErrorActionPreference = 'Stop'
@@ -97,14 +97,24 @@ Write-Host "=== 1) 更新本地历史数据（增量） ==="
 Write-Host ""
 Write-Host "=== 2) 生成市场仪表盘（全历史 -> 最新） ==="
 
+$exchangeName = ""
+try {
+  $exchangeName = [string]$cfg.exchange.name
+} catch {
+  $exchangeName = ""
+}
+if ([string]::IsNullOrWhiteSpace($exchangeName)) {
+  $exchangeName = "okx"
+}
+
 $argsList = @(
   "run",
   "python",
   "-X",
   "utf8",
-  "scripts/market_dashboard.py",
+  "scripts/data/dashboard.py",
   "--config", $Config,
-  "--datadir", "data/okx",
+  "--datadir", ("01_freqtrade/data/{0}" -f $exchangeName),
   "--timeframe", $TimeframeForDashboard,
   "--resample", $Resample,
   "--min-pairs", "$MinPairs",

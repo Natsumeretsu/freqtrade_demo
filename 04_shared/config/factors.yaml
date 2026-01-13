@@ -1,0 +1,56 @@
+factor_sets:
+  # CTA 因子集（仅依赖 OHLCV，便于在线计算）
+  #
+  # 设计原则：
+  # - cta_alpha：更偏“可解释的方向/趋势/动量”信息（用于 alpha）
+  # - cta_risk：更偏“波动/尾部/流动性”信息（用于风控与仓位折扣）
+  # - cta_core：默认组合（alpha + risk），用于策略/研究的基础套餐
+  #
+  # 注意：
+  # - 当前实现仅覆盖单品种时间序列口径（不做跨品种横截面排名）
+  cta_alpha:
+    - ret_1
+    - ret_3
+    - ret_12
+
+  cta_risk:
+    - vol_12
+    - skew_72
+    - kurt_72
+    - volume_z_72
+    - hl_range
+
+  cta_core:
+    - "@cta_alpha"
+    - "@cta_risk"
+
+  # 研究/模型侧默认特征集（用于 scripts/qlib/train_model.py 的 --feature-set）
+  # - 复用 CTA 因子，并额外加入一个“趋势结构”特征（ema_spread）
+  ml_core:
+    - "@cta_core"
+    - ema_spread
+
+  SmallAccountFuturesTrendV1:
+    - "@cta_core"
+    - ema_short_{ema_short_len}
+    - ema_long_{ema_long_len}
+    - adx
+    - atr
+    - atr_pct
+    - macd
+    - macdsignal
+    - macdhist
+    # 该项会在策略侧按开关/窗口判断是否启用（渲染后仍统一输出列名 volume_ratio）
+    - volume_ratio_{volume_ratio_lookback}
+
+  SmallAccountTrendFilteredV1:
+    - "@cta_core"
+    - ema_short_{ema_short_len}
+    - ema_long_{ema_long_len}
+    - adx
+    - atr
+    - atr_pct
+    - macd
+    - macdsignal
+    - macdhist
+    - volume_ratio_{volume_ratio_lookback}
