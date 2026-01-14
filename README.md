@@ -15,7 +15,7 @@
   - `04_shared/configs/`：Freqtrade JSON 配置模板（脱敏、可提交）  
   - `04_shared/config/`：Qlib 相关 YAML（路径/交易对/符号映射，可提交）
 - `scripts/`：统一脚本入口（强制使用）
-- `docs/`：权威文档；`docs/archive/`：离线参考与归档（含子模块 `docs/archive/strategies_ref_docs/`）
+- `docs/`：权威文档；`docs/archive/`：离线参考与归档（含子模块 `docs/archive/strategies_ref_docs/`，使用说明见：`docs/archive/strategies_ref_docs_guide.md`）
 - `artifacts/`：本地 benchmark 产物（默认不提交）
 
 ---
@@ -130,6 +130,27 @@ Copy-Item "04_shared/configs/config-private.example.json" "01_freqtrade/config-p
 
 ```powershell
 ./scripts/qlib/pipeline.ps1 -Timeframe "4h" -ModelVersion "v1"
+```
+
+（推荐）### 6) 端到端一键编排（下载 → 训练 → 体检 → 回测报告）
+
+先用 `-WhatIf` 看将执行哪些步骤与子脚本：
+
+```powershell
+./scripts/workflows/quant_e2e.ps1 -All -WhatIf
+```
+
+全量闭环（示例：15m 合约择时执行器）：
+
+```powershell
+./scripts/workflows/quant_e2e.ps1 -All -Download `
+  -TradingMode "futures" `
+  -Pairs "BTC/USDT:USDT" `
+  -Timeframe "15m" `
+  -DownloadDays 120 `
+  -BacktestConfig "04_shared/configs/small_account/config_small_futures_timing_15m.json" `
+  -Strategy "SmallAccountFuturesTimingExecV1" `
+  -BacktestTimerange "20251215-20260114"
 ```
 
 ---

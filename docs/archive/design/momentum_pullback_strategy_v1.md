@@ -8,7 +8,7 @@
 
 ## 1) 来源与证据
 
-- 本仓库参考文档：`strategies_ref_docs/动量讨价还价策略Momentum-Pullback-Strategy.md`
+- 本仓库参考文档：`docs/archive/strategies_ref_docs/动量讨价还价策略Momentum-Pullback-Strategy.md`
 - 原始页面（FMZ）：https://www.fmz.com/strategy/440057
 - 参考脚本（PineScript）要点：以 `EMA(5)` 为核心（注意：部分中文简介写成 `SMA(5)`，但源码为 `EMA(5)`；本基底以源码为准）。
 
@@ -121,4 +121,3 @@
   - RR=3 的 TP 是否现实（是否长期到不了导致止损先触发）
   - 不同 timeframe 下信号稳定性
 - 汇报口径：`docs/guidelines/backtest_reporting_standard.md`
-

@@ -19,6 +19,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+from qlib.contrib.eva.alpha import calc_ic
 
 
 def parse_timeframe_minutes(timeframe: str) -> int | None:
@@ -142,25 +143,31 @@ def cross_section_audit(
     market_ret = market_return_series(y, weights)
 
     # --- RankIC（Spearman） ---
-    x_rank = x.rank(axis=1, method="average")
-    y_rank = y.rank(axis=1, method="average")
-    mask = x_rank.notna() & y_rank.notna()
-    n = mask.sum(axis=1).astype("float64")
+    # 使用 Qlib 的现成实现：按 datetime 分组计算 spearman 相关（减少自研“造轮子”维护成本）
+    xx = x.copy()
+    yy = y.copy()
+    xx.index = xx.index.rename("datetime")
+    yy.index = yy.index.rename("datetime")
+    xx.columns = xx.columns.astype("string")
+    yy.columns = yy.columns.astype("string")
+    xx.columns.name = "instrument"
+    yy.columns.name = "instrument"
 
-    xr = x_rank.where(mask)
-    yr = y_rank.where(mask)
-    mean_x = xr.sum(axis=1) / n.replace(0.0, np.nan)
-    mean_y = yr.sum(axis=1) / n.replace(0.0, np.nan)
-
-    dx = xr.sub(mean_x, axis=0)
-    dy = yr.sub(mean_y, axis=0)
-    num = (dx * dy).sum(axis=1)
-    den = np.sqrt((dx.pow(2).sum(axis=1)) * (dy.pow(2).sum(axis=1)))
-    ic = (num / den).astype("float64")
-    ic[(n < 3) | (~np.isfinite(ic)) | (den <= 0)] = np.nan
-    ic.name = "rank_ic"
+    stacked = pd.DataFrame(
+        {"pred": xx.stack(future_stack=True), "label": yy.stack(future_stack=True)}
+    ).dropna()
+    if stacked.empty:
+        ic = pd.Series(index=y.index, dtype="float64", name="rank_ic")
+    else:
+        _, ric = calc_ic(stacked["pred"], stacked["label"], date_col="datetime", dropna=False)
+        ic = ric.reindex(y.index).astype("float64")
+        # 与旧口径一致：每期至少 3 个点才计算相关（避免小样本把 ic “锁死”在 ±1）
+        n_by_date = stacked.groupby(level="datetime").size().reindex(y.index).fillna(0.0).astype("float64")
+        ic[(n_by_date < 3.0) | (~np.isfinite(ic))] = np.nan
+        ic.name = "rank_ic"
 
     # --- 分位收益（top/bottom/long-short） ---
+    x_rank = x.rank(axis=1, method="average")
     x_count = x_rank.notna().sum(axis=1).astype("float64")
     denom_x = x_count.replace(0.0, np.nan)
     bins = np.floor(((x_rank - 1.0).div(denom_x, axis=0)) * float(q))

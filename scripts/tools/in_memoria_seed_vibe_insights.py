@@ -15,17 +15,18 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
 import os
 import re
 import sqlite3
 import subprocess
 import sys
-import threading
 import time
 from pathlib import Path
-from queue import Empty, Queue
 from typing import Any
+
+from mcp_stdio_client import mcp_call_tool, mcp_stdio_session, tool_result_text
 
 
 def _repo_root() -> Path:
@@ -116,110 +117,7 @@ def _load_existing_ai_insight_keys(db_path: Path) -> set[str]:
     return keys
 
 
-class _LineReader:
-    """
-    Windows 下 pipe 的 readline() 会阻塞；用后台线程 + queue 才能可靠实现“带超时读取”。
-    """
-
-    def __init__(self, stream: Any) -> None:
-        self._q: "Queue[str]" = Queue()
-        self._t = threading.Thread(target=self._run, args=(stream,), daemon=True)
-        self._t.start()
-
-    def _run(self, stream: Any) -> None:
-        try:
-            for line in stream:
-                self._q.put(line)
-        except Exception:
-            return
-
-    def read_line(self, timeout_sec: float) -> str | None:
-        try:
-            return self._q.get(timeout=timeout_sec)
-        except Empty:
-            return None
-
-
-def _read_json_line(
-    *,
-    reader: _LineReader,
-    proc: subprocess.Popen[str],
-    timeout_sec: int,
-    progress_label: str = "",
-    show_progress: bool = True,
-) -> dict[str, Any]:
-    start = time.time()
-    spinner = "|/-\\"
-    spin_idx = 0
-    last_draw = 0.0
-    while time.time() - start < timeout_sec:
-        line = reader.read_line(timeout_sec=0.2)
-        now = time.time()
-        if show_progress and now - last_draw >= 0.5:
-            elapsed = now - start
-            label = progress_label.strip()
-            if label:
-                sys.stdout.write("\r" + f"{spinner[spin_idx]} 等待 MCP 响应（{label}）… elapsed={elapsed:>.1f}s".ljust(140))
-            else:
-                sys.stdout.write("\r" + f"{spinner[spin_idx]} 等待 MCP 响应… elapsed={elapsed:>.1f}s".ljust(140))
-            sys.stdout.flush()
-            spin_idx = (spin_idx + 1) % len(spinner)
-            last_draw = now
-        if line is None:
-            if proc.poll() is not None:
-                raise RuntimeError("MCP 进程已退出（未收到 JSON 响应）")
-            continue
-        s = line.strip()
-        if not s or not s.startswith("{"):
-            continue
-        try:
-            return json.loads(s)
-        except Exception:
-            continue
-    raise TimeoutError("等待 MCP JSON 响应超时")
-
-
-def _mcp_call(
-    proc: subprocess.Popen[str],
-    reader: _LineReader,
-    request_id: int,
-    method: str,
-    params: dict[str, Any] | None,
-    timeout_sec: int,
-    *,
-    progress_label: str = "",
-    show_progress: bool = True,
-) -> dict[str, Any]:
-    req: dict[str, Any] = {"jsonrpc": "2.0", "id": request_id, "method": method}
-    if params is not None:
-        req["params"] = params
-    if not proc.stdin:
-        raise RuntimeError("MCP 进程 stdin 不可用")
-    proc.stdin.write(json.dumps(req, ensure_ascii=False) + "\n")
-    proc.stdin.flush()
-    while True:
-        resp = _read_json_line(
-            reader=reader,
-            proc=proc,
-            timeout_sec=timeout_sec,
-            progress_label=progress_label,
-            show_progress=show_progress,
-        )
-        if resp.get("id") == request_id:
-            return resp
-
-
-def _mcp_notify(proc: subprocess.Popen[str], method: str, params: dict[str, Any] | None) -> None:
-    msg: dict[str, Any] = {"jsonrpc": "2.0", "method": method}
-    if params is not None:
-        msg["params"] = params
-    if not proc.stdin:
-        raise RuntimeError("MCP 进程 stdin 不可用")
-    proc.stdin.write(json.dumps(msg, ensure_ascii=False) + "\n")
-    proc.stdin.flush()
-
-
-def _start_in_memoria(repo_root: Path) -> subprocess.Popen[str]:
+def _in_memoria_stdio_config(repo_root: Path) -> tuple[str, list[str], dict[str, str]]:
     vibe_dir = repo_root / ".vibe"
     npm_cache_dir = vibe_dir / "npm-cache"
     npm_cache_dir.mkdir(parents=True, exist_ok=True)
@@ -227,20 +125,12 @@ def _start_in_memoria(repo_root: Path) -> subprocess.Popen[str]:
     env = os.environ.copy()
     env["npm_config_cache"] = str(npm_cache_dir)
 
-    cmd = ["cmd", "/c", "npx", "-y", "in-memoria@0.6.0", "server"]
-    return subprocess.Popen(
-        cmd,
-        cwd=str(repo_root),
-        env=env,
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
-        text=True,
-        encoding="utf-8",
-    )
+    command = "cmd"
+    args = ["/c", "npx", "-y", "in-memoria@0.6.0", "server"]
+    return command, args, env
 
 
-def main() -> int:
+async def _amain() -> int:
     args = _parse_args()
     repo_root = _repo_root()
 
@@ -321,54 +211,50 @@ def main() -> int:
         print(f"无需写入：已存在 {skipped}/{len(all_insights)}（如需强制写入请加 --force）")
         return 0
 
-    proc = _start_in_memoria(repo_root)
-    if not proc.stdout:
-        print("in_memoria MCP stdout 不可用", file=sys.stderr)
-        return 1
-    reader = _LineReader(proc.stdout)
-    try:
-        init_resp = _mcp_call(
-            proc,
-            reader,
-            request_id=1,
-            method="initialize",
-            params={
-                "protocolVersion": "2024-11-05",
-                "capabilities": {},
-                "clientInfo": {"name": "freqtrade_demo_in_memoria_seed", "version": "0.1.0"},
-            },
-            timeout_sec=20,
-            progress_label="initialize",
-        )
-        if "result" not in init_resp:
-            print(f"initialize 失败：{init_resp}", file=sys.stderr)
-            return 1
-        _mcp_notify(proc, method="notifications/initialized", params={})
+    command, cmd_args, env = _in_memoria_stdio_config(repo_root)
 
-        ok = 0
-        for idx, insight in enumerate(pending, start=1):
-            resp = _mcp_call(
-                proc,
-                reader,
-                request_id=100 + idx,
-                method="tools/call",
-                params={"name": "contribute_insights", "arguments": insight},
-                timeout_sec=30,
-                progress_label=f"contribute_insights {idx}/{len(pending)}",
-            )
-            if "error" in resp:
-                print(f"写入失败：{resp['error']}", file=sys.stderr)
-                continue
-            ok += 1
-        print("")
-
-        print(f"完成：写入 insights {ok}/{len(pending)}（跳过已存在 {skipped}/{len(all_insights)}）")
-        return 0 if ok == len(pending) else 1
-    finally:
+    log_dir = repo_root / ".vibe" / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    errlog_path = log_dir / f"mcp-in-memoria-{int(time.time())}.log"
+    with errlog_path.open("w", encoding="utf-8", errors="replace") as errlog:
         try:
-            proc.kill()
-        except Exception:
-            pass
+            async with mcp_stdio_session(
+                command=command,
+                args=cmd_args,
+                cwd=repo_root,
+                env=env,
+                init_timeout_sec=20,
+                show_progress=True,
+                errlog=errlog,
+            ) as session:
+                ok = 0
+                for idx, insight in enumerate(pending, start=1):
+                    result = await mcp_call_tool(
+                        session,
+                        name="contribute_insights",
+                        arguments=insight,
+                        timeout_sec=30,
+                        show_progress=True,
+                        progress_label=f"contribute_insights {idx}/{len(pending)}",
+                    )
+                    if bool(getattr(result, "isError", False)):
+                        print(f"写入失败：{tool_result_text(result)}", file=sys.stderr)
+                        continue
+                    ok += 1
+                print("")
+
+                print(f"完成：写入 insights {ok}/{len(pending)}（跳过已存在 {skipped}/{len(all_insights)}）")
+                if ok != len(pending):
+                    print(f"MCP stderr 日志：{errlog_path}", file=sys.stderr)
+                return 0 if ok == len(pending) else 1
+        except Exception as exc:
+            print(f"运行失败：{exc}", file=sys.stderr)
+            print(f"MCP stderr 日志：{errlog_path}", file=sys.stderr)
+            return 1
+
+
+def main() -> int:
+    return asyncio.run(_amain())
 
 
 if __name__ == "__main__":

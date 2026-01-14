@@ -88,7 +88,8 @@ uv run python -X utf8 "scripts/qlib/train_model.py" --pair "BTC/USDT:USDT" --tim
 - `02_qlib_research/models/qlib/v1/okx/4h/BTC_USDT/model_info.json`
 - `02_qlib_research/models/qlib/v1/okx/4h/BTC_USDT/feature_baseline.json`（训练特征分布基线，用于漂移检测）
 
-> 说明：训练脚本会对概率做时间序列校准（TimeSeriesSplit + sigmoid），更适合后续做“连续权重”。
+> 说明：训练脚本使用真实 Qlib（pyqlib）的 `DatasetH/DataHandler` 组织数据，并通过本仓库的 `FreqtradePklDataLoader` 直接读取 pkl（保持数据口径单一）。  
+> 同时会对概率做时间序列校准（TimeSeriesSplit + sigmoid），更适合后续做“连续权重”。
 
 ### 2.4 一键流水线（推荐）
 
@@ -102,6 +103,23 @@ uv run python -X utf8 "scripts/qlib/train_model.py" --pair "BTC/USDT:USDT" --tim
 
 ```powershell
 ./scripts/qlib/pipeline.ps1 -Timeframe "15m" -SymbolsYaml "04_shared/config/symbols_research_okx_futures_top40.yaml" -ModelVersion "v2_cal"
+```
+
+如果你希望把“数据下载 → 研究训练 → 因子体检 → 回测报告”也一并收口成**单一入口**，使用：
+
+```powershell
+# 先预览将执行的步骤（不真正运行）
+./scripts/workflows/quant_e2e.ps1 -All -WhatIf
+
+# 全量闭环（示例：15m 合约择时执行器）
+./scripts/workflows/quant_e2e.ps1 -All -Download `
+  -TradingMode "futures" `
+  -Pairs "BTC/USDT:USDT" `
+  -Timeframe "15m" `
+  -DownloadDays 120 `
+  -BacktestConfig "04_shared/configs/small_account/config_small_futures_timing_15m.json" `
+  -Strategy "SmallAccountFuturesTimingExecV1" `
+  -BacktestTimerange "20251215-20260114"
 ```
 
 ### 2.4.1 概念漂移体检（推荐）

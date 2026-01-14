@@ -21,22 +21,22 @@
 说明：
 - `--db-path` 支持相对路径（相对仓库根目录）或绝对路径。
 - 默认会尽量读取 `codex mcp get local_rag --json` 来对齐 MODEL/CACHE_DIR 等参数。
-- 仅使用 Python 标准库，便于跨设备运行。
+- 使用官方 MCP Python SDK，避免重复实现 JSON-RPC 2.0/pipe 超时读取等细节。
 """
 
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
 import os
-import shutil
 import subprocess
 import sys
-import threading
 import time
 from pathlib import Path
-from queue import Empty, Queue
 from typing import Any
+
+from mcp_stdio_client import mcp_call_tool, mcp_list_tools, mcp_stdio_session, print_progress
 
 
 def _parse_args() -> argparse.Namespace:
@@ -102,129 +102,47 @@ def _try_get_codex_mcp_env(server_name: str) -> dict[str, str]:
         return {}
 
 
-class _LineReader:
-    """
-    Windows 下 pipe 的 readline() 可能阻塞；用后台线程 + queue 实现“可超时读取”。
-    """
-
-    def __init__(self, stream: Any) -> None:
-        self._q: "Queue[str]" = Queue()
-        self._t = threading.Thread(target=self._run, args=(stream,), daemon=True)
-        self._t.start()
-
-    def _run(self, stream: Any) -> None:
-        try:
-            for line in stream:
-                self._q.put(line)
-        except Exception:
-            return
-
-    def read_line(self, timeout_sec: float) -> str | None:
-        try:
-            return self._q.get(timeout=timeout_sec)
-        except Empty:
-            return None
-
-
-def _print_progress(line: str) -> None:
-    cols = 160
+def _tool_result_to_obj(result: Any) -> object:
     try:
-        cols = int(shutil.get_terminal_size(fallback=(160, 20)).columns)
+        dump = result.model_dump()  # type: ignore[attr-defined]
+        return dump
     except Exception:
-        cols = 160
-    try:
-        sys.stdout.write("\r" + line.ljust(cols))
-        sys.stdout.flush()
-    except OSError:
-        print(line)
+        return result
 
 
-def _read_json_line(
-    *,
-    reader: _LineReader,
-    proc: subprocess.Popen[str],
-    timeout_sec: int,
-    progress_label: str = "",
-    show_progress: bool = True,
-) -> dict[str, Any]:
-    start = time.time()
-    spinner = "|/-\\"
-    spin_idx = 0
-    last_draw = 0.0
-    while time.time() - start < timeout_sec:
-        line = reader.read_line(timeout_sec=0.2)
-        now = time.time()
-        if show_progress and now - last_draw >= 0.5:
-            elapsed = now - start
-            label = progress_label.strip()
-            if label:
-                _print_progress(f"{spinner[spin_idx]} 等待 MCP 响应（{label}）… elapsed={elapsed:>.1f}s")
-            else:
-                _print_progress(f"{spinner[spin_idx]} 等待 MCP 响应… elapsed={elapsed:>.1f}s")
-            spin_idx = (spin_idx + 1) % len(spinner)
-            last_draw = now
-        if line is None:
-            if proc.poll() is not None:
-                raise RuntimeError("MCP 进程已退出（未收到 JSON 响应）")
-            continue
-        s = line.strip()
-        if not s or not s.startswith("{"):
-            continue
-        try:
-            return json.loads(s)
-        except Exception:
-            continue
-    raise TimeoutError("等待 MCP JSON 响应超时")
+def _tool_result_text(result: Any) -> str:
+    obj = _tool_result_to_obj(result)
+    if isinstance(obj, dict):
+        content = obj.get("content")
+        if isinstance(content, list):
+            texts: list[str] = []
+            for item in content:
+                if not isinstance(item, dict):
+                    continue
+                if str(item.get("type", "")).strip().lower() != "text":
+                    continue
+                text = item.get("text")
+                if isinstance(text, str) and text.strip():
+                    texts.append(text.strip())
+            if texts:
+                return "\n".join(texts)
+        sc = obj.get("structuredContent")
+        if sc is not None:
+            try:
+                return json.dumps(sc, ensure_ascii=False)
+            except Exception:
+                return str(sc)
+    return str(obj)
 
 
-def _mcp_call(
-    proc: subprocess.Popen[str],
-    reader: _LineReader,
-    request_id: int,
-    method: str,
-    params: dict[str, Any] | None,
-    timeout_sec: int,
-    *,
-    progress_label: str = "",
-    show_progress: bool = True,
-) -> dict[str, Any]:
-    req: dict[str, Any] = {"jsonrpc": "2.0", "id": request_id, "method": method}
-    if params is not None:
-        req["params"] = params
-    if not proc.stdin:
-        raise RuntimeError("MCP 进程 stdin 不可用")
-    proc.stdin.write(json.dumps(req, ensure_ascii=False) + "\n")
-    proc.stdin.flush()
-    while True:
-        resp = _read_json_line(
-            reader=reader,
-            proc=proc,
-            timeout_sec=timeout_sec,
-            progress_label=progress_label,
-            show_progress=show_progress,
-        )
-        if resp.get("id") == request_id:
-            return resp
-
-
-def _mcp_notify(proc: subprocess.Popen[str], method: str, params: dict[str, Any] | None) -> None:
-    msg: dict[str, Any] = {"jsonrpc": "2.0", "method": method}
-    if params is not None:
-        msg["params"] = params
-    if not proc.stdin:
-        raise RuntimeError("MCP 进程 stdin 不可用")
-    proc.stdin.write(json.dumps(msg, ensure_ascii=False) + "\n")
-    proc.stdin.flush()
-
-
-def _start_local_rag(
+def _local_rag_stdio_config(
     *,
     repo_root: Path,
     base_dir: str,
     db_path: Path,
     cache_dir: str,
     model_name: str,
-) -> subprocess.Popen[str]:
+) -> tuple[str, list[str], dict[str, str]]:
     npm_cache_dir = repo_root / ".vibe" / "npm-cache"
     npm_cache_dir.mkdir(parents=True, exist_ok=True)
     db_path.mkdir(parents=True, exist_ok=True)
@@ -243,49 +161,54 @@ def _start_local_rag(
     env.setdefault("RAG_HYBRID_WEIGHT", "0.7")
     env.setdefault("RAG_GROUPING", "similar")
 
-    cmd = ["cmd", "/c", "npx", "-y", "mcp-local-rag@0.5.3"]
-    return subprocess.Popen(
-        cmd,
-        cwd=str(repo_root),
-        env=env,
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
-        text=True,
-        encoding="utf-8",
-    )
+    command = "cmd"
+    args = ["/c", "npx", "-y", "mcp-local-rag@0.5.3"]
+    return command, args, env
 
 
-def _extract_list_files_result(resp: dict[str, Any]) -> list[dict[str, Any]]:
-    result = resp.get("result")
-    if isinstance(result, list):
-        return [x for x in result if isinstance(x, dict)]
-    if isinstance(result, dict):
-        # mcp-local-rag 的返回常见形态：{"content":[{"type":"text","text":"[...]"}]}
-        content_obj = result.get("content")
-        if isinstance(content_obj, list):
-            for item in content_obj:
-                if not isinstance(item, dict):
-                    continue
-                if str(item.get("type", "")).strip().lower() != "text":
-                    continue
-                text = item.get("text")
-                if not isinstance(text, str) or not text.strip():
-                    continue
-                try:
-                    parsed = json.loads(text)
-                except Exception:
-                    continue
-                if isinstance(parsed, list):
-                    return [x for x in parsed if isinstance(x, dict)]
+def _extract_list_files_result(call_result: Any) -> list[dict[str, Any]]:
+    obj = _tool_result_to_obj(call_result)
 
-        files_obj = result.get("files")
+    if isinstance(obj, list):
+        return [x for x in obj if isinstance(x, dict)]
+
+    if not isinstance(obj, dict):
+        return []
+
+    sc = obj.get("structuredContent")
+    if isinstance(sc, list):
+        return [x for x in sc if isinstance(x, dict)]
+    if isinstance(sc, dict):
+        files_obj = sc.get("files")
         if isinstance(files_obj, list):
             return [x for x in files_obj if isinstance(x, dict)]
+
+    # mcp-local-rag 的返回常见形态：{"content":[{"type":"text","text":"[...]"}]}
+    content_obj = obj.get("content")
+    if isinstance(content_obj, list):
+        for item in content_obj:
+            if not isinstance(item, dict):
+                continue
+            if str(item.get("type", "")).strip().lower() != "text":
+                continue
+            text = item.get("text")
+            if not isinstance(text, str) or not text.strip():
+                continue
+            try:
+                parsed = json.loads(text)
+            except Exception:
+                continue
+            if isinstance(parsed, list):
+                return [x for x in parsed if isinstance(x, dict)]
+
+    files_obj = obj.get("files")
+    if isinstance(files_obj, list):
+        return [x for x in files_obj if isinstance(x, dict)]
+
     return []
 
 
-def main() -> int:
+async def _amain() -> int:
     args = _parse_args()
     repo_root = _repo_root()
 
@@ -310,151 +233,133 @@ def main() -> int:
     print(f"PREFIX={args.prefix}")
     print(f"DRY_RUN={bool(args.dry_run)}")
 
-    proc = _start_local_rag(
+    command, cmd_args, env = _local_rag_stdio_config(
         repo_root=repo_root,
         base_dir=base_dir,
         db_path=db_path,
         cache_dir=cache_dir,
         model_name=model_name,
     )
-    if not proc.stdout:
-        print("local_rag MCP stdout 不可用", file=sys.stderr)
-        return 1
-    reader = _LineReader(proc.stdout)
+
+    log_dir = repo_root / ".vibe" / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    errlog_path = log_dir / f"mcp-local-rag-{int(time.time())}.log"
 
     try:
-        init_resp = _mcp_call(
-            proc,
-            reader,
-            request_id=1,
-            method="initialize",
-            params={
-                "protocolVersion": "2024-11-05",
-                "capabilities": {},
-                "clientInfo": {"name": "freqtrade_demo_local_rag_cleanup", "version": "0.1.0"},
-            },
-            timeout_sec=args.timeout_sec,
-            progress_label="initialize",
-            show_progress=show_progress,
-        )
-        if "result" not in init_resp:
-            print(f"initialize 失败：{init_resp}", file=sys.stderr)
-            return 1
-        _mcp_notify(proc, method="notifications/initialized", params={})
-
-        tools_resp = _mcp_call(
-            proc,
-            reader,
-            request_id=2,
-            method="tools/list",
-            params={},
-            timeout_sec=args.timeout_sec,
-            progress_label="tools/list",
-            show_progress=show_progress,
-        )
-        tool_names = {t.get("name") for t in tools_resp.get("result", {}).get("tools", [])}
-        missing = [name for name in ("list_files", "delete_file") if name not in tool_names]
-        if missing:
-            print(f"local_rag 缺少必要工具：{missing}，tools={sorted(tool_names)}", file=sys.stderr)
-            return 1
-
-        list_resp = _mcp_call(
-            proc,
-            reader,
-            request_id=3,
-            method="tools/call",
-            params={"name": "list_files", "arguments": {}},
-            timeout_sec=args.timeout_sec,
-            progress_label="list_files",
-            show_progress=show_progress,
-        )
-        if "error" in list_resp:
-            print(f"list_files 失败：{list_resp['error']}", file=sys.stderr)
-            return 1
-
-        files = _extract_list_files_result(list_resp)
-        candidates: list[str] = []
-        for item in files:
-            fp = item.get("filePath")
-            if not isinstance(fp, str) or not fp.strip():
-                continue
-            fp_norm = _normalize_path(fp)
-            if any(fp_norm.startswith(p) for p in prefixes_norm):
-                candidates.append(fp)
-
-        print(f"匹配条目：{len(candidates)} / 总计 {len(files)}")
-        if not candidates:
-            print("没有需要删除的条目。")
-            return 0
-
-        if args.dry_run:
-            print("将删除以下 filePath：")
-            for fp in candidates[:200]:
-                print(f"- {fp}")
-            if len(candidates) > 200:
-                print(f"- ... 其余 {len(candidates) - 200} 条已省略")
-            return 0
-
-        deleted = 0
-        failed: list[str] = []
-        start_ts = time.time()
-        for idx, fp in enumerate(candidates, start=1):
-            label = f"delete_file {idx}/{len(candidates)}"
-            if show_progress:
-                elapsed = time.time() - start_ts
-                _print_progress(f"[{idx-1:>3}/{len(candidates):<3}] ok={deleted:<3d} fail={len(failed):<3d} {label}  t={elapsed:>.1f}s")
-            resp = _mcp_call(
-                proc,
-                reader,
-                request_id=1000 + idx,
-                method="tools/call",
-                params={"name": "delete_file", "arguments": {"filePath": fp}},
-                timeout_sec=args.timeout_sec,
-                progress_label=label,
+        with errlog_path.open("w", encoding="utf-8", errors="replace") as errlog:
+            async with mcp_stdio_session(
+                command=command,
+                args=cmd_args,
+                cwd=repo_root,
+                env=env,
+                init_timeout_sec=float(args.timeout_sec),
                 show_progress=show_progress,
-            )
-            if "error" in resp:
-                failed.append(f"{fp}: {resp['error']}")
-                continue
-            deleted += 1
+                errlog=errlog,
+            ) as session:
+                tools = await mcp_list_tools(session, timeout_sec=float(args.timeout_sec), show_progress=show_progress)
+                tool_names = {t.name for t in tools.tools}
+                missing = [name for name in ("list_files", "delete_file") if name not in tool_names]
+                if missing:
+                    print(f"local_rag 缺少必要工具：{missing}，tools={sorted(tool_names)}", file=sys.stderr)
+                    print(f"MCP stderr 日志：{errlog_path}", file=sys.stderr)
+                    return 1
 
-        if show_progress:
-            print("")
+                list_result = await mcp_call_tool(
+                    session,
+                    name="list_files",
+                    arguments={},
+                    timeout_sec=float(args.timeout_sec),
+                    show_progress=show_progress,
+                )
+                if bool(getattr(list_result, "isError", False)):
+                    print(f"list_files 失败：{_tool_result_text(list_result)}", file=sys.stderr)
+                    print(f"MCP stderr 日志：{errlog_path}", file=sys.stderr)
+                    return 1
 
-        print(f"删除完成：成功 {deleted} / 失败 {len(failed)}")
-        if failed:
-            print("失败明细：")
-            for item in failed[:50]:
-                print(f"- {item}")
-            if len(failed) > 50:
-                print(f"- ... 其余 {len(failed) - 50} 条已省略")
+                files = _extract_list_files_result(list_result)
+                candidates: list[str] = []
+                for item in files:
+                    fp = item.get("filePath")
+                    if not isinstance(fp, str) or not fp.strip():
+                        continue
+                    fp_norm = _normalize_path(fp)
+                    if any(fp_norm.startswith(p) for p in prefixes_norm):
+                        candidates.append(fp)
 
-        # 复核：再次 list_files，确认目标前缀已清空
-        verify_resp = _mcp_call(
-            proc,
-            reader,
-            request_id=9000,
-            method="tools/call",
-            params={"name": "list_files", "arguments": {}},
-            timeout_sec=args.timeout_sec,
-            progress_label="verify/list_files",
-            show_progress=show_progress,
-        )
-        verify_files = _extract_list_files_result(verify_resp)
-        left = 0
-        for item in verify_files:
-            fp = item.get("filePath")
-            if not isinstance(fp, str):
-                continue
-            if any(_normalize_path(fp).startswith(p) for p in prefixes_norm):
-                left += 1
-        print(f"复核：前缀剩余 {left} 条（应为 0）")
-        return 0 if left == 0 else 1
-    finally:
-        try:
-            proc.terminate()
-        except Exception:
-            pass
+                print(f"匹配条目：{len(candidates)} / 总计 {len(files)}")
+                if not candidates:
+                    print("没有需要删除的条目。")
+                    return 0
+
+                if args.dry_run:
+                    print("将删除以下 filePath：")
+                    for fp in candidates[:200]:
+                        print(f"- {fp}")
+                    if len(candidates) > 200:
+                        print(f"- ... 其余 {len(candidates) - 200} 条已省略")
+                    return 0
+
+                deleted = 0
+                failed: list[str] = []
+                start_ts = time.time()
+                for idx, fp in enumerate(candidates, start=1):
+                    label = f"delete_file {idx}/{len(candidates)}"
+                    if show_progress:
+                        elapsed = time.time() - start_ts
+                        print_progress(
+                            f"[{idx-1:>3}/{len(candidates):<3}] ok={deleted:<3d} fail={len(failed):<3d} {label}  t={elapsed:>.1f}s"
+                        )
+
+                    result = await mcp_call_tool(
+                        session,
+                        name="delete_file",
+                        arguments={"filePath": fp},
+                        timeout_sec=float(args.timeout_sec),
+                        show_progress=show_progress,
+                    )
+                    if bool(getattr(result, "isError", False)):
+                        failed.append(f"{fp}: {_tool_result_text(result)}")
+                        continue
+                    deleted += 1
+
+                if show_progress:
+                    print("")
+
+                print(f"删除完成：成功 {deleted} / 失败 {len(failed)}")
+                if failed:
+                    print("失败明细：")
+                    for item in failed[:50]:
+                        print(f"- {item}")
+                    if len(failed) > 50:
+                        print(f"- ... 其余 {len(failed) - 50} 条已省略")
+
+                verify_result = await mcp_call_tool(
+                    session,
+                    name="list_files",
+                    arguments={},
+                    timeout_sec=float(args.timeout_sec),
+                    show_progress=show_progress,
+                )
+                verify_files = _extract_list_files_result(verify_result)
+                left = 0
+                for item in verify_files:
+                    fp = item.get("filePath")
+                    if not isinstance(fp, str):
+                        continue
+                    if any(_normalize_path(fp).startswith(p) for p in prefixes_norm):
+                        left += 1
+                print(f"复核：前缀剩余 {left} 条（应为 0）")
+                if left != 0:
+                    print(f"MCP stderr 日志：{errlog_path}", file=sys.stderr)
+                return 0 if left == 0 else 1
+    except Exception as exc:
+        print(f"运行失败：{exc}", file=sys.stderr)
+        print(f"MCP stderr 日志：{errlog_path}", file=sys.stderr)
+        return 1
+
+
+def main() -> int:
+    return asyncio.run(_amain())
 
 
 if __name__ == "__main__":

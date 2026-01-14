@@ -8,7 +8,7 @@
   - 汇总 base / calibrated 的验证集指标，输出 CSV/Markdown，便于做因子“加法/减法”决策
 
   注意：
-  - 本脚本不依赖真实 Qlib；仅复用本仓库 scripts/qlib 的数据与训练约定。
+  - 本脚本本身是封装器，但会调用 `scripts/qlib/train_model.py`（依赖真实 Qlib：pyqlib）。
   - 输出默认写入 artifacts/qlib_ablation/（建议不入库）。
 
 .EXAMPLE
@@ -221,4 +221,3 @@ Write-Host "=== 完成 ==="
 Write-Host "- CSV: $csvPath"
 Write-Host "- MD : $mdPath"
 Write-Host "- Dir: $runDir"
-

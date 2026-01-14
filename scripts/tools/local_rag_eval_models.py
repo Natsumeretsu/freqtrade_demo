@@ -6,7 +6,7 @@ Local RAG 嵌入模型评估脚本（不换 MCP）
 - 采用“查询回归集 + TopK 命中率/MRR”做可复现评估，输出可追溯报告到 `artifacts/`
 
 设计原则：
-- 仅使用 Python 标准库（便于复制到其它仓库）
+- 使用官方 MCP Python SDK，避免重复实现 JSON-RPC 2.0/pipe 超时读取等细节
 - 每个模型使用独立的 DB_PATH（默认 `.vibe/local-rag/model_dbs/<model_slug>/`），避免向量维度冲突
 
 用法（仓库根目录）：
@@ -25,6 +25,7 @@ Local RAG 嵌入模型评估脚本（不换 MCP）
 from __future__ import annotations
 
 import argparse
+import asyncio
 import fnmatch
 import json
 import os
@@ -32,14 +33,25 @@ import re
 import shutil
 import subprocess
 import sys
-import threading
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from queue import Empty, Queue
 from shutil import which
 from typing import Any
+
+_TOOLS_DIR = Path(__file__).resolve().parent
+if str(_TOOLS_DIR) not in sys.path:
+    sys.path.insert(0, str(_TOOLS_DIR))
+
+from mcp_stdio_client import (
+    mcp_call_tool,
+    mcp_list_tools,
+    mcp_stdio_session,
+    print_progress,
+    tool_result_text,
+    tool_result_to_obj,
+)
 
 
 @dataclass(frozen=True)
@@ -274,122 +286,7 @@ def _render_progress_line(done: int, total: int, start_ts: float, current: str) 
     )
 
 
-def _print_progress(line: str) -> None:
-    cols = 160
-    try:
-        cols = int(shutil.get_terminal_size(fallback=(160, 20)).columns)
-    except Exception:
-        cols = 160
-    try:
-        sys.stdout.write("\r" + line.ljust(cols))
-        sys.stdout.flush()
-    except OSError:
-        print(line)
-
-
-class _LineReader:
-    """
-    Windows 下 pipe 的 readline() 会阻塞；用后台线程 + queue 才能可靠实现“带超时读取”。
-    """
-
-    def __init__(self, stream: Any) -> None:
-        self._q: "Queue[str]" = Queue()
-        self._t = threading.Thread(target=self._run, args=(stream,), daemon=True)
-        self._t.start()
-
-    def _run(self, stream: Any) -> None:
-        try:
-            for line in stream:
-                self._q.put(line)
-        except Exception:
-            return
-
-    def read_line(self, timeout_sec: float) -> str | None:
-        try:
-            return self._q.get(timeout=timeout_sec)
-        except Empty:
-            return None
-
-
-def _read_json_line(
-    *,
-    reader: _LineReader,
-    proc: subprocess.Popen[str],
-    timeout_sec: int,
-    progress_label: str = "",
-    show_progress: bool = False,
-) -> dict[str, Any]:
-    start = time.time()
-    spinner = "|/-\\"
-    spin_idx = 0
-    last_draw = 0.0
-    while time.time() - start < timeout_sec:
-        line = reader.read_line(timeout_sec=0.2)
-        now = time.time()
-        if show_progress and now - last_draw >= 0.5:
-            elapsed = now - start
-            label = progress_label.strip()
-            if label:
-                _print_progress(f"{spinner[spin_idx]} 等待 MCP 响应（{label}）… elapsed={elapsed:>.1f}s")
-            else:
-                _print_progress(f"{spinner[spin_idx]} 等待 MCP 响应… elapsed={elapsed:>.1f}s")
-            spin_idx = (spin_idx + 1) % len(spinner)
-            last_draw = now
-        if line is None:
-            if proc.poll() is not None:
-                raise RuntimeError("MCP 进程已退出（未收到 JSON 响应）")
-            continue
-        s = line.strip()
-        if not s.startswith("{"):
-            continue
-        try:
-            return json.loads(s)
-        except Exception:
-            continue
-    raise TimeoutError("等待 MCP JSON 响应超时")
-
-
-def _mcp_call(
-    *,
-    proc: subprocess.Popen[str],
-    reader: _LineReader,
-    request_id: int,
-    method: str,
-    params: dict[str, Any] | None,
-    timeout_sec: int,
-    progress_label: str = "",
-    show_progress: bool = False,
-) -> dict[str, Any]:
-    req: dict[str, Any] = {"jsonrpc": "2.0", "id": request_id, "method": method}
-    if params is not None:
-        req["params"] = params
-    if not proc.stdin:
-        raise RuntimeError("MCP 进程 stdin 不可用")
-    proc.stdin.write(json.dumps(req, ensure_ascii=False) + "\n")
-    proc.stdin.flush()
-    while True:
-        resp = _read_json_line(
-            reader=reader,
-            proc=proc,
-            timeout_sec=timeout_sec,
-            progress_label=progress_label,
-            show_progress=show_progress,
-        )
-        if resp.get("id") == request_id:
-            return resp
-
-
-def _mcp_notify(proc: subprocess.Popen[str], method: str, params: dict[str, Any] | None) -> None:
-    msg: dict[str, Any] = {"jsonrpc": "2.0", "method": method}
-    if params is not None:
-        msg["params"] = params
-    if not proc.stdin:
-        return
-    proc.stdin.write(json.dumps(msg, ensure_ascii=False) + "\n")
-    proc.stdin.flush()
-
-
-def _start_local_rag(
+def _local_rag_stdio_config(
     *,
     repo_root: Path,
     base_dir: Path,
@@ -398,8 +295,7 @@ def _start_local_rag(
     model_name: str,
     rag_hybrid_weight: str,
     rag_grouping: str,
-    stderr_sink: Any | None,
-) -> tuple[subprocess.Popen[str], _LineReader]:
+) -> tuple[str, list[str], dict[str, str]]:
     npm_cache_dir = repo_root / ".vibe" / "npm-cache"
     npm_cache_dir.mkdir(parents=True, exist_ok=True)
     db_path.mkdir(parents=True, exist_ok=True)
@@ -414,20 +310,9 @@ def _start_local_rag(
     env["RAG_HYBRID_WEIGHT"] = str(rag_hybrid_weight or "0.7")
     env["RAG_GROUPING"] = str(rag_grouping or "similar")
 
-    cmd = ["cmd", "/c", "npx", "-y", "mcp-local-rag@0.5.3"]
-    proc = subprocess.Popen(
-        cmd,
-        cwd=str(repo_root),
-        env=env,
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=stderr_sink if stderr_sink is not None else subprocess.DEVNULL,
-        text=True,
-        encoding="utf-8",
-    )
-    if not proc.stdout:
-        raise RuntimeError("local_rag MCP stdout 不可用")
-    return proc, _LineReader(proc.stdout)
+    command = "cmd"
+    args = ["/c", "npx", "-y", "mcp-local-rag@0.5.3"]
+    return command, args, env
 
 
 def _extract_query_results(result: Any) -> list[dict[str, Any]]:
@@ -437,10 +322,25 @@ def _extract_query_results(result: Any) -> list[dict[str, Any]]:
     - {"content":[{"type":"text","text":"[...]"}]}（JSON 字符串包了一层）
     - 纯字符串（JSON 字符串）
     """
-    if isinstance(result, list):
-        return [x for x in result if isinstance(x, dict)]
-    if isinstance(result, dict):
-        content = result.get("content")
+    obj = tool_result_to_obj(result)
+
+    if isinstance(obj, dict):
+        sc = obj.get("structuredContent")
+        if isinstance(sc, list):
+            return [x for x in sc if isinstance(x, dict)]
+        if isinstance(sc, str):
+            try:
+                parsed = json.loads(sc)
+            except Exception:
+                parsed = None
+            if isinstance(parsed, list):
+                return [x for x in parsed if isinstance(x, dict)]
+
+    if isinstance(obj, list):
+        return [x for x in obj if isinstance(x, dict)]
+
+    if isinstance(obj, dict):
+        content = obj.get("content")
         if isinstance(content, list):
             texts: list[str] = []
             for item in content:
@@ -459,9 +359,9 @@ def _extract_query_results(result: Any) -> list[dict[str, Any]]:
                 return [x for x in parsed if isinstance(x, dict)]
             return []
         return []
-    if isinstance(result, str):
+    if isinstance(obj, str):
         try:
-            parsed = json.loads(result)
+            parsed = json.loads(obj)
         except Exception:
             return []
         if isinstance(parsed, list):
@@ -568,7 +468,7 @@ def _resolve_models(raw: str, baseline: str) -> list[str]:
     return out
 
 
-def _eval_one_model(
+async def _eval_one_model(
     *,
     repo_root: Path,
     suite: _EvalSuite,
@@ -649,18 +549,13 @@ def _eval_one_model(
     build_files = len(to_ingest)
     build_seconds = 0.0
 
-    proc: subprocess.Popen[str] | None = None
-    reader: _LineReader | None = None
-    stderr_fh: Any | None = None
-
     failures: list[dict[str, Any]] = []
     hit_sum = 0.0
     mrr_sum = 0.0
 
-    try:
-        stderr_log_path.parent.mkdir(parents=True, exist_ok=True)
-        stderr_fh = open(stderr_log_path, "w", encoding="utf-8", errors="replace")
-        proc, reader = _start_local_rag(
+    stderr_log_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(stderr_log_path, "w", encoding="utf-8", errors="replace") as stderr_fh:
+        command, cmd_args, env = _local_rag_stdio_config(
             repo_root=repo_root,
             base_dir=base_dir,
             db_path=db_path,
@@ -668,175 +563,141 @@ def _eval_one_model(
             model_name=model_name,
             rag_hybrid_weight=rag_hybrid_weight,
             rag_grouping=rag_grouping,
-            stderr_sink=stderr_fh,
         )
 
-        init = _mcp_call(
-            proc=proc,
-            reader=reader,
-            request_id=1,
-            method="initialize",
-            params={
-                "protocolVersion": "2024-11-05",
-                "capabilities": {},
-                "clientInfo": {"name": "local_rag_eval_models", "version": "0.1.0"},
-            },
-            timeout_sec=timeout_sec,
-        )
-        if "result" not in init:
-            raise RuntimeError(f"initialize 失败：{init}")
-        _mcp_notify(proc, "notifications/initialized", {})
+        async with mcp_stdio_session(
+            command=command,
+            args=cmd_args,
+            cwd=repo_root,
+            env=env,
+            init_timeout_sec=float(timeout_sec),
+            show_progress=False,
+            errlog=stderr_fh,
+        ) as session:
+            tools_resp = await mcp_list_tools(session, timeout_sec=float(timeout_sec), show_progress=False)
+            tool_names = {t.name for t in tools_resp.tools}
+            if "query_documents" not in tool_names:
+                raise RuntimeError(f"local_rag 不支持 query_documents，tools={sorted(tool_names)}")
+            if built and "ingest_file" not in tool_names:
+                raise RuntimeError(f"local_rag 不支持 ingest_file，tools={sorted(tool_names)}")
 
-        tools_resp = _mcp_call(
-            proc=proc,
-            reader=reader,
-            request_id=2,
-            method="tools/list",
-            params={},
-            timeout_sec=timeout_sec,
-        )
-        tools = tools_resp.get("result", {}).get("tools", [])
-        tool_names = {t.get("name") for t in tools if isinstance(t, dict)}
-        if "query_documents" not in tool_names:
-            raise RuntimeError(f"local_rag 不支持 query_documents，tools={sorted(tool_names)}")
-        if built and "ingest_file" not in tool_names:
-            raise RuntimeError(f"local_rag 不支持 ingest_file，tools={sorted(tool_names)}")
+            state_files: dict[str, dict[str, int]] = {}
+            if to_ingest:
+                total = len(to_ingest)
+                total_all = len(files)
+                if build_mode == "update":
+                    print(f"  - 更新索引：to_ingest={total}/{total_all}，skipped={skipped}", flush=True)
+                else:
+                    print(f"  - 构建索引：files={total}（可能需要下载模型，首次会较慢）", flush=True)
+                start_ts = time.time()
+                for idx, path in enumerate(to_ingest, start=1):
+                    abs_path = str(path.resolve())
+                    rel_repo = str(path.relative_to(repo_root)).replace("\\", "/")
+                    print_progress(_render_progress_line(done=idx - 1, total=total, start_ts=start_ts, current=rel_repo))
+                    wait_label = f"ingest_file {idx}/{total}: {_truncate_middle(rel_repo, max_len=72)}"
+                    result = await mcp_call_tool(
+                        session,
+                        name="ingest_file",
+                        arguments={"filePath": abs_path},
+                        timeout_sec=float(timeout_sec),
+                        show_progress=True,
+                        progress_label=wait_label,
+                    )
+                    if bool(getattr(result, "isError", False)):
+                        print("")
+                        raise RuntimeError(f"ingest_file 失败：{rel_repo} -> {tool_result_text(result)}")
 
-        state_files: dict[str, dict[str, int]] = {}
-        if to_ingest:
-            total = len(to_ingest)
-            total_all = len(files)
-            if build_mode == "update":
-                print(f"  - 更新索引：to_ingest={total}/{total_all}，skipped={skipped}", flush=True)
-            else:
-                print(f"  - 构建索引：files={total}（可能需要下载模型，首次会较慢）", flush=True)
-            start_ts = time.time()
-            for idx, path in enumerate(to_ingest, start=1):
-                abs_path = str(path.resolve())
-                rel_repo = str(path.relative_to(repo_root)).replace("\\", "/")
-                _print_progress(_render_progress_line(done=idx - 1, total=total, start_ts=start_ts, current=rel_repo))
-                wait_label = f"ingest_file {idx}/{total}: {_truncate_middle(rel_repo, max_len=72)}"
-                resp = _mcp_call(
-                    proc=proc,
-                    reader=reader,
-                    request_id=1000 + idx,
-                    method="tools/call",
-                    params={"name": "ingest_file", "arguments": {"filePath": abs_path}},
-                    timeout_sec=timeout_sec,
-                    progress_label=wait_label,
-                    show_progress=True,
+                    mtime_ns, size = _file_sig(path)
+                    state_files[rel_repo] = {"mtime_ns": mtime_ns, "size": size}
+                    print_progress(_render_progress_line(done=idx, total=total, start_ts=start_ts, current=rel_repo))
+                print("")
+                build_seconds = float(max(0.0, time.time() - start_ts))
+
+                # 写入/更新索引增量状态（便于下次 update）
+                prev = _load_ingest_state(state_path) or {}
+                merged: dict[str, dict[str, int]] = {}
+                if build_mode != "rebuild":
+                    prev_files_obj = prev.get("files")
+                    if isinstance(prev_files_obj, dict):
+                        for k0, v0 in prev_files_obj.items():
+                            if isinstance(k0, str) and isinstance(v0, dict):
+                                m = v0.get("mtime_ns")
+                                sz = v0.get("size")
+                                if isinstance(m, int) and isinstance(sz, int):
+                                    merged[k0] = {"mtime_ns": m, "size": sz}
+                merged.update(state_files)
+                _write_ingest_state(
+                    state_path,
+                    {
+                        "version": 1,
+                        "updated_date_utc": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+                        "meta": {"base_dir": str(base_dir), "model_name": str(model_name)},
+                        "files": merged,
+                    },
                 )
-                if "error" in resp:
-                    print("")
-                    raise RuntimeError(f"ingest_file 失败：{rel_repo} -> {resp['error']}")
-                mtime_ns, size = _file_sig(path)
-                state_files[rel_repo] = {"mtime_ns": mtime_ns, "size": size}
-                _print_progress(_render_progress_line(done=idx, total=total, start_ts=start_ts, current=rel_repo))
-            print("")
-            build_seconds = float(max(0.0, time.time() - start_ts))
 
-            # 写入/更新索引增量状态（便于下次 update）
-            prev = _load_ingest_state(state_path) or {}
-            merged: dict[str, dict[str, int]] = {}
-            if build_mode != "rebuild":
-                prev_files_obj = prev.get("files")
-                if isinstance(prev_files_obj, dict):
-                    for k, v in prev_files_obj.items():
-                        if isinstance(k, str) and isinstance(v, dict):
-                            m = v.get("mtime_ns")
-                            sz = v.get("size")
-                            if isinstance(m, int) and isinstance(sz, int):
-                                merged[k] = {"mtime_ns": m, "size": sz}
-            merged.update(state_files)
-            _write_ingest_state(
-                state_path,
-                {
-                    "version": 1,
-                    "updated_date_utc": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
-                    "meta": {"base_dir": str(base_dir), "model_name": str(model_name)},
-                    "files": merged,
-                },
+            n = 0 if str(mode).lower() == "build" else len(suite.cases)
+            for i, case in enumerate(suite.cases, start=1):
+                if n == 0:
+                    break
+                try:
+                    result = await mcp_call_tool(
+                        session,
+                        name="query_documents",
+                        arguments={"query": case.query, "limit": int(k)},
+                        timeout_sec=float(query_timeout_sec),
+                        show_progress=False,
+                    )
+                except Exception as e:
+                    failures.append({"case_id": case.case_id, "query": case.query, "error": str(e)})
+                    continue
+
+                if bool(getattr(result, "isError", False)):
+                    failures.append({"case_id": case.case_id, "query": case.query, "error": tool_result_text(result)})
+                    continue
+
+                results = _extract_query_results(result)
+                rank: int | None = None
+                top_paths: list[str] = []
+                for j, item in enumerate(results[:k], start=1):
+                    fp = str(item.get("filePath") or "")
+                    if fp:
+                        top_paths.append(fp)
+                    if rank is None and _match_any_expected(fp, case.expect_any):
+                        rank = j
+
+                if rank is None:
+                    failures.append(
+                        {
+                            "case_id": case.case_id,
+                            "query": case.query,
+                            "expect_any": list(case.expect_any),
+                            "top_paths": top_paths,
+                        }
+                    )
+                    continue
+
+                hit_sum += 1.0
+                mrr_sum += 1.0 / float(rank)
+
+            hit_at_k = hit_sum / n if n > 0 else 0.0
+            mrr_at_k = mrr_sum / n if n > 0 else 0.0
+            return _ModelMetrics(
+                model=model_name,
+                db_path=str(db_path),
+                built=built,
+                build_mode=str(build_mode),
+                build_files=int(build_files),
+                build_skipped=int(skipped),
+                build_seconds=float(build_seconds),
+                hit_at_k=hit_at_k,
+                mrr_at_k=mrr_at_k,
+                case_count=n,
+                failures=failures,
             )
 
-        if str(mode).lower() == "build":
-            n = 0
-        else:
-            n = len(suite.cases)
 
-        for i, case in enumerate(suite.cases, start=1):
-            if n == 0:
-                break
-            resp = _mcp_call(
-                proc=proc,
-                reader=reader,
-                request_id=20000 + i,
-                method="tools/call",
-                params={"name": "query_documents", "arguments": {"query": case.query, "limit": int(k)}},
-                timeout_sec=query_timeout_sec,
-            )
-            if "error" in resp:
-                failures.append(
-                    {
-                        "case_id": case.case_id,
-                        "query": case.query,
-                        "error": resp.get("error"),
-                    }
-                )
-                continue
-
-            results = _extract_query_results(resp.get("result"))
-            rank: int | None = None
-            top_paths: list[str] = []
-            for j, item in enumerate(results[:k], start=1):
-                fp = str(item.get("filePath") or "")
-                if fp:
-                    top_paths.append(fp)
-                if rank is None and _match_any_expected(fp, case.expect_any):
-                    rank = j
-
-            if rank is None:
-                failures.append(
-                    {
-                        "case_id": case.case_id,
-                        "query": case.query,
-                        "expect_any": list(case.expect_any),
-                        "top_paths": top_paths,
-                    }
-                )
-                continue
-
-            hit_sum += 1.0
-            mrr_sum += 1.0 / float(rank)
-
-        hit_at_k = hit_sum / n if n > 0 else 0.0
-        mrr_at_k = mrr_sum / n if n > 0 else 0.0
-        return _ModelMetrics(
-            model=model_name,
-            db_path=str(db_path),
-            built=built,
-            build_mode=str(build_mode),
-            build_files=int(build_files),
-            build_skipped=int(skipped),
-            build_seconds=float(build_seconds),
-            hit_at_k=hit_at_k,
-            mrr_at_k=mrr_at_k,
-            case_count=n,
-            failures=failures,
-        )
-    finally:
-        if proc is not None:
-            try:
-                proc.kill()
-            except Exception:
-                pass
-        if stderr_fh is not None:
-            try:
-                stderr_fh.close()
-            except Exception:
-                pass
-
-
-def main() -> int:
+async def _amain() -> int:
     args = _parse_args()
     repo_root = _repo_root()
 
@@ -939,7 +800,7 @@ def main() -> int:
         print("", flush=True)
         print(f"[{model}] db={db_path}", flush=True)
         try:
-            metrics = _eval_one_model(
+            metrics = await _eval_one_model(
                 repo_root=repo_root,
                 suite=suite,
                 model_name=model,
@@ -1079,6 +940,10 @@ def main() -> int:
     if any((r.error is None) for r in results):
         return 0
     return 1
+
+
+def main() -> int:
+    return asyncio.run(_amain())
 
 
 if __name__ == "__main__":

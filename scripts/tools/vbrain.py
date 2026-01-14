@@ -4,7 +4,7 @@ vbrain 统一入口（控制平面 CLI）
 目标：
 - 用一个命令入口把 vbrain 的常用动作“收拢”起来，降低日常操作摩擦
 - 不搬动数据平面（in-memoria.db / .serena / docs / .vibe），只做编排与状态查看
-- 仅使用 Python stdlib，便于复制到其它仓库作为“婴儿 vbrain”的一部分
+- 协议层使用官方 MCP Python SDK（通过 mcp_stdio_client.py），避免自研 JSON-RPC 轮子
 
 用法（在仓库根目录）：
   python -X utf8 scripts/tools/vbrain.py status
@@ -18,19 +18,20 @@ vbrain 统一入口（控制平面 CLI）
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
 import os
 import re
 import sqlite3
 import subprocess
 import sys
-import threading
 import time
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 from shutil import which
-from queue import Empty, Queue
+
+from mcp_stdio_client import mcp_call_tool, mcp_list_tools, mcp_stdio_session, tool_result_text
 
 
 def _repo_root() -> Path:
@@ -438,106 +439,6 @@ def _cmd_dedupe_insights(repo_root: Path, args: argparse.Namespace) -> int:
     return 0
 
 
-class _LineReader:
-    """
-    Windows 下 pipe 的 readline() 会阻塞；用后台线程 + queue 才能可靠实现“带超时读取”。
-    """
-
-    def __init__(self, stream: object) -> None:
-        self._q: "Queue[str]" = Queue()
-        self._t = threading.Thread(target=self._run, args=(stream,), daemon=True)
-        self._t.start()
-
-    def _run(self, stream: object) -> None:
-        try:
-            for line in stream:  # type: ignore[assignment]
-                self._q.put(line)
-        except Exception:
-            return
-
-    def read_line(self, timeout_sec: float) -> str | None:
-        try:
-            return self._q.get(timeout=timeout_sec)
-        except Empty:
-            return None
-
-
-def _mcp_read_json_line(
-    *,
-    reader: _LineReader,
-    proc: subprocess.Popen[str],
-    timeout_sec: int,
-    progress_label: str = "",
-) -> dict[str, object]:
-    start = time.time()
-    spinner = "|/-\\"
-    spin_idx = 0
-    last_draw = 0.0
-    while time.time() - start < timeout_sec:
-        line = reader.read_line(timeout_sec=0.2)
-        now = time.time()
-        if now - last_draw >= 0.5:
-            elapsed = now - start
-            label = progress_label.strip()
-            msg = (
-                f"{spinner[spin_idx]} 等待 MCP 响应（{label}）… elapsed={elapsed:>.1f}s"
-                if label
-                else f"{spinner[spin_idx]} 等待 MCP 响应… elapsed={elapsed:>.1f}s"
-            )
-            sys.stdout.write("\r" + msg.ljust(160))
-            sys.stdout.flush()
-            spin_idx = (spin_idx + 1) % len(spinner)
-            last_draw = now
-
-        if line is None:
-            if proc.poll() is not None:
-                raise RuntimeError("MCP 进程已退出（未收到 JSON 响应）")
-            continue
-
-        s = (line or "").strip()
-        if not s or not s.startswith("{"):
-            continue
-        try:
-            return json.loads(s)
-        except Exception:
-            continue
-    raise TimeoutError("等待 MCP JSON 响应超时")
-
-
-def _mcp_call(
-    *,
-    proc: subprocess.Popen[str],
-    reader: _LineReader,
-    request_id: int,
-    method: str,
-    params: dict[str, object] | None,
-    timeout_sec: int,
-    progress_label: str = "",
-) -> dict[str, object]:
-    req: dict[str, object] = {"jsonrpc": "2.0", "id": request_id, "method": method}
-    if params is not None:
-        req["params"] = params
-    if not proc.stdin:
-        raise RuntimeError("MCP 进程 stdin 不可用")
-    proc.stdin.write(json.dumps(req, ensure_ascii=False) + "\n")
-    proc.stdin.flush()
-
-    while True:
-        resp = _mcp_read_json_line(reader=reader, proc=proc, timeout_sec=timeout_sec, progress_label=progress_label)
-        if resp.get("id") == request_id:
-            return resp
-
-
-def _mcp_notify(proc: subprocess.Popen[str], method: str, params: dict[str, object] | None = None) -> None:
-    msg: dict[str, object] = {"jsonrpc": "2.0", "method": method}
-    if params is not None:
-        msg["params"] = params
-    if not proc.stdin:
-        return
-    proc.stdin.write(json.dumps(msg, ensure_ascii=False) + "\n")
-    proc.stdin.flush()
-
-
 def _default_model_cache_dir() -> Path:
     codex_home = os.environ.get("CODEX_HOME")
     if codex_home and codex_home.strip():
@@ -569,7 +470,7 @@ def _try_get_codex_mcp_env(server_name: str) -> dict[str, str]:
         return {}
 
 
-def _start_local_rag(repo_root: Path) -> tuple[subprocess.Popen[str], _LineReader]:
+def _local_rag_stdio_config(repo_root: Path) -> tuple[str, list[str], dict[str, str]]:
     npm_cache_dir = repo_root / ".vibe" / "npm-cache"
     npm_cache_dir.mkdir(parents=True, exist_ok=True)
 
@@ -591,116 +492,62 @@ def _start_local_rag(repo_root: Path) -> tuple[subprocess.Popen[str], _LineReade
     env.setdefault("RAG_HYBRID_WEIGHT", env_from_codex.get("RAG_HYBRID_WEIGHT", "0.7"))
     env.setdefault("RAG_GROUPING", env_from_codex.get("RAG_GROUPING", "similar"))
 
-    cmd = ["cmd", "/c", "npx", "-y", "mcp-local-rag@0.5.3"]
-    proc = subprocess.Popen(
-        cmd,
-        cwd=str(repo_root),
-        env=env,
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
-        text=True,
-        encoding="utf-8",
-    )
-    if not proc.stdout:
-        raise RuntimeError("local_rag MCP stdout 不可用")
-    return proc, _LineReader(proc.stdout)
-
-
-def _extract_text_from_result(result: object) -> str:
-    if isinstance(result, str):
-        return result
-    if isinstance(result, dict):
-        content = result.get("content")
-        if isinstance(content, list):
-            parts: list[str] = []
-            for item in content:
-                if isinstance(item, dict) and item.get("type") == "text":
-                    text = item.get("text")
-                    if isinstance(text, str) and text.strip():
-                        parts.append(text)
-            if parts:
-                return "\n".join(parts)
-        try:
-            return json.dumps(result, ensure_ascii=False, indent=2)
-        except Exception:
-            return str(result)
-    return str(result)
+    command = "cmd"
+    args = ["/c", "npx", "-y", "mcp-local-rag@0.5.3"]
+    return command, args, env
 
 
 def _cmd_search(repo_root: Path, args: argparse.Namespace) -> int:
+    return asyncio.run(_cmd_search_async(repo_root, args))
+
+
+async def _cmd_search_async(repo_root: Path, args: argparse.Namespace) -> int:
     query = str(args.query or "").strip()
     if not query:
         print("缺少 query", file=sys.stderr)
         return 2
 
-    proc, reader = _start_local_rag(repo_root)
-    try:
-        init_resp = _mcp_call(
-            proc=proc,
-            reader=reader,
-            request_id=1,
-            method="initialize",
-            params={
-                "protocolVersion": "2024-11-05",
-                "capabilities": {},
-                "clientInfo": {"name": "vbrain_search", "version": "0.1.0"},
-            },
-            timeout_sec=args.timeout_sec,
-            progress_label="initialize",
-        )
-        if "result" not in init_resp:
-            print(f"initialize 失败：{init_resp}", file=sys.stderr)
-            return 1
-        _mcp_notify(proc, "notifications/initialized", {})
+    command, cmd_args, env = _local_rag_stdio_config(repo_root)
+    log_dir = repo_root / ".vibe" / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    errlog_path = log_dir / f"mcp-local-rag-search-{int(time.time())}.log"
+    with errlog_path.open("w", encoding="utf-8", errors="replace") as errlog:
+        async with mcp_stdio_session(
+            command=command,
+            args=cmd_args,
+            cwd=repo_root,
+            env=env,
+            init_timeout_sec=float(args.timeout_sec),
+            show_progress=True,
+            errlog=errlog,
+        ) as session:
+            tools_resp = await mcp_list_tools(
+                session,
+                timeout_sec=float(args.timeout_sec),
+                show_progress=True,
+                progress_label="tools/list",
+            )
+            tool_names = {t.name for t in tools_resp.tools}
+            if "query_documents" not in tool_names:
+                print(f"local_rag 不支持 query_documents，tools={sorted(tool_names)}", file=sys.stderr)
+                return 1
 
-        tools_resp = _mcp_call(
-            proc=proc,
-            reader=reader,
-            request_id=2,
-            method="tools/list",
-            params={},
-            timeout_sec=args.timeout_sec,
-            progress_label="tools/list",
-        )
-        tools: list[object] = []
-        result = tools_resp.get("result")
-        if isinstance(result, dict):
-            candidate = result.get("tools")
-            if isinstance(candidate, list):
-                tools = candidate
-        tool_names = {t.get("name") for t in tools if isinstance(t, dict)}
-        if "query_documents" not in tool_names:
-            print(f"local_rag 不支持 query_documents，tools={sorted(tool_names)}", file=sys.stderr)
-            return 1
+            resp = await mcp_call_tool(
+                session,
+                name="query_documents",
+                arguments={"query": query, "limit": int(args.limit)},
+                timeout_sec=float(args.timeout_sec),
+                show_progress=True,
+                progress_label="query_documents",
+            )
+            if bool(getattr(resp, "isError", False)):
+                print(f"query_documents 失败：{tool_result_text(resp)}", file=sys.stderr)
+                return 1
 
-        resp = _mcp_call(
-            proc=proc,
-            reader=reader,
-            request_id=3,
-            method="tools/call",
-            params={"name": "query_documents", "arguments": {"query": query, "limit": int(args.limit)}},
-            timeout_sec=args.timeout_sec,
-            progress_label="query_documents",
-        )
-        if "error" in resp:
-            print(f"query_documents 失败：{resp['error']}", file=sys.stderr)
-            return 1
-
-        print("")
-        result = resp.get("result")
-        text = _extract_text_from_result(result)
-        text = (text or "").strip()
-        if text:
-            print(text)
-        else:
-            print("[]")
-        return 0
-    finally:
-        try:
-            proc.kill()
-        except Exception:
-            pass
+            print("")
+            text = tool_result_text(resp).strip()
+            print(text if text else "[]")
+            return 0
 
 
 _SID_RE = re.compile(r"\bS-\d{3}\b")
@@ -828,6 +675,7 @@ def _pack_file_list(profile: str) -> list[str]:
         "docs/tools/vbrain/mcp_blueprint.md",
         "scripts/tools/vbrain.py",
         "scripts/tools/vbrain_mcp_server.py",
+        "scripts/tools/mcp_stdio_client.py",
         "scripts/tools/local_rag_ingest_project_docs.py",
         "scripts/tools/local_rag_ingest_sources.py",
         "scripts/tools/in_memoria_seed_vibe_insights.py",

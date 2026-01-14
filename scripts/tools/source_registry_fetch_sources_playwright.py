@@ -28,20 +28,27 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
 import os
 import re
 import shutil
-import subprocess
 import sys
-import threading
 import time
 from base64 import b64decode
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from queue import Empty, Queue
 from typing import Any
+
+from mcp_stdio_client import (
+    mcp_call_tool,
+    mcp_list_tools,
+    mcp_stdio_session,
+    print_progress,
+    tool_result_text,
+    tool_result_to_obj,
+)
 
 
 @dataclass(frozen=True)
@@ -199,131 +206,20 @@ def _render_progress(done: int, total: int, start_ts: float, current: str) -> st
     return f"[{done:>3}/{total:<3}] elapsed={elapsed:>6.1f}s eta={eta:>6.1f}s  {current}"
 
 
-def _print_progress(line: str) -> None:
-    cols = 160
-    try:
-        sys.stdout.write("\r" + line.ljust(cols))
-        sys.stdout.flush()
-    except OSError:
-        # 某些执行环境（例如外部强制终止/关闭 stdout）可能导致 flush 失败；忽略即可。
-        return
-
-
-class _LineReader:
-    def __init__(self, stream: Any) -> None:
-        self._q: "Queue[str]" = Queue()
-        self._t = threading.Thread(target=self._run, args=(stream,), daemon=True)
-        self._t.start()
-
-    def _run(self, stream: Any) -> None:
-        try:
-            for line in stream:
-                self._q.put(line)
-        except Exception:
-            return
-
-    def read_line(self, timeout_sec: float) -> str | None:
-        try:
-            return self._q.get(timeout=timeout_sec)
-        except Empty:
-            return None
-
-
-def _read_json_line(
-    reader: _LineReader,
-    proc: subprocess.Popen[str],
-    timeout_sec: int,
-    *,
-    progress_label: str = "",
-    show_progress: bool = True,
-) -> dict[str, Any]:
-    start = time.time()
-    spinner = "|/-\\"
-    spin_idx = 0
-    last_draw = 0.0
-    while time.time() - start < timeout_sec:
-        line = reader.read_line(timeout_sec=0.2)
-        now = time.time()
-        if show_progress and now - last_draw >= 0.5:
-            elapsed = now - start
-            label = progress_label.strip()
-            if label:
-                _print_progress(f"{spinner[spin_idx]} 等待 MCP 响应（{label}）… elapsed={elapsed:>.1f}s")
-            else:
-                _print_progress(f"{spinner[spin_idx]} 等待 MCP 响应… elapsed={elapsed:>.1f}s")
-            spin_idx = (spin_idx + 1) % len(spinner)
-            last_draw = now
-        if line is None:
-            if proc.poll() is not None:
-                raise RuntimeError("MCP 进程已退出（未收到 JSON 响应）")
-            continue
-        s = line.strip()
-        if not s or not s.startswith("{"):
-            continue
-        try:
-            return json.loads(s)
-        except Exception:
-            continue
-    raise TimeoutError("等待 MCP JSON 响应超时")
-
-
-def _mcp_call(
-    proc: subprocess.Popen[str],
-    reader: _LineReader,
-    request_id: int,
-    method: str,
-    params: dict[str, Any] | None,
-    timeout_sec: int,
-    *,
-    progress_label: str = "",
-    show_progress: bool = True,
-) -> dict[str, Any]:
-    req: dict[str, Any] = {"jsonrpc": "2.0", "id": request_id, "method": method}
-    if params is not None:
-        req["params"] = params
-    if not proc.stdin:
-        raise RuntimeError("MCP 进程 stdin 不可用")
-    proc.stdin.write(json.dumps(req, ensure_ascii=False) + "\n")
-    proc.stdin.flush()
-    return _read_json_line(
-        reader,
-        proc=proc,
-        timeout_sec=timeout_sec,
-        progress_label=progress_label,
-        show_progress=show_progress,
-    )
-
-
-def _mcp_notify(proc: subprocess.Popen[str], method: str, params: dict[str, Any]) -> None:
-    msg: dict[str, Any] = {"jsonrpc": "2.0", "method": method, "params": params}
-    if not proc.stdin:
-        return
-    proc.stdin.write(json.dumps(msg, ensure_ascii=False) + "\n")
-    proc.stdin.flush()
-
-
-def _start_playwright_mcp(*, user_data_dir: str) -> tuple[subprocess.Popen[str], _LineReader]:
+def _playwright_stdio_config(*, repo_root: Path, user_data_dir: str) -> tuple[str, list[str], dict[str, str]]:
     env = os.environ.copy()
     env["PYTHONUTF8"] = "1"
     env["PYTHONIOENCODING"] = "utf-8"
-    env["npm_config_cache"] = ".vibe/npm-cache"
+    npm_cache_dir = repo_root / ".vibe" / "npm-cache"
+    npm_cache_dir.mkdir(parents=True, exist_ok=True)
+    env["npm_config_cache"] = str(npm_cache_dir)
 
-    cmd = ["cmd", "/c", "npx", "-y", "@playwright/mcp@0.0.55"]
+    cmd = ["/c", "npx", "-y", "@playwright/mcp@0.0.55"]
     udd = (user_data_dir or "").strip()
     if udd:
         cmd.extend(["--user-data-dir", udd])
-    proc = subprocess.Popen(
-        cmd,
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
-        text=True,
-        encoding="utf-8",
-        env=env,
-    )
-    if not proc.stdout:
-        raise RuntimeError("playwright MCP stdout 不可用")
-    return proc, _LineReader(proc.stdout)
+    command = "cmd"
+    return command, cmd, env
 
 
 def _resolve_repo_path(repo_root: Path, path_str: str) -> Path:
@@ -333,7 +229,7 @@ def _resolve_repo_path(repo_root: Path, path_str: str) -> Path:
     return repo_root / p
 
 
-def _start_markitdown_mcp() -> tuple[subprocess.Popen[str], _LineReader]:
+def _markitdown_stdio_config() -> tuple[str, list[str], dict[str, str]]:
     """
     启动 markitdown MCP：用于把“手动导出的 HTML/PDF”离线转写为 Markdown。
 
@@ -343,84 +239,42 @@ def _start_markitdown_mcp() -> tuple[subprocess.Popen[str], _LineReader]:
     env = os.environ.copy()
     env["PYTHONUTF8"] = "1"
     env["PYTHONIOENCODING"] = "utf-8"
-    cmd = ["uvx", "--python", "3.11", "markitdown-mcp==0.0.1a4"]
-    proc = subprocess.Popen(
-        cmd,
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
-        text=True,
-        encoding="utf-8",
-        env=env,
-    )
-    if not proc.stdout:
-        raise RuntimeError("markitdown MCP stdout 不可用")
-    return proc, _LineReader(proc.stdout)
+    command = "uvx"
+    args = ["--python", "3.11", "markitdown-mcp==0.0.1a4"]
+    return command, args, env
 
 
-def _init_markitdown_mcp(
-    proc: subprocess.Popen[str],
-    reader: _LineReader,
-    *,
-    startup_timeout_sec: int,
-    show_progress: bool,
-) -> None:
-    init_resp = _mcp_call(
-        proc,
-        reader,
-        request_id=1,
-        method="initialize",
-        params={
-            "protocolVersion": "2024-11-05",
-            "capabilities": {},
-            "clientInfo": {"name": "freqtrade_demo_source_registry_markitdown", "version": "0.1.0"},
-        },
-        timeout_sec=startup_timeout_sec,
-        progress_label="markitdown initialize",
+async def _ensure_markitdown_tools(session: Any, *, startup_timeout_sec: int, show_progress: bool) -> None:
+    tools_resp = await mcp_list_tools(
+        session,
+        timeout_sec=float(startup_timeout_sec),
         show_progress=show_progress,
-    )
-    if "result" not in init_resp:
-        raise RuntimeError(f"markitdown initialize 失败：{init_resp}")
-    _mcp_notify(proc, method="notifications/initialized", params={})
-
-    tools_resp = _mcp_call(
-        proc,
-        reader,
-        request_id=2,
-        method="tools/list",
-        params={},
-        timeout_sec=startup_timeout_sec,
         progress_label="markitdown tools/list",
-        show_progress=show_progress,
     )
-    names = {t.get("name") for t in tools_resp.get("result", {}).get("tools", [])}
+    names = {t.name for t in tools_resp.tools}
     if "convert_to_markdown" not in names:
         raise RuntimeError(f"markitdown tools 缺失：need=convert_to_markdown got={sorted(names)}")
 
 
-def _markitdown_convert_to_markdown(
-    proc: subprocess.Popen[str],
-    reader: _LineReader,
+async def _markitdown_convert_to_markdown(
+    session: Any,
     *,
-    request_id: int,
     uri: str,
     timeout_sec: int,
     progress_label: str,
     show_progress: bool,
 ) -> str:
-    resp = _mcp_call(
-        proc,
-        reader,
-        request_id=request_id,
-        method="tools/call",
-        params={"name": "convert_to_markdown", "arguments": {"uri": uri}},
-        timeout_sec=timeout_sec,
-        progress_label=progress_label,
+    result = await mcp_call_tool(
+        session,
+        name="convert_to_markdown",
+        arguments={"uri": uri},
+        timeout_sec=float(timeout_sec),
         show_progress=show_progress,
+        progress_label=progress_label,
     )
-    if "error" in resp:
-        raise RuntimeError(str(resp["error"]))
-    return _extract_markdown_from_markitdown_result(resp.get("result"))
+    if bool(getattr(result, "isError", False)):
+        raise RuntimeError(tool_result_text(result))
+    return _extract_markdown_from_markitdown_result(result)
 
 
 def _classify_snapshot(markdown: str) -> tuple[str, str]:
@@ -521,14 +375,18 @@ def _ask_existing_file_path(prompt: str, *, max_tries: int = 3) -> Path | None:
 
 
 def _extract_markdown_from_markitdown_result(result: Any) -> str:
-    if isinstance(result, str) and result.strip():
-        return result
-    if isinstance(result, dict):
-        for k in ("markdown", "content", "text"):
-            v = result.get(k)
-            if isinstance(v, str) and v.strip():
-                return v
-        content = result.get("content")
+    obj = tool_result_to_obj(result)
+
+    if isinstance(obj, dict):
+        sc = obj.get("structuredContent")
+        if isinstance(sc, str) and sc.strip():
+            return sc.strip()
+        if isinstance(sc, dict):
+            for k in ("markdown", "content", "text"):
+                v = sc.get(k)
+                if isinstance(v, str) and v.strip():
+                    return v
+        content = obj.get("content")
         if isinstance(content, list):
             parts: list[str] = []
             for item in content:
@@ -536,6 +394,9 @@ def _extract_markdown_from_markitdown_result(result: Any) -> str:
                     parts.append(item["text"])
             if parts:
                 return "\n".join(parts)
+
+    if isinstance(obj, str) and obj.strip():
+        return obj
     raise ValueError("无法从 markitdown MCP 返回中提取 Markdown")
 
 
@@ -565,32 +426,15 @@ def _classify_markdown(markdown: str) -> tuple[str, str]:
     return "ok", "content"
 
 
-def _extract_text_from_mcp_result(resp: dict[str, Any]) -> str:
-    result = resp.get("result", {})
-    return _extract_text_from_call_result(result)
+def _extract_text_from_tool_result(result: Any) -> str:
+    return tool_result_text(result)
 
 
-def _extract_text_from_call_result(result: Any) -> str:
-    if not isinstance(result, dict):
-        return ""
-    content = result.get("content", [])
-    if not isinstance(content, list):
-        return ""
-    parts: list[str] = []
-    for item in content:
-        if not isinstance(item, dict):
-            continue
-        if item.get("type") != "text":
-            continue
-        text = item.get("text")
-        if isinstance(text, str) and text.strip():
-            parts.append(text)
-    return "\n".join(parts)
-
-
-def _extract_image_from_mcp_result(resp: dict[str, Any]) -> tuple[bytes, str] | None:
-    result = resp.get("result", {})
-    content = result.get("content", [])
+def _extract_image_from_tool_result(result: Any) -> tuple[bytes, str] | None:
+    obj = tool_result_to_obj(result)
+    if not isinstance(obj, dict):
+        return None
+    content = obj.get("content", [])
     if not isinstance(content, list):
         return None
     for item in content:
@@ -657,37 +501,33 @@ def _manual_paths(entry_dir: Path, src_path: Path) -> tuple[Path, Path, Path]:
     return manual_src, manual_md, manual_meta
 
 
-def _run_manual_export_workflow(
+async def _run_manual_export_workflow(
     entry: SourceEntry,
     entry_dir: Path,
     repo_root: Path,
     *,
     hint: str,
-    md_proc: subprocess.Popen[str] | None,
-    md_reader: _LineReader | None,
-    markitdown_ready: bool,
     startup_timeout_sec: int,
     timeout_sec: int,
     show_progress: bool,
-) -> tuple[bool, dict[str, Any], subprocess.Popen[str] | None, _LineReader | None, bool]:
+) -> tuple[bool, dict[str, Any]]:
     """
     人工导出 → 离线转写（需要你拥有合法访问权限）。
 
     返回：
     - manual_ok：是否得到可用正文 Markdown
     - meta_updates：应写入 meta_playwright.json 的补充字段
-    - md_proc/md_reader/markitdown_ready：markitdown MCP 进程状态（可能被延迟启动）
     """
     print(f"⚠️ {entry.source_id} 可能需要人工介入：{hint}")
     print(f"- URL: {entry.url}")
     print("如你拥有该内容的合法访问权限（账号/订阅/允许保存），可以手动导出网页正文文件后让脚本离线转写。")
     print("推荐导出方式：浏览器“另存为网页（完整）”或“打印为 PDF”。")
     if not _ask_yes("是否现在人工介入并提供导出文件路径？[y/N]: "):
-        return False, {}, md_proc, md_reader, markitdown_ready
+        return False, {}
 
     src_path = _ask_existing_file_path("请输入导出的 HTML/PDF 文件路径（留空取消）： ")
     if not src_path:
-        return False, {}, md_proc, md_reader, markitdown_ready
+        return False, {}
 
     manual_src, manual_md, manual_meta = _manual_paths(entry_dir, src_path)
     entry_dir.mkdir(parents=True, exist_ok=True)
@@ -706,29 +546,34 @@ def _run_manual_export_workflow(
         shutil.copy2(src_path, manual_src)
         meta_updates["cache_manual_source"] = str(manual_src.relative_to(repo_root)).replace("\\", "/")
 
-        if md_proc is None or md_reader is None:
-            print("启动 markitdown MCP（用于离线转写手动导出文件）…")
-            md_proc, md_reader = _start_markitdown_mcp()
-            markitdown_ready = False
+        command, cmd_args, env = _markitdown_stdio_config()
+        log_dir = repo_root / ".vibe" / "logs"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        errlog_path = log_dir / f"mcp-markitdown-{entry.source_id}-{int(time.time())}.log"
+        manual_meta_obj["markitdown_stderr_log"] = str(errlog_path)
 
-        if not markitdown_ready:
-            _init_markitdown_mcp(
-                md_proc,
-                md_reader,
-                startup_timeout_sec=startup_timeout_sec,
+        with errlog_path.open("w", encoding="utf-8", errors="replace") as errlog:
+            async with mcp_stdio_session(
+                command=command,
+                args=cmd_args,
+                cwd=repo_root,
+                env=env,
+                init_timeout_sec=float(startup_timeout_sec),
                 show_progress=show_progress,
-            )
-            markitdown_ready = True
-
-        md = _markitdown_convert_to_markdown(
-            md_proc,
-            md_reader,
-            request_id=10_000 + int(entry.source_id.split("-")[1]),
-            uri=manual_src.as_uri(),
-            timeout_sec=max(120, timeout_sec),
-            progress_label=f"{entry.source_id} manual markitdown",
-            show_progress=show_progress,
-        )
+                errlog=errlog,
+            ) as md_session:
+                await _ensure_markitdown_tools(
+                    md_session,
+                    startup_timeout_sec=startup_timeout_sec,
+                    show_progress=show_progress,
+                )
+                md = await _markitdown_convert_to_markdown(
+                    md_session,
+                    uri=manual_src.as_uri(),
+                    timeout_sec=max(120, timeout_sec),
+                    progress_label=f"{entry.source_id} manual markitdown",
+                    show_progress=show_progress,
+                )
         manual_md.write_text(md, encoding="utf-8")
 
         m_status, m_reason = _classify_markdown(md)
@@ -740,13 +585,13 @@ def _run_manual_export_workflow(
         meta_updates["manual_markdown_reason"] = m_reason
         meta_updates["manual_markdown_length"] = len(md)
         meta_updates["manual_status"] = "ok" if m_status == "ok" else "blocked"
-        return m_status == "ok", meta_updates, md_proc, md_reader, markitdown_ready
+        return m_status == "ok", meta_updates
     except Exception as e:
         manual_meta_obj["status"] = "blocked"
         manual_meta_obj["error"] = str(e)
         meta_updates["manual_status"] = "blocked"
         meta_updates["manual_error"] = str(e)
-        return False, meta_updates, md_proc, md_reader, markitdown_ready
+        return False, meta_updates
     finally:
         try:
             manual_meta.write_text(json.dumps(manual_meta_obj, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -846,10 +691,8 @@ def _js_str(v: str) -> str:
     return json.dumps(v, ensure_ascii=False)
 
 
-def _try_set_ua(
-    proc: subprocess.Popen[str],
-    reader: _LineReader,
-    request_id: int,
+async def _try_set_ua(
+    session: Any,
     *,
     user_agent: str,
     accept_language: str,
@@ -881,55 +724,51 @@ def _try_set_ua(
         "}\n"
     )
 
-    resp = _mcp_call(
-        proc,
-        reader,
-        request_id=request_id,
-        method="tools/call",
-        params={"name": "browser_run_code", "arguments": {"code": js_code}},
-        timeout_sec=timeout_sec,
-        progress_label=progress_label,
+    result = await mcp_call_tool(
+        session,
+        name="browser_run_code",
+        arguments={"code": js_code},
+        timeout_sec=float(timeout_sec),
         show_progress=show_progress,
+        progress_label=progress_label,
     )
-    if "error" in resp:
-        raise RuntimeError(str(resp["error"]))
+    if bool(getattr(result, "isError", False)):
+        raise RuntimeError(tool_result_text(result))
 
 
-def _try_capture_dom(
-    proc: subprocess.Popen[str],
-    reader: _LineReader,
-    request_id: int,
+async def _try_capture_dom(
+    session: Any,
     *,
     timeout_sec: int,
     progress_label: str,
     show_progress: bool,
 ) -> str:
-    resp = _mcp_call(
-        proc,
-        reader,
-        request_id=request_id,
-        method="tools/call",
-        params={
-            "name": "browser_evaluate",
-            "arguments": {
-                "function": "() => document.documentElement ? document.documentElement.outerHTML : ''",
-            },
+    result = await mcp_call_tool(
+        session,
+        name="browser_evaluate",
+        arguments={
+            "function": "() => document.documentElement ? document.documentElement.outerHTML : ''",
         },
-        timeout_sec=timeout_sec,
-        progress_label=progress_label,
+        timeout_sec=float(timeout_sec),
         show_progress=show_progress,
+        progress_label=progress_label,
     )
-    if "error" in resp:
-        raise RuntimeError(str(resp["error"]))
-    result = resp.get("result", {})
-    value = None
-    if isinstance(result, dict):
-        value = result.get("value")
-    if isinstance(value, str):
-        return value
+    if bool(getattr(result, "isError", False)):
+        raise RuntimeError(tool_result_text(result))
+
+    obj = tool_result_to_obj(result)
+    if isinstance(obj, dict):
+        sc = obj.get("structuredContent")
+        if isinstance(sc, dict):
+            value = sc.get("value")
+            if isinstance(value, str):
+                return value
+        value = obj.get("value")
+        if isinstance(value, str):
+            return value
 
     # 兼容：部分 MCP 实现会把 evaluate 结果塞进 text content（可能是 JSON 字符串）
-    text = _extract_text_from_mcp_result(resp).strip()
+    text = _extract_text_from_tool_result(result).strip()
     if not text:
         return ""
     try:
@@ -939,40 +778,38 @@ def _try_capture_dom(
         return text
 
 
-def _try_capture_page_meta(
-    proc: subprocess.Popen[str],
-    reader: _LineReader,
-    request_id: int,
+async def _try_capture_page_meta(
+    session: Any,
     *,
     timeout_sec: int,
     progress_label: str,
     show_progress: bool,
 ) -> dict[str, Any]:
-    resp = _mcp_call(
-        proc,
-        reader,
-        request_id=request_id,
-        method="tools/call",
-        params={
-            "name": "browser_evaluate",
-            "arguments": {
-                "function": "() => ({ url: location.href, title: document.title })",
-            },
+    result = await mcp_call_tool(
+        session,
+        name="browser_evaluate",
+        arguments={
+            "function": "() => ({ url: location.href, title: document.title })",
         },
-        timeout_sec=timeout_sec,
-        progress_label=progress_label,
+        timeout_sec=float(timeout_sec),
         show_progress=show_progress,
+        progress_label=progress_label,
     )
-    if "error" in resp:
-        raise RuntimeError(str(resp["error"]))
-    result = resp.get("result", {})
-    value = None
-    if isinstance(result, dict):
-        value = result.get("value")
-    if isinstance(value, dict):
-        return value
+    if bool(getattr(result, "isError", False)):
+        raise RuntimeError(tool_result_text(result))
 
-    text = _extract_text_from_mcp_result(resp).strip()
+    obj = tool_result_to_obj(result)
+    if isinstance(obj, dict):
+        sc = obj.get("structuredContent")
+        if isinstance(sc, dict):
+            value = sc.get("value")
+            if isinstance(value, dict):
+                return value
+        value = obj.get("value")
+        if isinstance(value, dict):
+            return value
+
+    text = _extract_text_from_tool_result(result).strip()
     if not text:
         return {}
     try:
@@ -982,35 +819,32 @@ def _try_capture_page_meta(
         return {}
 
 
-def _try_capture_network_requests(
-    proc: subprocess.Popen[str],
-    reader: _LineReader,
-    request_id: int,
+async def _try_capture_network_requests(
+    session: Any,
     *,
     include_static: bool,
     timeout_sec: int,
     progress_label: str,
     show_progress: bool,
 ) -> dict[str, Any]:
-    resp = _mcp_call(
-        proc,
-        reader,
-        request_id=request_id,
-        method="tools/call",
-        params={
-            "name": "browser_network_requests",
-            "arguments": {"includeStatic": bool(include_static)},
-        },
-        timeout_sec=timeout_sec,
-        progress_label=progress_label,
+    result = await mcp_call_tool(
+        session,
+        name="browser_network_requests",
+        arguments={"includeStatic": bool(include_static)},
+        timeout_sec=float(timeout_sec),
         show_progress=show_progress,
+        progress_label=progress_label,
     )
-    if "error" in resp:
-        raise RuntimeError(str(resp["error"]))
-    result = resp.get("result", {})
-    if isinstance(result, dict):
-        return result
-    text = _extract_text_from_mcp_result(resp).strip()
+    if bool(getattr(result, "isError", False)):
+        raise RuntimeError(tool_result_text(result))
+
+    obj = tool_result_to_obj(result)
+    if isinstance(obj, dict):
+        sc = obj.get("structuredContent")
+        if isinstance(sc, dict):
+            return sc
+
+    text = _extract_text_from_tool_result(result).strip()
     if not text:
         return {}
     try:
@@ -1020,10 +854,8 @@ def _try_capture_network_requests(
         return {"text": text}
 
 
-def _wait_for_manual_unblock(
-    proc: subprocess.Popen[str],
-    reader: _LineReader,
-    request_id_base: int,
+async def _wait_for_manual_unblock(
+    session: Any,
     *,
     timeout_sec: int,
     poll_sec: float,
@@ -1054,38 +886,34 @@ def _wait_for_manual_unblock(
 
         attempt += 1
         if show_progress:
-            _print_progress(f"[wait] {progress_label} elapsed={elapsed:>6.1f}s last={last_reason}")
+            print_progress(f"[wait] {progress_label} elapsed={elapsed:>6.1f}s last={last_reason}")
 
         sleep_for = min(poll, max(0.0, limit - elapsed))
         if sleep_for > 0:
-            _mcp_call(
-                proc,
-                reader,
-                request_id=request_id_base + attempt * 10 + 1,
-                method="tools/call",
-                params={"name": "browser_wait_for", "arguments": {"time": float(sleep_for)}},
-                timeout_sec=max(30, int(sleep_for) + 30),
-                progress_label=f"{progress_label} wait",
+            await mcp_call_tool(
+                session,
+                name="browser_wait_for",
+                arguments={"time": float(sleep_for)},
+                timeout_sec=float(max(30, int(sleep_for) + 30)),
                 show_progress=False,
+                progress_label=f"{progress_label} wait",
             )
 
-        snap = _mcp_call(
-            proc,
-            reader,
-            request_id=request_id_base + attempt * 10 + 2,
-            method="tools/call",
-            params={"name": "browser_snapshot", "arguments": {}},
-            timeout_sec=max(60, int(poll) + 60),
-            progress_label=f"{progress_label} snapshot",
+        snap = await mcp_call_tool(
+            session,
+            name="browser_snapshot",
+            arguments={},
+            timeout_sec=float(max(60, int(poll) + 60)),
             show_progress=False,
+            progress_label=f"{progress_label} snapshot",
         )
-        if "error" in snap:
+        if bool(getattr(snap, "isError", False)):
             last_text = ""
             last_status = "blocked"
             last_reason = "snapshot_error"
             continue
 
-        text = _extract_text_from_mcp_result(snap)
+        text = _extract_text_from_tool_result(snap)
         status, reason = _classify_snapshot(text)
         last_text = text
         last_status = status
@@ -1098,9 +926,8 @@ def _wait_for_manual_unblock(
     return last_text, last_status, last_reason
 
 
-def _capture_current_page(
-    proc: subprocess.Popen[str],
-    reader: _LineReader,
+async def _capture_current_page(
+    session: Any,
     *,
     entry: SourceEntry,
     repo_root: Path,
@@ -1111,7 +938,6 @@ def _capture_current_page(
     snapshot_rel: str,
     dom_rel: str,
     network_rel: str,
-    request_id_base: int,
     timeout_sec: int,
     can_eval: bool,
     can_net: bool,
@@ -1122,20 +948,18 @@ def _capture_current_page(
     show_progress: bool,
     meta: dict[str, Any],
 ) -> tuple[str, str, str]:
-    snap = _mcp_call(
-        proc,
-        reader,
-        request_id=request_id_base + 3,
-        method="tools/call",
-        params={"name": "browser_snapshot", "arguments": {}},
-        timeout_sec=timeout_sec,
-        progress_label=f"{entry.source_id} snapshot",
+    snap = await mcp_call_tool(
+        session,
+        name="browser_snapshot",
+        arguments={},
+        timeout_sec=float(timeout_sec),
         show_progress=show_progress,
+        progress_label=f"{entry.source_id} snapshot",
     )
-    if "error" in snap:
-        raise RuntimeError(str(snap["error"]))
+    if bool(getattr(snap, "isError", False)):
+        raise RuntimeError(tool_result_text(snap))
 
-    snapshot_text = _extract_text_from_mcp_result(snap)
+    snapshot_text = _extract_text_from_tool_result(snap)
     snapshot_path.write_text(snapshot_text, encoding="utf-8")
 
     page_url, page_title = _extract_page_state(snapshot_text)
@@ -1145,10 +969,8 @@ def _capture_current_page(
         meta["page_title"] = page_title
 
     if not no_dom and can_eval:
-        dom_html = _try_capture_dom(
-            proc,
-            reader,
-            request_id=request_id_base + 32,
+        dom_html = await _try_capture_dom(
+            session,
             timeout_sec=max(timeout_sec, 240),
             progress_label=f"{entry.source_id} dom",
             show_progress=show_progress,
@@ -1158,10 +980,8 @@ def _capture_current_page(
         meta["dom_length"] = len(dom_html)
 
     if not no_network and can_net:
-        net = _try_capture_network_requests(
-            proc,
-            reader,
-            request_id=request_id_base + 33,
+        net = await _try_capture_network_requests(
+            session,
             include_static=False,
             timeout_sec=max(timeout_sec, 240),
             progress_label=f"{entry.source_id} network",
@@ -1171,7 +991,12 @@ def _capture_current_page(
         meta["cache_network"] = network_rel
         if isinstance(net, dict):
             meta["network_keys"] = sorted([k for k in net.keys() if isinstance(k, str)])[:50]
-            net_text = _extract_text_from_call_result(net).strip()
+            net_text = ""
+            for k in ("text", "value"):
+                v = net.get(k)
+                if isinstance(v, str) and v.strip():
+                    net_text = v.strip()
+                    break
             if net_text:
                 meta["network_text_length"] = len(net_text)
                 parsed = _parse_network_summary(net_text)
@@ -1184,22 +1009,17 @@ def _capture_current_page(
 
     if not no_screenshot and can_shot:
         png_path = entry_dir / "screenshot.png"
-        shot = _mcp_call(
-            proc,
-            reader,
-            request_id=request_id_base + 4,
-            method="tools/call",
-            params={
-                "name": "browser_take_screenshot",
-                "arguments": {"fullPage": True},
-            },
-            timeout_sec=max(timeout_sec, 300),
-            progress_label=f"{entry.source_id} screenshot",
+        shot = await mcp_call_tool(
+            session,
+            name="browser_take_screenshot",
+            arguments={"fullPage": True},
+            timeout_sec=float(max(timeout_sec, 300)),
             show_progress=show_progress,
+            progress_label=f"{entry.source_id} screenshot",
         )
-        if "error" in shot:
-            raise RuntimeError(str(shot["error"]))
-        img = _extract_image_from_mcp_result(shot)
+        if bool(getattr(shot, "isError", False)):
+            raise RuntimeError(tool_result_text(shot))
+        img = _extract_image_from_tool_result(shot)
         if img:
             png_bytes, mime = img
             png_path.write_bytes(png_bytes)
@@ -1210,7 +1030,7 @@ def _capture_current_page(
     return snapshot_text, auto_status, auto_reason
 
 
-def main() -> int:
+async def main() -> int:
     args = _parse_args()
     repo_root = _repo_root()
 
@@ -1256,39 +1076,22 @@ def main() -> int:
         playwright_user_data_dir = str(resolved).replace("\\", "/")
 
     print("启动 playwright MCP（可能需要首次下载依赖/浏览器，请稍候）…")
-    proc, reader = _start_playwright_mcp(user_data_dir=playwright_user_data_dir)
-    md_proc: subprocess.Popen[str] | None = None
-    try:
-        init = _mcp_call(
-            proc,
-            reader,
-            request_id=1,
-            method="initialize",
-            params={
-                "protocolVersion": "2024-11-05",
-                "capabilities": {},
-                "clientInfo": {"name": "freqtrade_demo_source_registry_fetch_playwright", "version": "0.1.0"},
-            },
-            timeout_sec=args.startup_timeout_sec,
-            progress_label="initialize",
+    command, cmd_args, env = _playwright_stdio_config(repo_root=repo_root, user_data_dir=playwright_user_data_dir)
+    async with mcp_stdio_session(
+        command=command,
+        args=cmd_args,
+        cwd=repo_root,
+        env=env,
+        init_timeout_sec=float(args.startup_timeout_sec),
+        show_progress=not args.no_progress,
+    ) as session:
+        tools_resp = await mcp_list_tools(
+            session,
+            timeout_sec=float(args.startup_timeout_sec),
             show_progress=not args.no_progress,
+            progress_label="playwright tools/list",
         )
-        if "result" not in init:
-            print(f"initialize 失败：{init}", file=sys.stderr)
-            return 1
-        _mcp_notify(proc, method="notifications/initialized", params={})
-
-        tools = _mcp_call(
-            proc,
-            reader,
-            request_id=2,
-            method="tools/list",
-            params={},
-            timeout_sec=args.startup_timeout_sec,
-            progress_label="tools/list",
-            show_progress=not args.no_progress,
-        )
-        names = {t.get("name") for t in tools.get("result", {}).get("tools", [])}
+        names = {t.name for t in tools_resp.tools}
         base_required = {"browser_navigate", "browser_snapshot", "browser_wait_for"}
         missing = sorted(base_required - names)
         if missing:
@@ -1321,8 +1124,6 @@ def main() -> int:
         manual_succeeded_export: list[str] = []
         fetched_date = _utc_date_str()
         updated_lines = lines
-        md_reader: _LineReader | None = None
-        markitdown_ready = False
 
         def enqueue_manual(entry: SourceEntry, *, hint: str, reason: str) -> None:
             if entry.source_id in manual_queue_ids:
@@ -1336,7 +1137,6 @@ def main() -> int:
             dom_rel = str(dom_path.relative_to(repo_root)).replace("\\", "/")
             network_rel = str(network_path.relative_to(repo_root)).replace("\\", "/")
             meta_rel = str(meta_path.relative_to(repo_root)).replace("\\", "/")
-            manual_md_path = entry_dir / "manual_markitdown.md"
 
             if snapshot_path.exists() and meta_path.exists() and not args.force:
                 try:
@@ -1403,13 +1203,13 @@ def main() -> int:
                         )
 
                     if not args.no_progress:
-                        _print_progress(_render_progress(idx, len(entries), start_ts, f"skip {entry.source_id}"))
+                        print_progress(_render_progress(idx, len(entries), start_ts, f"skip {entry.source_id}"))
                     continue
 
             if args.no_progress:
                 print(f"[{idx}/{len(entries)}] fetch {entry.source_id}: {entry.url}")
             else:
-                _print_progress(_render_progress(idx - 1, len(entries), start_ts, f"fetch {entry.source_id}"))
+                print_progress(_render_progress(idx - 1, len(entries), start_ts, f"fetch {entry.source_id}"))
 
             entry_dir.mkdir(parents=True, exist_ok=True)
             meta: dict[str, Any] = {
@@ -1427,10 +1227,8 @@ def main() -> int:
 
             try:
                 if can_run_code and ((args.user_agent or "").strip() or (args.accept_language or "").strip()):
-                    _try_set_ua(
-                        proc,
-                        reader,
-                        request_id=1000 + idx * 10 + 0,
+                    await _try_set_ua(
+                        session,
                         user_agent=args.user_agent,
                         accept_language=args.accept_language,
                         timeout_sec=args.timeout_sec,
@@ -1438,34 +1236,31 @@ def main() -> int:
                         show_progress=not args.no_progress,
                     )
 
-                nav = _mcp_call(
-                    proc,
-                    reader,
-                    request_id=1000 + idx * 10 + 1,
-                    method="tools/call",
-                    params={"name": "browser_navigate", "arguments": {"url": entry.url}},
-                    timeout_sec=args.timeout_sec,
-                    progress_label=f"{entry.source_id} navigate",
+                nav = await mcp_call_tool(
+                    session,
+                    name="browser_navigate",
+                    arguments={"url": entry.url},
+                    timeout_sec=float(args.timeout_sec),
                     show_progress=not args.no_progress,
+                    progress_label=f"{entry.source_id} navigate",
                 )
-                if "error" in nav:
-                    raise RuntimeError(str(nav["error"]))
+                if bool(getattr(nav, "isError", False)):
+                    raise RuntimeError(tool_result_text(nav))
 
                 if args.wait_sec and args.wait_sec > 0:
-                    _mcp_call(
-                        proc,
-                        reader,
-                        request_id=1000 + idx * 10 + 2,
-                        method="tools/call",
-                        params={"name": "browser_wait_for", "arguments": {"time": int(args.wait_sec)}},
-                        timeout_sec=max(args.timeout_sec, args.wait_sec + 10),
-                        progress_label=f"{entry.source_id} wait",
+                    wait_resp = await mcp_call_tool(
+                        session,
+                        name="browser_wait_for",
+                        arguments={"time": int(args.wait_sec)},
+                        timeout_sec=float(max(args.timeout_sec, args.wait_sec + 10)),
                         show_progress=not args.no_progress,
+                        progress_label=f"{entry.source_id} wait",
                     )
+                    if bool(getattr(wait_resp, "isError", False)):
+                        raise RuntimeError(tool_result_text(wait_resp))
 
-                snapshot_text, auto_status, auto_reason = _capture_current_page(
-                    proc,
-                    reader,
+                snapshot_text, auto_status, auto_reason = await _capture_current_page(
+                    session,
                     entry=entry,
                     repo_root=repo_root,
                     entry_dir=entry_dir,
@@ -1475,7 +1270,6 @@ def main() -> int:
                     snapshot_rel=snapshot_rel,
                     dom_rel=dom_rel,
                     network_rel=network_rel,
-                    request_id_base=1000 + idx * 10,
                     timeout_sec=args.timeout_sec,
                     can_eval=can_eval,
                     can_net=can_net,
@@ -1514,10 +1308,8 @@ def main() -> int:
                                 "请在弹出的浏览器窗口中完成验证/登录/订阅确认等操作。"
                                 f"脚本将自动等待最多 {meta['manual_wait_timeout_sec']}s，并在检测到页面可访问后继续抓取…"
                             )
-                            _, wait_status, wait_reason = _wait_for_manual_unblock(
-                                proc,
-                                reader,
-                                request_id_base=310_000 + idx * 100,
+                            _, wait_status, wait_reason = await _wait_for_manual_unblock(
+                                session,
                                 timeout_sec=int(args.manual_timeout_sec),
                                 poll_sec=float(args.manual_poll_sec),
                                 progress_label=f"{entry.source_id} manual",
@@ -1526,9 +1318,8 @@ def main() -> int:
                             meta["manual_wait_last_status"] = wait_status
                             meta["manual_wait_last_reason"] = wait_reason
 
-                            snapshot_text, auto_status, auto_reason = _capture_current_page(
-                                proc,
-                                reader,
+                            snapshot_text, auto_status, auto_reason = await _capture_current_page(
+                                session,
                                 entry=entry,
                                 repo_root=repo_root,
                                 entry_dir=entry_dir,
@@ -1538,7 +1329,6 @@ def main() -> int:
                                 snapshot_rel=snapshot_rel,
                                 dom_rel=dom_rel,
                                 network_rel=network_rel,
-                                request_id_base=320_000 + idx * 100,
                                 timeout_sec=args.timeout_sec,
                                 can_eval=can_eval,
                                 can_net=can_net,
@@ -1557,14 +1347,11 @@ def main() -> int:
                                 manual_succeeded_browser.append(entry.source_id)
                             else:
                                 if _ask_yes("仍受阻，是否改用导出 HTML/PDF 离线转写？[y/N]: "):
-                                    manual_ok, updates, md_proc, md_reader, markitdown_ready = _run_manual_export_workflow(
+                                    manual_ok, updates = await _run_manual_export_workflow(
                                         entry,
                                         entry_dir,
                                         repo_root,
                                         hint=hint,
-                                        md_proc=md_proc,
-                                        md_reader=md_reader,
-                                        markitdown_ready=markitdown_ready,
                                         startup_timeout_sec=args.startup_timeout_sec,
                                         timeout_sec=args.timeout_sec,
                                         show_progress=not args.no_progress,
@@ -1633,7 +1420,7 @@ def main() -> int:
                 )
 
             if not args.no_progress:
-                _print_progress(_render_progress(idx, len(entries), start_ts, f"done {entry.source_id}"))
+                print_progress(_render_progress(idx, len(entries), start_ts, f"done {entry.source_id}"))
 
         if args.interactive and str(args.interactive_mode).strip().lower() == "deferred" and manual_queue:
             if not args.no_progress:
@@ -1689,12 +1476,9 @@ def main() -> int:
                         }
                     )
 
-                    request_id_base = 200_000 + m_idx * 100
                     if can_run_code and ((args.user_agent or "").strip() or (args.accept_language or "").strip()):
-                        _try_set_ua(
-                            proc,
-                            reader,
-                            request_id=request_id_base + 0,
+                        await _try_set_ua(
+                            session,
                             user_agent=args.user_agent,
                             accept_language=args.accept_language,
                             timeout_sec=args.timeout_sec,
@@ -1702,34 +1486,31 @@ def main() -> int:
                             show_progress=not args.no_progress,
                         )
 
-                    nav = _mcp_call(
-                        proc,
-                        reader,
-                        request_id=request_id_base + 1,
-                        method="tools/call",
-                        params={"name": "browser_navigate", "arguments": {"url": entry.url}},
-                        timeout_sec=args.timeout_sec,
-                        progress_label=f"{entry.source_id} navigate",
+                    nav = await mcp_call_tool(
+                        session,
+                        name="browser_navigate",
+                        arguments={"url": entry.url},
+                        timeout_sec=float(args.timeout_sec),
                         show_progress=not args.no_progress,
+                        progress_label=f"{entry.source_id} navigate",
                     )
-                    if "error" in nav:
-                        raise RuntimeError(str(nav["error"]))
+                    if bool(getattr(nav, "isError", False)):
+                        raise RuntimeError(tool_result_text(nav))
 
                     if args.wait_sec and args.wait_sec > 0:
-                        _mcp_call(
-                            proc,
-                            reader,
-                            request_id=request_id_base + 2,
-                            method="tools/call",
-                            params={"name": "browser_wait_for", "arguments": {"time": int(args.wait_sec)}},
-                            timeout_sec=max(args.timeout_sec, args.wait_sec + 10),
-                            progress_label=f"{entry.source_id} wait",
+                        wait_resp = await mcp_call_tool(
+                            session,
+                            name="browser_wait_for",
+                            arguments={"time": int(args.wait_sec)},
+                            timeout_sec=float(max(args.timeout_sec, args.wait_sec + 10)),
                             show_progress=not args.no_progress,
+                            progress_label=f"{entry.source_id} wait",
                         )
+                        if bool(getattr(wait_resp, "isError", False)):
+                            raise RuntimeError(tool_result_text(wait_resp))
 
-                    snapshot_text, auto_status, auto_reason = _capture_current_page(
-                        proc,
-                        reader,
+                    snapshot_text, auto_status, auto_reason = await _capture_current_page(
+                        session,
                         entry=entry,
                         repo_root=repo_root,
                         entry_dir=entry_dir,
@@ -1739,7 +1520,6 @@ def main() -> int:
                         snapshot_rel=snapshot_rel,
                         dom_rel=dom_rel,
                         network_rel=network_rel,
-                        request_id_base=request_id_base,
                         timeout_sec=args.timeout_sec,
                         can_eval=can_eval,
                         can_net=can_net,
@@ -1771,10 +1551,8 @@ def main() -> int:
                                 "请在弹出的浏览器窗口中完成验证/登录/订阅确认等操作。"
                                 f"脚本将自动等待最多 {meta['manual_wait_timeout_sec']}s，并在检测到页面可访问后继续抓取…"
                             )
-                            _, wait_status, wait_reason = _wait_for_manual_unblock(
-                                proc,
-                                reader,
-                                request_id_base=request_id_base + 200,
+                            _, wait_status, wait_reason = await _wait_for_manual_unblock(
+                                session,
                                 timeout_sec=int(args.manual_timeout_sec),
                                 poll_sec=float(args.manual_poll_sec),
                                 progress_label=f"{entry.source_id} manual",
@@ -1783,9 +1561,8 @@ def main() -> int:
                             meta["manual_wait_last_status"] = wait_status
                             meta["manual_wait_last_reason"] = wait_reason
 
-                            snapshot_text, auto_status, auto_reason = _capture_current_page(
-                                proc,
-                                reader,
+                            snapshot_text, auto_status, auto_reason = await _capture_current_page(
+                                session,
                                 entry=entry,
                                 repo_root=repo_root,
                                 entry_dir=entry_dir,
@@ -1795,7 +1572,6 @@ def main() -> int:
                                 snapshot_rel=snapshot_rel,
                                 dom_rel=dom_rel,
                                 network_rel=network_rel,
-                                request_id_base=request_id_base + 300,
                                 timeout_sec=args.timeout_sec,
                                 can_eval=can_eval,
                                 can_net=can_net,
@@ -1814,14 +1590,11 @@ def main() -> int:
                                 manual_succeeded_browser.append(entry.source_id)
                             else:
                                 if _ask_yes("仍受阻，是否改用导出 HTML/PDF 离线转写？[y/N]: "):
-                                    manual_ok, updates, md_proc, md_reader, markitdown_ready = _run_manual_export_workflow(
+                                    manual_ok, updates = await _run_manual_export_workflow(
                                         entry,
                                         entry_dir,
                                         repo_root,
                                         hint=task.hint,
-                                        md_proc=md_proc,
-                                        md_reader=md_reader,
-                                        markitdown_ready=markitdown_ready,
                                         startup_timeout_sec=args.startup_timeout_sec,
                                         timeout_sec=args.timeout_sec,
                                         show_progress=not args.no_progress,
@@ -1933,20 +1706,11 @@ def main() -> int:
 
         if args.update_registry and updated_lines != lines:
             _write_text(registry_path, updated_lines)
-            print(f"已写回来源登记：{str(registry_path).replace('\\\\', '/')}")
+            registry_display = str(registry_path).replace("\\", "/")
+            print(f"已写回来源登记：{registry_display}")
 
         return 0 if not failed_items else 1
-    finally:
-        try:
-            proc.kill()
-        except Exception:
-            pass
-        try:
-            if md_proc is not None:
-                md_proc.kill()
-        except Exception:
-            pass
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(asyncio.run(main()))

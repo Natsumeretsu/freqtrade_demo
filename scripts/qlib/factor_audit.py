@@ -6,7 +6,8 @@ factor_audit.py - 因子体检（短周期：15m / 1h）
 - 同时输出 30/60 天滚动窗口的稳定性摘要，避免只看全样本平均数。
 
 说明：
-- 本脚本不依赖真实 Qlib，但遵循“Qlib 风格”的研究数据目录（02_qlib_research/qlib_data/...）。
+- 本仓库已引入真实 Qlib（pyqlib）作为研究层框架；但本脚本的指标口径是本仓库自定义的短周期体检：
+  IC/分位收益/成本后收益/换手/滚动稳定性（Qlib 不直接提供完全等价的输出口径），因此仍保留自研实现。
 - 输入为 convert_freqtrade_to_qlib.py 产出的单交易对 pkl（OHLCV）。
 - 特征计算复用 trading_system.infrastructure.ml.features.compute_features，保证训练/在线一致。
 

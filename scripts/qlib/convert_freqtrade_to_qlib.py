@@ -7,8 +7,8 @@ convert_freqtrade_to_qlib.py - 将 Freqtrade feather 数据转换为“Qlib 研�
 - 生成 `manifest.json`，便于追溯与批量处理
 
 说明：
-- 本脚本不要求安装真正的 Qlib；输出格式遵循 remp_research 的“按交易对 pkl 存储”约定，
-  方便后续接入 Qlib 或其他研究框架。
+- 输出格式遵循本仓库的“按交易对 pkl 存储”约定（用于 Qlib 的 DataLoader 直接读取），
+  避免引入第二套 provider 数据与口径漂移。
 - 交易对可能包含 futures 后缀（如 "BTC/USDT:USDT"），会自动映射为文件符号 "BTC_USDT"。
 
 用法：

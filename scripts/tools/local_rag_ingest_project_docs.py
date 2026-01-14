@@ -8,7 +8,7 @@
 - Local RAG 作为“资料索引加速器”，用于语义召回 + 关键词 boost
 - 向量库落在 `.vibe/local-rag/lancedb/`（默认不提交，可随时重建）
 - 模型/嵌入器缓存默认落在设备级目录（`$CODEX_HOME/cache/local-rag/models/` 或 `~/.codex/cache/local-rag/models/`）
-- 不依赖任何第三方 Python 包（仅 stdlib），便于跨设备复用
+- 使用官方 MCP Python SDK，避免重复实现 JSON-RPC 2.0/pipe 超时读取等细节
 
 用法（推荐在仓库根目录运行）：
   python -X utf8 scripts/tools/local_rag_ingest_project_docs.py
@@ -25,6 +25,7 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import fnmatch
 import json
 import os
@@ -32,12 +33,19 @@ import re
 import shutil
 import subprocess
 import sys
-import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from queue import Empty, Queue
 from typing import Any
+
+from mcp_stdio_client import (
+    mcp_call_tool,
+    mcp_list_tools,
+    mcp_stdio_session,
+    print_progress,
+    tool_result_text,
+    tool_result_to_obj,
+)
 
 
 def _parse_args() -> argparse.Namespace:
@@ -145,108 +153,6 @@ def _try_get_codex_mcp_env(server_name: str) -> dict[str, str]:
         return {}
 
 
-class _LineReader:
-    """
-    Windows 下 pipe 的 readline() 会阻塞；用后台线程 + queue 才能可靠实现“带超时读取”。
-    """
-
-    def __init__(self, stream: Any) -> None:
-        self._q: "Queue[str]" = Queue()
-        self._t = threading.Thread(target=self._run, args=(stream,), daemon=True)
-        self._t.start()
-
-    def _run(self, stream: Any) -> None:
-        try:
-            for line in stream:
-                self._q.put(line)
-        except Exception:
-            return
-
-    def read_line(self, timeout_sec: float) -> str | None:
-        try:
-            return self._q.get(timeout=timeout_sec)
-        except Empty:
-            return None
-
-
-def _read_json_line(
-    *,
-    reader: _LineReader,
-    proc: subprocess.Popen[str],
-    timeout_sec: int,
-    progress_label: str = "",
-    show_progress: bool = True,
-) -> dict[str, Any]:
-    start = time.time()
-    spinner = "|/-\\"
-    spin_idx = 0
-    last_draw = 0.0
-    while time.time() - start < timeout_sec:
-        line = reader.read_line(timeout_sec=0.2)
-        now = time.time()
-        if show_progress and now - last_draw >= 0.5:
-            elapsed = now - start
-            label = progress_label.strip()
-            if label:
-                _print_progress(f"{spinner[spin_idx]} 等待 MCP 响应（{label}）… elapsed={elapsed:>.1f}s")
-            else:
-                _print_progress(f"{spinner[spin_idx]} 等待 MCP 响应… elapsed={elapsed:>.1f}s")
-            spin_idx = (spin_idx + 1) % len(spinner)
-            last_draw = now
-        if line is None:
-            if proc.poll() is not None:
-                raise RuntimeError("MCP 进程已退出（未收到 JSON 响应）")
-            continue
-        s = line.strip()
-        if not s or not s.startswith("{"):
-            continue
-        try:
-            return json.loads(s)
-        except Exception:
-            continue
-    raise TimeoutError("等待 MCP JSON 响应超时")
-
-
-def _mcp_call(
-    proc: subprocess.Popen[str],
-    reader: _LineReader,
-    request_id: int,
-    method: str,
-    params: dict[str, Any] | None,
-    timeout_sec: int,
-    *,
-    progress_label: str = "",
-    show_progress: bool = True,
-) -> dict[str, Any]:
-    req: dict[str, Any] = {"jsonrpc": "2.0", "id": request_id, "method": method}
-    if params is not None:
-        req["params"] = params
-    if not proc.stdin:
-        raise RuntimeError("MCP 进程 stdin 不可用")
-    proc.stdin.write(json.dumps(req, ensure_ascii=False) + "\n")
-    proc.stdin.flush()
-    while True:
-        resp = _read_json_line(
-            reader=reader,
-            proc=proc,
-            timeout_sec=timeout_sec,
-            progress_label=progress_label,
-            show_progress=show_progress,
-        )
-        if resp.get("id") == request_id:
-            return resp
-
-
-def _mcp_notify(proc: subprocess.Popen[str], method: str, params: dict[str, Any] | None) -> None:
-    msg: dict[str, Any] = {"jsonrpc": "2.0", "method": method}
-    if params is not None:
-        msg["params"] = params
-    if not proc.stdin:
-        raise RuntimeError("MCP 进程 stdin 不可用")
-    proc.stdin.write(json.dumps(msg, ensure_ascii=False) + "\n")
-    proc.stdin.flush()
-
-
 def _local_rag_paths(repo_root: Path, model_cache_dir: str) -> tuple[Path, Path, Path]:
     vibe_dir = repo_root / ".vibe"
     npm_cache_dir = vibe_dir / "npm-cache"
@@ -268,14 +174,13 @@ def _local_rag_paths(repo_root: Path, model_cache_dir: str) -> tuple[Path, Path,
     return npm_cache_dir, db_path, cache_dir
 
 
-def _start_local_rag(
+def _local_rag_stdio_config(
     repo_root: Path,
     base_dir: Path,
     db_path: Path,
     cache_dir: Path,
     model_name: str,
-    stderr_sink: Any | None,
-) -> subprocess.Popen[str]:
+) -> tuple[str, list[str], dict[str, str]]:
     npm_cache_dir = repo_root / ".vibe" / "npm-cache"
     npm_cache_dir.mkdir(parents=True, exist_ok=True)
     db_path.mkdir(parents=True, exist_ok=True)
@@ -292,17 +197,9 @@ def _start_local_rag(
     env["RAG_GROUPING"] = "similar"
 
     # 使用 cmd /c 保持与 Codex MCP 配置一致（Windows）
-    cmd = ["cmd", "/c", "npx", "-y", "mcp-local-rag@0.5.3"]
-    return subprocess.Popen(
-        cmd,
-        cwd=str(repo_root),
-        env=env,
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=stderr_sink if stderr_sink is not None else subprocess.DEVNULL,
-        text=True,
-        encoding="utf-8",
-    )
+    command = "cmd"
+    args = ["/c", "npx", "-y", "mcp-local-rag@0.5.3"]
+    return command, args, env
 
 
 def _format_duration(seconds: float) -> str:
@@ -341,22 +238,6 @@ def _render_progress_line(done: int, total: int, start_ts: float, current: str, 
         f"t {_format_duration(elapsed)}  eta {_format_duration(eta)}  tot {_format_duration(total_est)}  "
         f"cur {current_short}"
     )
-
-
-def _print_progress(line: str) -> None:
-    # 覆盖同一行，避免刷屏（Windows 终端兼容）
-    cols = 160
-    try:
-        cols = int(shutil.get_terminal_size(fallback=(160, 20)).columns)
-    except Exception:
-        cols = 160
-    try:
-        sys.stdout.write("\r" + line.ljust(cols))
-        sys.stdout.flush()
-    except OSError:
-        # 某些终端/重定向场景下写入 \r 可能触发 Invalid argument，退化为普通输出
-        print(line)
-
 
 def _slugify(text: str) -> str:
     s = (text or "").strip()
@@ -415,7 +296,7 @@ def _is_lancedb_ready(db_path: Path) -> bool:
     return (db_path / "chunks.lance").exists()
 
 
-def main() -> int:
+async def _amain() -> int:
     args = _parse_args()
     repo_root = _repo_root()
     raw_base = str(args.base_dir or "").strip() or "docs"
@@ -550,187 +431,171 @@ def main() -> int:
 
     stderr_fh: Any | None = None
     stderr_log_path = _stderr_log_path(repo_root, base_dir=base_dir, model_name=effective_model_name)
-    proc: subprocess.Popen[str] | None = None
-    reader: _LineReader | None = None
+    stderr_log_path.parent.mkdir(parents=True, exist_ok=True)
 
     try:
-        try:
-            stderr_fh = open(stderr_log_path, "w", encoding="utf-8", errors="replace")
-        except Exception:
-            stderr_fh = None
-        if stderr_fh is not None:
-            print(f"STDERR_LOG={stderr_log_path}")
+        stderr_fh = open(stderr_log_path, "w", encoding="utf-8", errors="replace")
+    except Exception:
+        stderr_fh = None
 
-        proc = _start_local_rag(
+    if stderr_fh is not None:
+        print(f"STDERR_LOG={stderr_log_path}")
+
+    try:
+        command, cmd_args, env = _local_rag_stdio_config(
             repo_root=repo_root,
             base_dir=base_dir,
             db_path=db_path,
             cache_dir=cache_dir,
             model_name=effective_model_name,
-            stderr_sink=stderr_fh,
         )
-        if not proc.stdout:
-            print("local_rag MCP stdout 不可用", file=sys.stderr)
-            return 1
-        reader = _LineReader(proc.stdout)
 
-        init_resp = _mcp_call(
-            proc,
-            reader,
-            request_id=1,
-            method="initialize",
-            params={
-                "protocolVersion": "2024-11-05",
-                "capabilities": {},
-                "clientInfo": {"name": "freqtrade_demo_local_rag_ingest", "version": "0.1.0"},
-            },
-            timeout_sec=args.timeout_sec,
-            progress_label="initialize",
+        async with mcp_stdio_session(
+            command=command,
+            args=cmd_args,
+            cwd=repo_root,
+            env=env,
+            init_timeout_sec=float(args.timeout_sec),
             show_progress=not args.no_progress,
-        )
-        if "result" not in init_resp:
-            print(f"initialize 失败：{init_resp}", file=sys.stderr)
-            return 1
-        _mcp_notify(proc, method="notifications/initialized", params={})
-
-        tools_resp = _mcp_call(
-            proc,
-            reader,
-            request_id=2,
-            method="tools/list",
-            params={},
-            timeout_sec=args.timeout_sec,
-            progress_label="tools/list",
-            show_progress=not args.no_progress,
-        )
-        tool_names = {t.get("name") for t in tools_resp.get("result", {}).get("tools", [])}
-        if "ingest_file" not in tool_names:
-            print(f"local_rag 不支持 ingest_file，tools={sorted(tool_names)}", file=sys.stderr)
-            return 1
-
-        start_ts = time.time()
-        ok = 0
-        failed: list[str] = []
-        state_files: dict[str, dict[str, int]] = {}
-        for idx, path in enumerate(to_ingest, start=1):
-            abs_path = str(path.resolve())
-            rel = path.relative_to(repo_root).as_posix()
-            if args.no_progress:
-                print(f"[{idx}/{len(to_ingest)}] ingest: {rel} (ok={ok} fail={len(failed)} skip={skipped})")
-            else:
-                _print_progress(
-                    _render_progress_line(
-                        done=idx - 1,
-                        total=len(to_ingest),
-                        start_ts=start_ts,
-                        current=rel,
-                        ok=ok,
-                        failed=len(failed),
-                        skipped=skipped,
-                    )
-                )
-            wait_label = f"ingest_file {idx}/{len(to_ingest)}: {_truncate_middle(rel, max_len=72)}"
-            resp = _mcp_call(
-                proc,
-                reader,
-                request_id=1000 + idx,
-                method="tools/call",
-                params={"name": "ingest_file", "arguments": {"filePath": abs_path}},
-                timeout_sec=args.timeout_sec,
-                progress_label=wait_label,
+            errlog=stderr_fh,
+        ) as session:
+            tools_resp = await mcp_list_tools(
+                session,
+                timeout_sec=float(args.timeout_sec),
                 show_progress=not args.no_progress,
             )
-            if "error" in resp:
-                failed.append(f"{path}: {resp['error']}")
-                continue
-            ok += 1
-            mtime_ns, size = _file_sig(path)
-            state_files[rel] = {"mtime_ns": mtime_ns, "size": size}
-            if not args.no_progress:
-                _print_progress(
-                    _render_progress_line(
-                        done=idx,
-                        total=len(to_ingest),
-                        start_ts=start_ts,
-                        current=rel,
-                        ok=ok,
-                        failed=len(failed),
-                        skipped=skipped,
+            tool_names = {t.name for t in tools_resp.tools}
+            if "ingest_file" not in tool_names:
+                print(f"local_rag 不支持 ingest_file，tools={sorted(tool_names)}", file=sys.stderr)
+                return 1
+
+            start_ts = time.time()
+            ok = 0
+            failed: list[str] = []
+            state_files: dict[str, dict[str, int]] = {}
+            for idx, path in enumerate(to_ingest, start=1):
+                abs_path = str(path.resolve())
+                rel = path.relative_to(repo_root).as_posix()
+                if args.no_progress:
+                    print(f"[{idx}/{len(to_ingest)}] ingest: {rel} (ok={ok} fail={len(failed)} skip={skipped})")
+                else:
+                    print_progress(
+                        _render_progress_line(
+                            done=idx - 1,
+                            total=len(to_ingest),
+                            start_ts=start_ts,
+                            current=rel,
+                            ok=ok,
+                            failed=len(failed),
+                            skipped=skipped,
+                        )
                     )
+
+                wait_label = f"ingest_file {idx}/{len(to_ingest)}: {_truncate_middle(rel, max_len=72)}"
+                result = await mcp_call_tool(
+                    session,
+                    name="ingest_file",
+                    arguments={"filePath": abs_path},
+                    timeout_sec=float(args.timeout_sec),
+                    show_progress=not args.no_progress,
+                    progress_label=wait_label,
                 )
+                if bool(getattr(result, "isError", False)):
+                    failed.append(f"{path}: {tool_result_text(result)}")
+                    continue
 
-        if not args.no_progress:
-            print("")
-        ingest_elapsed = float(max(0.0, time.time() - start_ts))
-        print(f"索引耗时：{_format_duration(ingest_elapsed)}")
+                ok += 1
+                mtime_ns, size = _file_sig(path)
+                state_files[rel] = {"mtime_ns": mtime_ns, "size": size}
+                if not args.no_progress:
+                    print_progress(
+                        _render_progress_line(
+                            done=idx,
+                            total=len(to_ingest),
+                            start_ts=start_ts,
+                            current=rel,
+                            ok=ok,
+                            failed=len(failed),
+                            skipped=skipped,
+                        )
+                    )
 
-        status_resp = _mcp_call(
-            proc,
-            reader,
-            request_id=9000,
-            method="tools/call",
-            params={"name": "status", "arguments": {}},
-            timeout_sec=args.timeout_sec,
-            progress_label="status",
-            show_progress=not args.no_progress,
-        )
+            if not args.no_progress:
+                print("")
+            ingest_elapsed = float(max(0.0, time.time() - start_ts))
+            print(f"索引耗时：{_format_duration(ingest_elapsed)}")
 
-        print("")
-        print(f"完成：成功 {ok} / 失败 {len(failed)}")
-        if failed:
-            print("失败明细：")
-            for item in failed[:50]:
-                print(f"- {item}")
-            if len(failed) > 50:
-                print(f"- ... 其余 {len(failed) - 50} 条已省略")
-
-        if "result" in status_resp:
-            print("")
-            print("Local RAG status：")
-            print(json.dumps(status_resp["result"], ensure_ascii=False, indent=2))
-
-        # 写入增量状态（仅当启用 only_changed，且不是 rebuild）
-        if bool(args.only_changed) and not args.rebuild:
-            prev = _load_state(state_path) or {}
-            merged_files: dict[str, dict[str, int]] = {}
-            prev_files_obj = prev.get("files")
-            if isinstance(prev_files_obj, dict):
-                for k, v in prev_files_obj.items():
-                    if isinstance(k, str) and isinstance(v, dict):
-                        key = k.replace("\\", "/")
-                        m = v.get("mtime_ns")
-                        sz = v.get("size")
-                        if isinstance(m, int) and isinstance(sz, int):
-                            merged_files[key] = {"mtime_ns": m, "size": sz}
-            merged_files.update(state_files)
-            _write_state(
-                state_path,
-                {
-                    "version": 1,
-                    "updated_date_utc": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
-                    "meta": {
-                        "base_dir": str(base_dir),
-                        "pattern": str(args.pattern),
-                        "exclude": exclude_patterns,
-                        "db_path": str(db_path),
-                        "model_name": effective_model_name,
-                    },
-                    "files": merged_files,
-                },
+            status_result = await mcp_call_tool(
+                session,
+                name="status",
+                arguments={},
+                timeout_sec=float(args.timeout_sec),
+                show_progress=not args.no_progress,
+                progress_label="status",
             )
 
-        return 0 if not failed else 1
+            print("")
+            print(f"完成：成功 {ok} / 失败 {len(failed)}")
+            if failed:
+                print("失败明细：")
+                for item in failed[:50]:
+                    print(f"- {item}")
+                if len(failed) > 50:
+                    print(f"- ... 其余 {len(failed) - 50} 条已省略")
+
+            if bool(getattr(status_result, "isError", False)):
+                print("")
+                print(f"Local RAG status 失败：{tool_result_text(status_result)}", file=sys.stderr)
+            else:
+                status_obj = tool_result_to_obj(status_result)
+                payload: object = status_obj
+                if isinstance(status_obj, dict) and status_obj.get("structuredContent") is not None:
+                    payload = status_obj.get("structuredContent")
+                print("")
+                print("Local RAG status：")
+                print(json.dumps(payload, ensure_ascii=False, indent=2))
+
+            # 写入增量状态（仅当启用 only_changed，且不是 rebuild）
+            if bool(args.only_changed) and not args.rebuild:
+                prev = _load_state(state_path) or {}
+                merged_files: dict[str, dict[str, int]] = {}
+                prev_files_obj = prev.get("files")
+                if isinstance(prev_files_obj, dict):
+                    for k0, v0 in prev_files_obj.items():
+                        if isinstance(k0, str) and isinstance(v0, dict):
+                            key = k0.replace("\\", "/")
+                            m = v0.get("mtime_ns")
+                            sz = v0.get("size")
+                            if isinstance(m, int) and isinstance(sz, int):
+                                merged_files[key] = {"mtime_ns": m, "size": sz}
+                merged_files.update(state_files)
+                _write_state(
+                    state_path,
+                    {
+                        "version": 1,
+                        "updated_date_utc": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+                        "meta": {
+                            "base_dir": str(base_dir),
+                            "pattern": str(args.pattern),
+                            "exclude": exclude_patterns,
+                            "db_path": str(db_path),
+                            "model_name": effective_model_name,
+                        },
+                        "files": merged_files,
+                    },
+                )
+
+            return 0 if not failed else 1
     finally:
-        try:
-            if proc is not None:
-                proc.kill()
-        except Exception:
-            pass
         try:
             if stderr_fh is not None:
                 stderr_fh.close()
         except Exception:
             pass
+
+
+def main() -> int:
+    return asyncio.run(_amain())
 
 
 if __name__ == "__main__":

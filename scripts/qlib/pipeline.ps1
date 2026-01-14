@@ -8,7 +8,7 @@
     2) 逐交易对训练并导出模型（02_qlib_research/models/qlib/<version>/<exchange>/<tf>/<symbol>/）
 
     注意：
-    - 本脚本不依赖真实 Qlib，只遵循本仓库的工程化约定（trading_system + scripts/qlib）。
+    - 本脚本使用真实 Qlib（pyqlib）作为研究层数据组织框架（Dataset/DataHandler/DataLoader）。
     - 默认交易对来自 04_shared/config/symbols.yaml（也可用 -Pairs 覆盖）。
 
 .EXAMPLE

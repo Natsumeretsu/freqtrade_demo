@@ -76,6 +76,9 @@ Thumbs.db
 # Claude local profiles (do not commit)
 /scripts/mcp/claude_profiles.local.json
 
+# 误创建的策略参考库（根目录下的独立 clone，不是子模块路径 docs/archive/strategies_ref_docs）
+/strategies_ref_docs/
+
 # 其它本地缓存/草稿（不作为权威结论层）
 /temp/
 /in-memoria-vectors.db/
