@@ -138,6 +138,8 @@
 
 ## 6) 新设备/新克隆的最小复现流程（建议）
 
+更完整的一站式对接指南见：`docs/setup/new_device_onboarding.md`。
+
 1. 初始化依赖：`./scripts/bootstrap.ps1`
 2. 下载必要数据（按你的策略/回测范围）：`./scripts/data/download.ps1 ...`
 3. 预热 vbrain（重建可检索索引）：`python -X utf8 scripts/tools/vbrain.py preheat`

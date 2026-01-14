@@ -50,6 +50,8 @@ uv sync --frozen
 powershell.exe -ExecutionPolicy Bypass -File "./scripts/bootstrap.ps1"
 ```
 
+新设备/第二台电脑的完整对接流程（含配置拷贝、vbrain 预热与验收清单）见：`docs/setup/new_device_onboarding.md`。
+
 ---
 
 ## 关键约定（避免路径与产物混乱）

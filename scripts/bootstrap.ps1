@@ -119,4 +119,4 @@ if ($SetupCodex) {
 }
 
 Write-Host ""
-Write-Host "Done. Example: uv run freqtrade --version"
+Write-Host "Done. Example: ./scripts/ft.ps1 --help"
