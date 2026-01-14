@@ -1,5 +1,5 @@
 {
-  "strategy_name": "SmallAccountTrendFilteredV1",
+  "strategy_name": "SmallAccountSpotTrendFilteredV1",
   "params": {
     "buy": {
       "buy_ema_short_len": 20,

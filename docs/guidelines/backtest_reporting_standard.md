@@ -32,7 +32,7 @@
 ```powershell
 ./scripts/ft.ps1 backtesting `
   -c "04_shared/configs/small_account/config_small_spot_base.json" `
-  --strategy "SmallAccountTrendFilteredV1" `
+  --strategy "SmallAccountSpotTrendFilteredV1" `
   --timerange 20240101-20260101 `
   --export trades `
   --backtest-directory "01_freqtrade/backtest_results/fullcycle" `

@@ -7,7 +7,7 @@ from technical import qtpylib
 from freqtrade.strategy import IStrategy
 
 
-class SmallAccountSma200TrendV1(IStrategy):
+class SmallAccountSpotSma200TrendV1(IStrategy):
     """
     小资金现货趋势策略 v1（SMA200 过滤）
 
@@ -61,4 +61,3 @@ class SmallAccountSma200TrendV1(IStrategy):
         ] = 1
 
         return dataframe
-

@@ -121,7 +121,7 @@ Copy-Item "04_shared/configs/config-private.example.json" "01_freqtrade/config-p
 
 期望：
 
-- 能看到 `SmallAccountTrendFilteredV1`、`SmallAccountFuturesTrendV1` 等主线策略
+- 能看到 `SmallAccountSpotTrendFilteredV1`、`SmallAccountFuturesTrendV1` 等主线策略
 - 不应在仓库根目录生成 `user_data/`（若出现，说明你绕过了 `./scripts/ft.ps1`）
 
 ### 4.2 跑单元测试（推荐）
@@ -235,4 +235,3 @@ powershell.exe -ExecutionPolicy Bypass -File "./scripts/bootstrap.ps1"
 - [ ] `uv run python -X utf8 -m unittest -q` 通过
 - [ ] （可选）已下载数据并完成一次回测
 - [ ] （可选）已运行 `python -X utf8 scripts/tools/vbrain.py preheat --rebuild-docs`
-

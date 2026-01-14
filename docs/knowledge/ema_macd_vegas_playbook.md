@@ -6,7 +6,7 @@
 
 1. 将“传统主观交易中常见的 EMA 交叉形态 + MACD 经典形态 + 零轴/鞭打（Whipsaw）/体制切换”的知识，转成**可程序化的条件、可验证的工程结论**。
 2. 明确哪些形态更适合“现货只做多”的趋势系统，哪些形态更像抄底/逆势（在 smallaccount 约束下通常应避免）。
-3. 给出与本仓库当前策略（`SmallAccountTrendFilteredV1`）的直接结合点：哪些规则可以作为“低过拟合风险”的下一步改进候选。
+3. 给出与本仓库当前策略（`SmallAccountSpotTrendFilteredV1`）的直接结合点：哪些规则可以作为“低过拟合风险”的下一步改进候选。
 
 适用上下文（本仓库当前约束）：
 
@@ -65,7 +65,7 @@
 - 即便最终反转，底部阶段的时间成本与磨损成本（手续费/滑点/噪声止损）会显著拉低净收益；
 - 对应到工程上，最安全的做法往往是：**让系统默认不做底部交易**，除非另起一套专门的“反转赛道”与独立风控。
 
-因此，当前 `SmallAccountTrendFilteredV1` 采用“长期 EMA 必须有效上行”等过滤，本质上就是**主动放弃海底捞月型机会**，用“少犯错”换“稳定性”。
+因此，当前 `SmallAccountSpotTrendFilteredV1` 采用“长期 EMA 必须有效上行”等过滤，本质上就是**主动放弃海底捞月型机会**，用“少犯错”换“稳定性”。
 
 ---
 
@@ -239,7 +239,7 @@ Vegas 隧道是多层 EMA 的趋势过滤框架：
 
 ### 4.2 与本仓库当前策略的直观对应
 
-`SmallAccountTrendFilteredV1` 已具备部分 Vegas 思想的“工程等价物”：
+`SmallAccountSpotTrendFilteredV1` 已具备部分 Vegas 思想的“工程等价物”：
 
 - 我们的 `EMA_short`（默认 20）≈ `EMA20`
 - 我们的 `EMA_long`（默认 160）≈ `EMA144/169`（同量级的“中期隧道”）
@@ -253,7 +253,7 @@ Vegas 隧道是多层 EMA 的趋势过滤框架：
 
 ---
 
-## 5) 对 `SmallAccountTrendFilteredV1` 的可落地改进清单（按低过拟合优先级排序）
+## 5) 对 `SmallAccountSpotTrendFilteredV1` 的可落地改进清单（按低过拟合优先级排序）
 
 > 说明：这里仅给“候选方向”，不代表必须立即改代码；每一项都应按年度窗口回测验证。
 
@@ -311,4 +311,3 @@ Vegas 隧道是多层 EMA 的趋势过滤框架：
   - `walk-forward validation`
   - `purged k-fold`
   - `parameter robustness`
-

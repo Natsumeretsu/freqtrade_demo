@@ -6,7 +6,7 @@ from pandas import DataFrame
 from freqtrade.strategy import IStrategy, IntParameter
 
 
-class SmallAccountReversionV1(IStrategy):
+class SmallAccountSpotReversionV1(IStrategy):
     """
     小资金（10USDT 起）现货均值回归策略 v1
 

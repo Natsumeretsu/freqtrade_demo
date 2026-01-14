@@ -1,6 +1,6 @@
 # 项目固有知识结构索引（持续迭代）
 
-更新日期：2026-01-12
+更新日期：2026-01-14
 
 本目录用于沉淀“可复用的项目知识”，其目标是：
 
@@ -17,9 +17,14 @@
 - EMA/MACD 形态与 Vegas 隧道（可程序化落地笔记）：`docs/knowledge/ema_macd_vegas_playbook.md`
 - K线/Pin Bar（工程化落地笔记）：`docs/knowledge/candlestick_pinbar_playbook.md`
 - 流动性/微观结构（工程化落地笔记）：`docs/knowledge/crypto_liquidity_microstructure_playbook.md`
+- 加密市场风险因子（工程化落地地图）：`docs/knowledge/crypto_risk_factors_engineering_playbook.md`
 - 单因子 vs 多因子（择时视角，本仓库口径）：`docs/knowledge/factor_single_vs_multi_timing.md`
+- 项目统一命名规范（v1）：`docs/knowledge/project_naming_conventions.md`
 - 因子消融检查清单（SmallAccountFuturesTrendV1）：`docs/knowledge/factor_ablation_checklist_smallaccount_futures.md`
 - Freqtrade + Qlib 工程化落地（本仓库版）：`docs/knowledge/freqtrade_qlib_engineering_workflow.md`
+- 业界成熟做法的正确性与支撑（本项目对标与验收）：`docs/knowledge/industry_best_practices_support_analysis.md`
+- 业界成熟做法仍有提升空间（进阶方向与路线图）：`docs/knowledge/industry_best_practices_improvement_space.md`
+- 因果特征识别系统（加密择时落地，本仓库版）：`docs/knowledge/causal_factor_identification_crypto_playbook.md`
 - 策略唯一基底索引（已归档）：`docs/archive/freqai/freqai_core_strategy_guide.md`
 - 策略模式基底（已归档）：动量回调（趋势内回撤）`docs/archive/design/momentum_pullback_strategy_v1.md`
 

@@ -34,7 +34,7 @@ from trading_system.infrastructure.freqtrade_data import build_macro_sma_informa
 logger = logging.getLogger(__name__)
 
 
-class SmallAccountTrendFilteredV1(IStrategy):
+class SmallAccountSpotTrendFilteredV1(IStrategy):
     """
     小资金（10USDT 起）现货趋势策略 v1（波动率/趋势过滤版）
 
@@ -73,12 +73,12 @@ class SmallAccountTrendFilteredV1(IStrategy):
       - reentry：在弱趋势/反弹阶段容易净拖累（已通过更强趋势闸门抑制）
       - 单币种 long-only：想更“不跑输牛市”通常意味着更高 time-in-market，但会抬高回撤（天然权衡）
     - 综合结论与复现实验口径（已提交到 git，跨设备可直接打开）：
-      - docs/reports/small_account_benchmark_SmallAccountTrendFilteredV1_4h_2026-01-12.md
-      - docs/reports/risk_pain_points_SmallAccountTrendFilteredV1_4h_2026-01-12.md
+      - docs/reports/small_account_benchmark_SmallAccountSpotTrendFilteredV1_4h_2026-01-12.md
+      - docs/reports/risk_pain_points_SmallAccountSpotTrendFilteredV1_4h_2026-01-12.md
       - docs/reports/change_summary_2026-01-12.md
     - 复现命令（会生成本地产物到 artifacts/benchmarks/，默认不随 git 同步）：
-      - ./scripts/analysis/small_account_benchmark.ps1 -Strategy "SmallAccountTrendFilteredV1" -Pairs @("BTC/USDT") -Timeframe "4h"
-      - ./scripts/analysis/small_account_benchmark.ps1 -Strategy "SmallAccountTrendFilteredV1" -Pairs @("BTC/USDT") -Timeframe "4h" -Timeranges @("20200101-20201231","20210101-20211231","20220101-20221231","20230101-20231231","20240101-20241231","20250101-20251231")
+      - ./scripts/analysis/small_account_benchmark.ps1 -Strategy "SmallAccountSpotTrendFilteredV1" -Pairs @("BTC/USDT") -Timeframe "4h"
+      - ./scripts/analysis/small_account_benchmark.ps1 -Strategy "SmallAccountSpotTrendFilteredV1" -Pairs @("BTC/USDT") -Timeframe "4h" -Timeranges @("20200101-20201231","20210101-20211231","20220101-20221231","20230101-20231231","20240101-20241231","20250101-20251231")
 
     重要说明：
     - 不承诺任何实盘收益；这是一个“可验证、可迭代”的基线策略。
@@ -337,6 +337,23 @@ class SmallAccountTrendFilteredV1(IStrategy):
         if np.isfinite(risk_mult) and risk_mult > 0:
             stake_frac = float(max(0.0, min(1.0, stake_frac * float(min(1.0, risk_mult)))))
 
+        # 自动降风险闭环（制度 + 概念漂移）：作为“更高优先级”的风控叠加层
+        try:
+            decision = get_container().auto_risk_service().decision_with_df(
+                df=df,
+                dp=dp,
+                pair=pair,
+                timeframe=str(self.timeframe),
+                current_time=current_time,
+                side="long",
+            )
+            s = float(getattr(decision, "stake_scale", 1.0))
+            if np.isfinite(s) and s > 0:
+                stake_frac *= float(s)
+                stake_frac = float(max(0.0, min(1.0, stake_frac)))
+        except Exception:
+            pass
+
         # unlimited 模式下用 max_stake 作为基准；固定 stake 下只做“缩小”，不做放大
         cfg_stake_amount = str(getattr(self, "config", {}).get("stake_amount", "")).strip().lower()
         base_stake = float(max_stake) if cfg_stake_amount == "unlimited" else float(proposed_stake)
@@ -348,6 +365,45 @@ class SmallAccountTrendFilteredV1(IStrategy):
             stake = float(max(stake, float(min_stake)))
 
         return stake
+
+    def confirm_trade_entry(
+        self,
+        pair: str,
+        order_type: str,
+        amount: float,
+        rate: float,
+        time_in_force: str,
+        current_time: datetime,
+        entry_tag: str | None,
+        side: str,
+        **kwargs,
+    ) -> bool:
+        """
+        最后一层准入：自动降风险闭环（制度 + 概念漂移）。
+
+        - crit 或恢复期内：禁止新开仓（只允许已有仓位按原逻辑退出）
+        """
+        if str(side).lower() != "long":
+            return True
+
+        dp = getattr(self, "dp", None)
+        if dp is None:
+            return True
+
+        try:
+            decision = get_container().auto_risk_service().decision(
+                dp=dp,
+                pair=pair,
+                timeframe=str(self.timeframe),
+                current_time=current_time,
+                side="long",
+            )
+            if decision is not None and not bool(getattr(decision, "allow_entry", True)):
+                return False
+        except Exception:
+            pass
+
+        return True
 
     def _pick_stake_fraction(self, *, df: DataFrame, entry_tag: str) -> float:
         """
@@ -491,7 +547,7 @@ class SmallAccountTrendFilteredV1(IStrategy):
         long_len = int(self.buy_ema_long_len.value)
 
         df = dataframe.copy()
-        templates = get_factor_templates("SmallAccountTrendFilteredV1")
+        templates = get_factor_templates("SmallAccountSpotTrendFilteredV1")
         factor_names = render_factor_names(
             templates,
             {

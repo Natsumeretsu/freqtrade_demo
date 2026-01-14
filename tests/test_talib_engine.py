@@ -39,6 +39,13 @@ class TestTalibFactorEngine(unittest.TestCase):
                 "atr_pct",
                 "macdhist",
                 "volume_ratio_72",
+                "rsi_14",
+                "cci_20",
+                "mfi_14",
+                "bb_width_20_2",
+                "bb_percent_b_20_2",
+                "stoch_k_14_3_3",
+                "stoch_d_14_3_3",
             ],
         )
 
@@ -51,6 +58,13 @@ class TestTalibFactorEngine(unittest.TestCase):
         self.assertIn("macdsignal", factors.columns)
         self.assertIn("macdhist", factors.columns)
         self.assertIn("volume_ratio", factors.columns)
+        self.assertIn("rsi_14", factors.columns)
+        self.assertIn("cci_20", factors.columns)
+        self.assertIn("mfi_14", factors.columns)
+        self.assertIn("bb_width_20_2", factors.columns)
+        self.assertIn("bb_percent_b_20_2", factors.columns)
+        self.assertIn("stoch_k_14_3_3", factors.columns)
+        self.assertIn("stoch_d_14_3_3", factors.columns)
 
         arr = factors.astype("float64").to_numpy()
         self.assertFalse(np.isinf(arr).any())

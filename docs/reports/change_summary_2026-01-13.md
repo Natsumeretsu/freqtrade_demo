@@ -3,21 +3,21 @@
 ## 背景与目标
 
 - 目标 1：补齐 OKX 现货 2020-2022 历史数据，并验证可回测。
-- 目标 2：为 `SmallAccountTrendFilteredV1` 增加可回测的风险开关因子（高阶趋势/波动率/流动性代理）与“软风险折扣”（仅调仓位，不改信号）。
+- 目标 2：为 `SmallAccountSpotTrendFilteredV1` 增加可回测的风险开关因子（高阶趋势/波动率/流动性代理）与“软风险折扣”（仅调仓位，不改信号）。
 - 目标 3：做一轮小范围参数邻域 + 多损失函数搜索，输出“收益-回撤-交易数”候选点集，并判断是否存在明确的无损改进。
 - 目标 4：更新 vbrain（local_rag）向量索引，确保 `docs` 文档可检索。
 
 ## 关键变更
 
 - 策略增强（现货）：
-  - `01_freqtrade/strategies/SmallAccountTrendFilteredV1.py` 增加：
+  - `01_freqtrade/strategies/SmallAccountSpotTrendFilteredV1.py` 增加：
     - 高阶趋势门控（宏观 SMA + 斜率门槛）：`buy_use_macro_trend_filter` 等；
     - 波动率上限门控（`atr_pct`）：`buy_use_atr_pct_max_filter` 等；
     - 流动性代理门控（`volume_ratio`）：`buy_use_volume_ratio_filter` 等；
     - “软风险折扣”（不改信号，只改仓位）：`buy_use_*_stake_scale` 系列；
     - `informative_pairs` 追加日线（默认 `BTC/USDT 1d`）以支持宏观过滤；
     - `custom_stake_amount` 引入软折扣计算。
-  - `01_freqtrade/strategies/SmallAccountTrendFilteredV1.json` 同步新增参数默认值。
+  - `01_freqtrade/strategies/SmallAccountSpotTrendFilteredV1.json` 同步新增参数默认值。
 
 - 搜索脚本（可复用）：
   - `scripts/analysis/pareto_neighborhood_search.ps1`：对参数 JSON 做小邻域随机扰动，重复回测并抽取指标，输出候选集与帕累托前沿。
@@ -34,7 +34,7 @@
 
 ## 回测结论（OKX 现货，BTC/USDT，4h）
 
-### baseline（当前 `SmallAccountTrendFilteredV1.json` 参数）
+### baseline（当前 `SmallAccountSpotTrendFilteredV1.json` 参数）
 
 - 2020-2022（`20200101-20221231`）：
   - 总收益：`+116.05%`
@@ -74,13 +74,13 @@
 - 下载数据（回填 2020-2022，现货）：
   - `./scripts/data/download.ps1 -Pairs "BTC/USDT" -Timeframes "4h","1d" -Config "04_shared/configs/small_account/config_small_spot_base.json" -TradingMode "spot" -Timerange "20200101-20221231" -Prepend`
 - baseline 回测：
-  - `./scripts/analysis/small_account_backtest.ps1 -Config "04_shared/configs/small_account/config_small_spot_base.json" -Strategy "SmallAccountTrendFilteredV1" -Pairs "BTC/USDT" -Timeframe "4h" -Timerange "20200101-20260108"`
+  - `./scripts/analysis/small_account_backtest.ps1 -Config "04_shared/configs/small_account/config_small_spot_base.json" -Strategy "SmallAccountSpotTrendFilteredV1" -Pairs "BTC/USDT" -Timeframe "4h" -Timerange "20200101-20260108"`
 - 邻域帕累托搜索：
   - `./scripts/analysis/pareto_neighborhood_search.ps1 -Timerange "20200101-20221231" -Trials 30 -Seed 42`
 - Walk-forward 搜索：
   - `./scripts/analysis/walk_forward_search.ps1 -TrainTimerange "20200101-20211231" -TestTimerange "20220101-20221231" -Trials 40 -Seed 42`
 - 压力测试（示例）：
-  - `uv run python -X utf8 "scripts/analysis/stress_test.py" --zip "01_freqtrade/backtest_results/bench_spot_small10_SmallAccountTrendFilteredV1_4h_2020_2026/backtest-result-2026-01-13_02-35-15.zip" --mode policy --simulations 2000 --seed 42 --slippage 0.0005 --json`
+  - `uv run python -X utf8 "scripts/analysis/stress_test.py" --zip "01_freqtrade/backtest_results/bench_spot_small10_SmallAccountSpotTrendFilteredV1_4h_2020_2026/backtest-result-2026-01-13_02-35-15.zip" --mode policy --simulations 2000 --seed 42 --slippage 0.0005 --json`
 
 ---
 

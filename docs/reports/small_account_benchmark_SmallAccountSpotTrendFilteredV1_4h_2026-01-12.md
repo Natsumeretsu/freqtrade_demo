@@ -1,4 +1,4 @@
-# 小资金基准回测报告：SmallAccountTrendFilteredV1（BTC/USDT，4h）
+# 小资金基准回测报告：SmallAccountSpotTrendFilteredV1（BTC/USDT，4h）
 
 更新日期：2026-01-12
 
@@ -25,8 +25,8 @@
 
 ## 2) 策略升级要点（面向“牛市不掉队”）
 
-对应文件：`01_freqtrade/strategies/SmallAccountTrendFilteredV1.py`
-参数文件：`01_freqtrade/strategies/SmallAccountTrendFilteredV1.json`
+对应文件：`01_freqtrade/strategies/SmallAccountSpotTrendFilteredV1.py`
+参数文件：`01_freqtrade/strategies/SmallAccountSpotTrendFilteredV1.json`
 
 - 入场以“趋势事件”为主（避免震荡期持续贴条件重复开仓）：
   - `EMA_short` 上穿 `EMA_long`（趋势启动）
@@ -56,8 +56,8 @@
 ## 3) 基准结果（fee=0.0006）
 
 本地产物快照（不随 git 同步）：
-- RunId：`bench_small10_SmallAccountTrendFilteredV1_4h_2026-01-12_15-57-16`（默认输出到 `artifacts/benchmarks/`）
-- 复现：`./scripts/analysis/small_account_benchmark.ps1 -Pairs "BTC/USDT" -Timeframe "4h" -RunId "bench_small10_SmallAccountTrendFilteredV1_4h_2026-01-12_15-57-16"`
+- RunId：`bench_small10_SmallAccountSpotTrendFilteredV1_4h_2026-01-12_15-57-16`（默认输出到 `artifacts/benchmarks/`）
+- 复现：`./scripts/analysis/small_account_benchmark.ps1 -Pairs "BTC/USDT" -Timeframe "4h" -RunId "bench_small10_SmallAccountSpotTrendFilteredV1_4h_2026-01-12_15-57-16"`
 
 窗口指标（来自 `summary.csv`）：
 - 20230101-20231231：profit=26.8020%，maxDD=9.6081%，trades=11，market=93.2725%
@@ -76,8 +76,8 @@
 ## 3.1) 与上一版跑次对比（为什么“看起来没区别”）
 
 对比对象：
-- 旧 RunId（无动态仓位）：`bench_small10_SmallAccountTrendFilteredV1_4h_2026-01-12_14-22-08`
-- 新 RunId（动态风险预算）：`bench_small10_SmallAccountTrendFilteredV1_4h_2026-01-12_15-19-55`
+- 旧 RunId（无动态仓位）：`bench_small10_SmallAccountSpotTrendFilteredV1_4h_2026-01-12_14-22-08`
+- 新 RunId（动态风险预算）：`bench_small10_SmallAccountSpotTrendFilteredV1_4h_2026-01-12_15-19-55`
 
 关键指标差异（旧 → 新）：
 - 2023：profit 34.0951% → 34.3553%，maxDD 9.6081% → 9.6081%，trades 13 → 13，time-in-market 40.48% → 40.48%
@@ -102,7 +102,7 @@
 - 注：该评估通常只有 1-2 笔交易，因此不使用“每窗口交易数 ≥ 5”作为评价门槛；summary 会显示 FAIL 属正常现象。
 
 产物目录：
-- RunId：`bench_small10_bear_windows_SmallAccountTrendFilteredV1_4h_2026-01-12`（默认输出到 `artifacts/benchmarks/`，不随 git 同步）
+- RunId：`bench_small10_bear_windows_SmallAccountSpotTrendFilteredV1_4h_2026-01-12`（默认输出到 `artifacts/benchmarks/`，不随 git 同步）
 
 窗口指标（来自 `summary.csv`）：
 - 20230713-20231011：profit=-5.2549%，maxDD=5.2549%，trades=2，market=-10.8682%
@@ -119,7 +119,7 @@
   -Pairs "BTC/USDT" `
   -Timeframe "4h" `
   -Timeranges @("20230713-20231011","20251002-20251231") `
-  -RunId "bench_small10_bear_windows_SmallAccountTrendFilteredV1_4h_2026-01-12"
+  -RunId "bench_small10_bear_windows_SmallAccountSpotTrendFilteredV1_4h_2026-01-12"
 ```
 
 ---
@@ -145,7 +145,7 @@
 ## 5) 2x 成本验证（fee=0.0012）
 
 本地产物快照（不随 git 同步）：
-- RunId：`bench_small10_SmallAccountTrendFilteredV1_4h_2026-01-12_dynstake_fee0.0012`（默认输出到 `artifacts/benchmarks/`）
+- RunId：`bench_small10_SmallAccountSpotTrendFilteredV1_4h_2026-01-12_dynstake_fee0.0012`（默认输出到 `artifacts/benchmarks/`）
 
 窗口指标（来自 `summary.csv`）：
 - 20230101-20231231：profit=32.4412%，maxDD=9.7165%，trades=13
@@ -163,7 +163,7 @@
 对照口径（固定其它参数不变）：`tradable_balance_ratio=0.5`（约等于每笔只用 50% 资金做仓位，max_open_trades=1）
 
 本地产物快照（不随 git 同步）：
-- RunId：`bench_small10_SmallAccountTrendFilteredV1_4h_2026-01-12_dynstake_tbr0.5`（默认输出到 `artifacts/benchmarks/`）
+- RunId：`bench_small10_SmallAccountSpotTrendFilteredV1_4h_2026-01-12_dynstake_tbr0.5`（默认输出到 `artifacts/benchmarks/`）
 
 窗口指标（来自 `summary.csv`）：
 - 20230101-20231231：profit=17.6697%，maxDD=5.0570%，trades=13
@@ -182,12 +182,12 @@
 注：本节目录基于本次迭代早期跑次；本次仅调整 `sell_ema_slope_lookback` 的止损触发窗口，预计不改变“多币对 FAIL”结论。如需严格验证，可重新跑一轮多币对基准。
 
 已验证的单币基准 RunId（默认输出到 `artifacts/benchmarks/`，不随 git 同步）：
-- ETH/USDT：`bench_small10_SmallAccountTrendFilteredV1_4h_2026-01-12_11-30-32`（FAIL）
-- SOL/USDT：`bench_small10_SmallAccountTrendFilteredV1_4h_2026-01-12_11-31-18`（FAIL）
-- BNB/USDT：`bench_small10_SmallAccountTrendFilteredV1_4h_2026-01-12_11-33-58`（FAIL）
-- XRP/USDT：`bench_small10_SmallAccountTrendFilteredV1_4h_2026-01-12_11-34-38`（FAIL）
-- DOGE/USDT：`bench_small10_SmallAccountTrendFilteredV1_4h_2026-01-12_11-35-19`（FAIL）
-- ADA/USDT：`bench_small10_SmallAccountTrendFilteredV1_4h_2026-01-12_11-35-56`（FAIL）
+- ETH/USDT：`bench_small10_SmallAccountSpotTrendFilteredV1_4h_2026-01-12_11-30-32`（FAIL）
+- SOL/USDT：`bench_small10_SmallAccountSpotTrendFilteredV1_4h_2026-01-12_11-31-18`（FAIL）
+- BNB/USDT：`bench_small10_SmallAccountSpotTrendFilteredV1_4h_2026-01-12_11-33-58`（FAIL）
+- XRP/USDT：`bench_small10_SmallAccountSpotTrendFilteredV1_4h_2026-01-12_11-34-38`（FAIL）
+- DOGE/USDT：`bench_small10_SmallAccountSpotTrendFilteredV1_4h_2026-01-12_11-35-19`（FAIL）
+- ADA/USDT：`bench_small10_SmallAccountSpotTrendFilteredV1_4h_2026-01-12_11-35-56`（FAIL）
 
 ---
 
@@ -239,6 +239,6 @@ uv run python -X utf8 "scripts/analysis/stress_test.py" `
 uv run python -X utf8 "scripts/analysis/compare_backtest_zips.py" `
   --left-zip "01_freqtrade/backtest_results/<old_run_dir>/<backtest-result>.zip" `
   --right-zip "01_freqtrade/backtest_results/<new_run_dir>/<backtest-result>.zip" `
-  --strategy "SmallAccountTrendFilteredV1" `
+  --strategy "SmallAccountSpotTrendFilteredV1" `
   --out-md "artifacts/benchmarks/compare_backtest_zips.md"
 ```

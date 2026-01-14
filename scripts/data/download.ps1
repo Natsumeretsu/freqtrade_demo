@@ -66,6 +66,14 @@ if (-not (Test-Command "uv")) {
   throw "uv not found. Please install uv first, then re-run this script."
 }
 
+# PowerShell 5.1 默认输出编码可能导致 UTF-8 中文乱码，这里强制为 UTF-8
+try {
+  [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+  $OutputEncoding = [System.Text.Encoding]::UTF8
+} catch {
+  # ignore
+}
+
 # 统一在 UTF-8 模式下运行，避免中文 Windows 默认 GBK 导致部分子命令读取文件时报 UnicodeDecodeError
 $env:PYTHONUTF8 = "1"
 $env:PYTHONIOENCODING = "utf-8"

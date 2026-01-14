@@ -20,6 +20,7 @@
 param(
   [string]$Timeframe = "4h",
   [string]$Exchange = "",
+  [string]$SymbolsYaml = "",
   [string[]]$Pairs = @(),
   [string]$ModelVersion = "",
   [int]$Horizon = 1,
@@ -81,6 +82,18 @@ if ([string]::IsNullOrWhiteSpace($ModelVersion)) {
 }
 
 if ($Pairs.Count -le 0) {
+  if (-not [string]::IsNullOrWhiteSpace($SymbolsYaml)) {
+    try {
+      $symPath = (Resolve-Path $SymbolsYaml).Path
+      $pairsJson = & uv run python -X utf8 -c "import json, yaml; p=yaml.safe_load(open(r'$symPath', encoding='utf-8')) or {}; print(json.dumps(p.get('pairs', []), ensure_ascii=False))"
+      $Pairs = @((ConvertFrom-Json -InputObject $pairsJson) | ForEach-Object { [string]$_ })
+    } catch {
+      throw "无法从 SymbolsYaml 读取 pairs：$SymbolsYaml"
+    }
+  }
+}
+
+if ($Pairs.Count -le 0) {
   try {
     $pairsJson = & uv run python -X utf8 -c "import json; from trading_system.infrastructure.config_loader import get_config; print(json.dumps(get_config().pairs(), ensure_ascii=False))"
     $Pairs = @((ConvertFrom-Json -InputObject $pairsJson) | ForEach-Object { [string]$_ })
@@ -103,7 +116,8 @@ Write-Host "- feature_set: $FeatureSet"
 if (-not $SkipConvert) {
   Write-Host ""
   Write-Host "=== 1) 转换数据（feather → pkl）==="
-  $args = @("run","python","-X","utf8","scripts/qlib/convert_freqtrade_to_qlib.py","--timeframe",$Timeframe)
+  $args = @("run","python","-X","utf8","scripts/qlib/convert_freqtrade_to_qlib.py","--timeframe",$Timeframe,"--pairs")
+  $args += $Pairs
   if (-not [string]::IsNullOrWhiteSpace($Exchange)) {
     $args += @("--exchange",$Exchange)
   }

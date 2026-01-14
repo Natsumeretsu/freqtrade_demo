@@ -13,6 +13,7 @@ features.py - 研究层/实盘共用的特征工程（保证训练与预测一�
 - 本模块属于基础设施层（infrastructure/ml），供策略适配层与训练脚本共同复用。
 """
 
+import re
 from typing import Iterable
 
 import numpy as np
@@ -24,6 +25,7 @@ from trading_system.infrastructure.factor_engines.factory import create_factor_e
 
 DEFAULT_FEATURE_SET_NAME = "ml_core"
 
+_VOL_RATIO_ALIAS_RE = re.compile(r"^volume_ratio_(\d+)$")
 
 _ENGINE: IFactorEngine | None = None
 
@@ -86,6 +88,17 @@ def compute_features(df: pd.DataFrame, *, feature_cols: Iterable[str] | None = N
     feats = engine.compute(df, cols)
     if feats is None or feats.empty:
         return pd.DataFrame(index=df.index)
+
+    # volume_ratio 特殊处理：
+    # - 因子引擎会把 volume_ratio_<n> 视为“参数化输入”，但统一输出列名为 volume_ratio
+    # - 为保证训练/预测/体检的“列名严格对齐”，这里为请求的 volume_ratio_<n> 补一个别名列
+    vr_aliases = [c for c in cols if _VOL_RATIO_ALIAS_RE.match(str(c))]
+    if vr_aliases:
+        uniq = sorted(set(vr_aliases))
+        if len(uniq) > 1:
+            raise ValueError(f"volume_ratio_<n> 暂不支持同时请求多个窗口：{uniq}")
+        if "volume_ratio" in feats.columns and uniq[0] not in feats.columns:
+            feats[uniq[0]] = feats["volume_ratio"]
 
     return feats.replace([np.inf, -np.inf], np.nan)
 

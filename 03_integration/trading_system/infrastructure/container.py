@@ -14,6 +14,7 @@ from trading_system.application.factor_usecase import FactorComputationUseCase
 from trading_system.domain.factor_engine import IFactorEngine
 from trading_system.infrastructure.config_loader import ConfigManager, get_config
 from trading_system.infrastructure.factor_engines.factory import create_factor_engine
+from trading_system.infrastructure.auto_risk import AutoRiskService
 from trading_system.infrastructure.ml.model_loader import ModelCache
 from trading_system.infrastructure.ml.qlib_signal import QlibSignalService
 
@@ -54,6 +55,14 @@ class DependencyContainer:
             return cached
         svc = QlibSignalService(cfg=self._cfg, model_cache=self.model_cache())
         self._cache["qlib_signal_service"] = svc
+        return svc
+
+    def auto_risk_service(self) -> AutoRiskService:
+        cached = self._cache.get("auto_risk_service")
+        if isinstance(cached, AutoRiskService):
+            return cached
+        svc = AutoRiskService(cfg=self._cfg, model_cache=self.model_cache())
+        self._cache["auto_risk_service"] = svc
         return svc
 
 

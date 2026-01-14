@@ -3,7 +3,7 @@
   小范围参数邻域 + 多损失函数搜索（输出候选集与帕累托前沿）
 
 .DESCRIPTION
-  - 面向 SmallAccountTrendFilteredV1 这类以参数 JSON 为权威口径的策略：
+  - 面向 SmallAccountSpotTrendFilteredV1 这类以参数 JSON 为权威口径的策略：
     通过临时改写 01_freqtrade/strategies/<Strategy>.json，重复运行回测，抽取关键指标，
     生成候选点集（收益-回撤-交易数）并计算帕累托非支配集合。
 
@@ -20,7 +20,7 @@
 #>
 [CmdletBinding()]
 param(
-  [string]$Strategy = "SmallAccountTrendFilteredV1",
+  [string]$Strategy = "SmallAccountSpotTrendFilteredV1",
   [string]$Config = "04_shared/configs/small_account/config_small_spot_base.json",
   [string[]]$Pairs = @("BTC/USDT"),
   [string]$Timeframe = "4h",

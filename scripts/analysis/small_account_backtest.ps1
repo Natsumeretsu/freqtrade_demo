@@ -17,7 +17,7 @@
     ./scripts/analysis/small_account_backtest.ps1
 
     ./scripts/analysis/small_account_backtest.ps1 `
-      -Strategy "SmallAccountTrendFilteredV1" `
+      -Strategy "SmallAccountSpotTrendFilteredV1" `
       -Pairs "BTC/USDT" `
       -Timerange "20250101-20251231" `
       -PairReport `
@@ -26,8 +26,8 @@
 [CmdletBinding()]
 param(
   [string]$Config = "04_shared/configs/small_account/config_small_spot_base.json",
-  [string]$Strategy = "SmallAccountTrendFilteredV1",
-  [string[]]$Pairs = @("BTC/USDT"),
+  [string]$Strategy = "SmallAccountSpotTrendFilteredV1",
+  [string[]]$Pairs = @(),
   [string]$Timeframe = "4h",
   [string]$Timerange = "20250101-20251231",
 
@@ -75,6 +75,14 @@ if (-not (Test-Command "uv")) {
   throw "uv not found. Please install uv first, then re-run this script."
 }
 
+# PowerShell 5.1 默认输出编码可能导致 UTF-8 中文乱码，这里强制为 UTF-8
+try {
+  [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+  $OutputEncoding = [System.Text.Encoding]::UTF8
+} catch {
+  # ignore
+}
+
 # 统一在 UTF-8 模式下运行（避免中文 Windows 默认编码导致子命令读文件失败）
 $env:PYTHONUTF8 = "1"
 $env:PYTHONIOENCODING = "utf-8"
@@ -86,19 +94,7 @@ if (-not (Test-Path $Config)) {
   throw "未找到配置文件：$Config"
 }
 
-Write-Host ""
-Write-Host "=== 小资金回测参数 ==="
-Write-Host "- config: $Config"
-Write-Host "- strategy: $Strategy"
-Write-Host "- trading_mode: $TradingMode"
-Write-Host "- timeframe: $Timeframe"
-Write-Host "- timerange: $Timerange"
-Write-Host "- pairs: $($Pairs -join ', ')"
-Write-Host "- dry_run_wallet: $DryRunWallet"
-Write-Host "- max_open_trades: $MaxOpenTrades"
-Write-Host "- fee: $Fee"
-
-# 读取配置（用于拿 exchange.name 和 tradable_balance_ratio 默认值）
+# 读取配置（用于拿 exchange.name / trading_mode / tradable_balance_ratio 默认值）
 $cfg = Get-Content -Raw -Encoding UTF8 $Config | ConvertFrom-Json
 $exchangeName = ""
 try {
@@ -123,6 +119,34 @@ if ($TradableBalanceRatio -le 0) {
     $TradableBalanceRatio = 0.95
   }
 }
+
+Write-Host ""
+Write-Host "=== 小资金回测参数 ==="
+Write-Host "- config: $Config"
+Write-Host "- strategy: $Strategy"
+Write-Host "- trading_mode: $TradingMode"
+Write-Host "- timeframe: $Timeframe"
+Write-Host "- timerange: $Timerange"
+
+$pairsText = ""
+if ($Pairs.Count -gt 0) {
+  $pairsText = $Pairs -join ", "
+} else {
+  try {
+    $cfgPairs = @($cfg.exchange.pair_whitelist | ForEach-Object { [string]$_ })
+    if ($cfgPairs.Count -gt 0) {
+      $pairsText = $cfgPairs -join ", "
+    } else {
+      $pairsText = "(未指定，且配置文件未提供 pair_whitelist)"
+    }
+  } catch {
+    $pairsText = "(未指定，使用配置文件内 pair_whitelist)"
+  }
+}
+Write-Host "- pairs: $pairsText"
+Write-Host "- dry_run_wallet: $DryRunWallet"
+Write-Host "- max_open_trades: $MaxOpenTrades"
+Write-Host "- fee: $Fee"
 
 if ($MaxOpenTrades -le 0) {
   throw "max_open_trades 必须为正整数"

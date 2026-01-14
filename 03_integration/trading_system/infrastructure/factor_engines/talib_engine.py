@@ -17,6 +17,15 @@ talib_engine.py - 基于 talib.abstract 的因子引擎实现
 - volume_z：volume_z_<n>（= zscore(volume,n)）
 - hl_range：hl_range（= high/low - 1）
 - ema_spread：ema_spread（= EMA(close,10)/EMA(close,50) - 1）
+
+增强技术指标（用于研究/建模候选池，仍保持 OHLCV 可在线计算）：
+- RSI：rsi_<n>
+- CCI：cci_<n>
+- MFI：mfi_<n>
+- ROC：roc_<n>
+- WILLR：willr_<n>
+- 布林宽度/百分位：bb_width_<n>_<k> / bb_percent_b_<n>_<k>（k 为整数，通常 2）
+- 随机指标：stoch_k_<k>_<d>_<smooth> / stoch_d_<k>_<d>_<smooth>
 """
 
 import re
@@ -39,6 +48,15 @@ _VOL_RE = re.compile(r"^vol_(\d+)$", re.IGNORECASE)
 _SKEW_RE = re.compile(r"^skew_(\d+)$", re.IGNORECASE)
 _KURT_RE = re.compile(r"^kurt_(\d+)$", re.IGNORECASE)
 _VOLUME_Z_RE = re.compile(r"^volume_z_(\d+)$", re.IGNORECASE)
+_RSI_RE = re.compile(r"^rsi_(\d+)$", re.IGNORECASE)
+_CCI_RE = re.compile(r"^cci_(\d+)$", re.IGNORECASE)
+_MFI_RE = re.compile(r"^mfi_(\d+)$", re.IGNORECASE)
+_ROC_RE = re.compile(r"^roc_(\d+)$", re.IGNORECASE)
+_WILLR_RE = re.compile(r"^willr_(\d+)$", re.IGNORECASE)
+_BB_WIDTH_RE = re.compile(r"^bb_width_(\d+)_(\d+)$", re.IGNORECASE)
+_BB_PCTB_RE = re.compile(r"^bb_percent_b_(\d+)_(\d+)$", re.IGNORECASE)
+_STOCH_K_RE = re.compile(r"^stoch_k_(\d+)_(\d+)_(\d+)$", re.IGNORECASE)
+_STOCH_D_RE = re.compile(r"^stoch_d_(\d+)_(\d+)_(\d+)$", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -81,6 +99,12 @@ class TalibFactorEngine(IFactorEngine):
             return True
         if _RET_RE.match(name) or _VOL_RE.match(name) or _SKEW_RE.match(name) or _KURT_RE.match(name) or _VOLUME_Z_RE.match(name):
             return True
+        if _RSI_RE.match(name) or _CCI_RE.match(name) or _MFI_RE.match(name) or _ROC_RE.match(name) or _WILLR_RE.match(name):
+            return True
+        if _BB_WIDTH_RE.match(name) or _BB_PCTB_RE.match(name):
+            return True
+        if _STOCH_K_RE.match(name) or _STOCH_D_RE.match(name):
+            return True
         return False
 
     def compute(self, data: pd.DataFrame, factor_names: list[str]) -> pd.DataFrame:
@@ -112,11 +136,19 @@ class TalibFactorEngine(IFactorEngine):
         # ema_spread：默认口径（10/50），用于 ML/研究侧的“趋势结构”特征
         if "ema_spread" in factor_names:
             # 复用已算出的 EMA（如果刚好请求过），否则自行计算
-            ema10 = out.get("ema_10") or out.get("ema_short_10") or out.get("ema_long_10")
+            ema10 = out.get("ema_10")
+            if ema10 is None:
+                ema10 = out.get("ema_short_10")
+            if ema10 is None:
+                ema10 = out.get("ema_long_10")
             if ema10 is None:
                 ema10 = ta.EMA(data, timeperiod=10)
 
-            ema50 = out.get("ema_50") or out.get("ema_short_50") or out.get("ema_long_50")
+            ema50 = out.get("ema_50")
+            if ema50 is None:
+                ema50 = out.get("ema_short_50")
+            if ema50 is None:
+                ema50 = out.get("ema_long_50")
             if ema50 is None:
                 ema50 = ta.EMA(data, timeperiod=50)
 
@@ -173,6 +205,86 @@ class TalibFactorEngine(IFactorEngine):
             mean = volume.rolling(n).mean()
             std = volume.rolling(n).std()
             out[name] = (volume - mean) / std.replace(0, np.nan)
+
+        # RSI / CCI / MFI / ROC / WILLR
+        for name in factor_names:
+            if (m := _RSI_RE.match(name)) is not None:
+                n = int(m.group(1))
+                if n > 0:
+                    out[name] = ta.RSI(data, timeperiod=n)
+                continue
+            if (m := _CCI_RE.match(name)) is not None:
+                n = int(m.group(1))
+                if n > 0:
+                    out[name] = ta.CCI(data, timeperiod=n)
+                continue
+            if (m := _MFI_RE.match(name)) is not None:
+                n = int(m.group(1))
+                if n > 0:
+                    out[name] = ta.MFI(data, timeperiod=n)
+                continue
+            if (m := _ROC_RE.match(name)) is not None:
+                n = int(m.group(1))
+                if n > 0:
+                    out[name] = ta.ROC(data, timeperiod=n)
+                continue
+            if (m := _WILLR_RE.match(name)) is not None:
+                n = int(m.group(1))
+                if n > 0:
+                    out[name] = ta.WILLR(data, timeperiod=n)
+                continue
+
+        # 布林宽度 / percent_b（用 close 默认输入）
+        bb_params: set[tuple[int, int]] = set()
+        for name in factor_names:
+            if (m := _BB_WIDTH_RE.match(name)) is not None:
+                bb_params.add((int(m.group(1)), int(m.group(2))))
+            if (m := _BB_PCTB_RE.match(name)) is not None:
+                bb_params.add((int(m.group(1)), int(m.group(2))))
+
+        for period, dev in sorted(bb_params):
+            if period <= 1 or dev <= 0:
+                continue
+            bb = ta.BBANDS(data, timeperiod=int(period), nbdevup=float(dev), nbdevdn=float(dev), matype=0)
+            upper = bb["upperband"].astype("float64")
+            middle = bb["middleband"].astype("float64")
+            lower = bb["lowerband"].astype("float64")
+
+            width_name = f"bb_width_{period}_{dev}"
+            if width_name in factor_names:
+                out[width_name] = (upper / lower.replace(0, np.nan)) - 1.0
+
+            pctb_name = f"bb_percent_b_{period}_{dev}"
+            if pctb_name in factor_names:
+                denom = (upper - lower).replace(0, np.nan)
+                out[pctb_name] = (close - lower) / denom
+
+        # 随机指标 STOCH（slowk/slowd）
+        stoch_params: set[tuple[int, int, int]] = set()
+        for name in factor_names:
+            if (m := _STOCH_K_RE.match(name)) is not None:
+                stoch_params.add((int(m.group(1)), int(m.group(2)), int(m.group(3))))
+            if (m := _STOCH_D_RE.match(name)) is not None:
+                stoch_params.add((int(m.group(1)), int(m.group(2)), int(m.group(3))))
+
+        for k_period, d_period, smooth_k in sorted(stoch_params):
+            if k_period <= 1 or d_period <= 0 or smooth_k <= 0:
+                continue
+            st = ta.STOCH(
+                data,
+                fastk_period=int(k_period),
+                slowk_period=int(smooth_k),
+                slowk_matype=0,
+                slowd_period=int(d_period),
+                slowd_matype=0,
+            )
+
+            k_name = f"stoch_k_{k_period}_{d_period}_{smooth_k}"
+            d_name = f"stoch_d_{k_period}_{d_period}_{smooth_k}"
+            if k_name in factor_names:
+                out[k_name] = st["slowk"].astype("float64")
+            if d_name in factor_names:
+                out[d_name] = st["slowd"].astype("float64")
 
         # ADX / ATR（支持默认与带后缀两种）
         adx_periods: dict[str, int] = {}

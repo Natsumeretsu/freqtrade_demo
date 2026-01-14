@@ -9,7 +9,7 @@
   "dry_run_wallet": 10,
   "cancel_open_orders_on_exit": false,
   "trading_mode": "spot",
-  "strategy": "SmallAccountTrendFilteredV1",
+  "strategy": "SmallAccountSpotTrendFilteredV1",
   "unfilledtimeout": {
     "entry": 10,
     "exit": 10,

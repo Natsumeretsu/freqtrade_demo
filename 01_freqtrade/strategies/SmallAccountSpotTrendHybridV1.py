@@ -10,7 +10,7 @@ from technical import qtpylib
 from freqtrade.strategy import IStrategy, IntParameter, merge_informative_pair
 
 
-class SmallAccountTrendHybridV1(IStrategy):
+class SmallAccountSpotTrendHybridV1(IStrategy):
     """
     小资金现货趋势策略 v1（4h 入场 + 1d 宏观过滤）
 
@@ -131,4 +131,3 @@ class SmallAccountTrendHybridV1(IStrategy):
 
         df.loc[((cross_down | macro_turns_bear) & (df["volume"] > 0)), "exit_long"] = 1
         return df
-

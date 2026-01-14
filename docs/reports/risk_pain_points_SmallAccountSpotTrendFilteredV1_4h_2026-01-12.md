@@ -1,4 +1,4 @@
-# 风险痛点清单（年度窗口）：SmallAccountTrendFilteredV1（BTC/USDT，4h）
+# 风险痛点清单（年度窗口）：SmallAccountSpotTrendFilteredV1（BTC/USDT，4h）
 
 更新日期：2026-01-12
 
@@ -18,13 +18,13 @@
 - 小资金约束：dry_run_wallet=10、max_open_trades=1、tradable_balance_ratio=0.95
 - 成本假设：fee=0.0006
 - 年度窗口基准快照（用于痛点归因，风险收敛前的旧跑次）：
-  - RunId：`bench_small10_SmallAccountTrendFilteredV1_4h_2026-01-12_16-14-39`（默认输出到 `artifacts/benchmarks/`，不随 git 同步）
+  - RunId：`bench_small10_SmallAccountSpotTrendFilteredV1_4h_2026-01-12_16-14-39`（默认输出到 `artifacts/benchmarks/`，不随 git 同步）
 
 ---
 
 ## 2) 年度窗口结果（2020-2023，按年拆分）
 
-来源：RunId=`bench_small10_SmallAccountTrendFilteredV1_4h_2026-01-12_16-14-39` 的 `summary.csv`（本地产物）
+来源：RunId=`bench_small10_SmallAccountSpotTrendFilteredV1_4h_2026-01-12_16-14-39` 的 `summary.csv`（本地产物）
 
 - 2020：profit=59.7560%，maxDD=18.2934%，trades=21（PASS）
 - 2021：profit=-2.7595%，maxDD=26.2851%，trades=22（FAIL）
@@ -158,7 +158,7 @@
 - bull 交易仅在浮亏超过 `sell_stop_min_loss`（默认 3%）后，才允许启用 ATR 动态止损收敛尾部风险（避免牛市正常回踩就被洗出）。
 
 年度窗口（2020-2025）回测目录：
-- RunId：`bench_small10_annual_2020-2025_SmallAccountTrendFilteredV1_4h_riskA2_2026-01-12`（默认输出到 `artifacts/benchmarks/`，不随 git 同步）
+- RunId：`bench_small10_annual_2020-2025_SmallAccountSpotTrendFilteredV1_4h_riskA2_2026-01-12`（默认输出到 `artifacts/benchmarks/`，不随 git 同步）
 
 关键结果（仅摘 2021/2022）：
 - 2021：profit=8.8235%，maxDD=19.0404%（回撤已回到 20% 内）
@@ -171,7 +171,7 @@
 - 宏观弱势下的 bull 仓位单独降档：`buy_stake_frac_bull_weak=0.25`
 
 年度窗口（2020-2025）回测目录：
-- RunId：`bench_small10_annual_2020-2025_SmallAccountTrendFilteredV1_4h_riskB_2026-01-12`（默认输出到 `artifacts/benchmarks/`，不随 git 同步）
+- RunId：`bench_small10_annual_2020-2025_SmallAccountSpotTrendFilteredV1_4h_riskB_2026-01-12`（默认输出到 `artifacts/benchmarks/`，不随 git 同步）
 
 关键结果（仅摘 2021/2022）：
 - 2021：profit=6.2555%，maxDD=19.0404%

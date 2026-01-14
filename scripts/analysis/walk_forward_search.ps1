@@ -12,7 +12,7 @@
 
 .EXAMPLE
   ./scripts/analysis/walk_forward_search.ps1 `
-    -Strategy "SmallAccountTrendFilteredV1" `
+    -Strategy "SmallAccountSpotTrendFilteredV1" `
     -Pairs "BTC/USDT" `
     -Timeframe "4h" `
     -TrainTimerange "20200101-20211231" `
@@ -22,7 +22,7 @@
 #>
 [CmdletBinding()]
 param(
-  [string]$Strategy = "SmallAccountTrendFilteredV1",
+  [string]$Strategy = "SmallAccountSpotTrendFilteredV1",
   [string]$Config = "04_shared/configs/small_account/config_small_spot_base.json",
   [string[]]$Pairs = @("BTC/USDT"),
   [string]$Timeframe = "4h",
@@ -570,5 +570,4 @@ Write-Host "- output: $runRoot"
 Write-Host "- train_candidates: $trainCsv"
 Write-Host "- walk_forward_results: $wfCsv"
 Write-Host "- report: $mdPath"
-
 

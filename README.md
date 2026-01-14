@@ -100,6 +100,8 @@ Copy-Item "04_shared/configs/config-private.example.json" "01_freqtrade/config-p
   -Timerange "20200101-"
 ```
 
+提示：OKX 合约在“长区间 + 多交易对”下载时容易触发限流，建议加 `-NoParallelDownload` 或分批执行。
+
 ### 4) 回测（示例：小资金合约趋势）
 
 ```powershell
@@ -112,6 +114,18 @@ Copy-Item "04_shared/configs/config-private.example.json" "01_freqtrade/config-p
   -Timerange "20200101-20251231"
 ```
 
+### 4.1) 回测（示例：通用择时执行器，15m 主信号 + 1h 复核）
+
+```powershell
+./scripts/analysis/small_account_backtest.ps1 `
+  -Config "04_shared/configs/small_account/config_small_futures_timing_15m.json" `
+  -Strategy "SmallAccountFuturesTimingExecV1" `
+  -Pairs "BTC/USDT:USDT" `
+  -Timeframe "15m" `
+  -TradingMode "futures" `
+  -Timerange "20251215-20260114"
+```
+
 （可选）### 5) 研究层：一键转换 + 训练（Qlib 风格）
 
 ```powershell
@@ -122,8 +136,9 @@ Copy-Item "04_shared/configs/config-private.example.json" "01_freqtrade/config-p
 
 ## 典型入口（策略/示例）
 
-- 小资金现货主线：`01_freqtrade/strategies/SmallAccountTrendFilteredV1.py`
+- 小资金现货主线：`01_freqtrade/strategies/SmallAccountSpotTrendFilteredV1.py`
 - 小资金合约趋势：`01_freqtrade/strategies/SmallAccountFuturesTrendV1.py`
+- 小资金合约择时执行器：`01_freqtrade/strategies/SmallAccountFuturesTimingExecV1.py`（读取 `04_shared/config/timing_policy_okx_futures_15m_1h.yaml`）
 - 其它历史/实验策略（含 FreqAI）已归档：`01_freqtrade/strategies_archive/`（配置示例见：`04_shared/configs/archive/`）
 
 ---

@@ -30,6 +30,77 @@ factor_sets:
     - "@cta_core"
     - ema_spread
 
+  # 更强的研究候选池（仍只依赖 OHLCV，可在线计算）
+  # 目标：提供更多“可筛选的候选因子”，再用 factor_audit 做验收与淘汰，避免拍脑袋选指标。
+  # 注意：候选越多越容易过拟合，请务必以 30/60 天滚动稳定性与成本后收益做最终筛选。
+  cta_alpha_strong:
+    - "@cta_alpha"
+    - rsi_14
+    - rsi_7
+    - roc_12
+    - willr_14
+    - stoch_k_14_3_3
+    - stoch_d_14_3_3
+
+  cta_risk_strong:
+    - "@cta_risk"
+    - bb_width_20_2
+    - bb_percent_b_20_2
+    - cci_20
+    - mfi_14
+
+  cta_core_strong:
+    - "@cta_alpha_strong"
+    - "@cta_risk_strong"
+
+  ml_strong:
+    - "@cta_core_strong"
+    - ema_spread
+
+  # 择时（单币）因子筛选：默认候选池
+  #
+  # 目标：
+  # - 支持 “15m 主信号 + 1h 稳健对照” 的短期择时研究
+  # - 只依赖 OHLCV，可在线计算（不引入链上/资金流等外部数据）
+  #
+  # 说明：
+  # - 该集合用于 scripts/qlib/timing_audit.py 的默认 --feature-set
+  # - 候选越多越容易过拟合，请以 30/60 天滚动稳定性 + 成本后收益作为最终筛选标准
+  timing_pool_v1:
+    - "@cta_core_strong"
+    # 趋势/结构（多周期 EMA + 结构比值）
+    - ema_5
+    - ema_10
+    - ema_20
+    - ema_50
+    - ema_100
+    - ema_200
+    - ema_spread
+    # 趋势强度 / 波动与止损敏感度
+    - adx
+    - atr
+    - atr_pct
+    # 经典动量/趋势
+    - macd
+    - macdsignal
+    - macdhist
+    # 成交量相对强弱（默认 lookback=72）
+    - volume_ratio
+    # 更长短期尺度（与 ret_1/3/12 互补）
+    - ret_24
+    - ret_96
+    - vol_24
+    - vol_48
+    - roc_24
+    - rsi_21
+    - bb_width_40_2
+    - bb_percent_b_40_2
+    - cci_40
+    - mfi_21
+    - willr_28
+    - stoch_k_9_3_3
+    - stoch_d_9_3_3
+
   SmallAccountFuturesTrendV1:
     - "@cta_core"
     - ema_short_{ema_short_len}
@@ -43,7 +114,7 @@ factor_sets:
     # 该项会在策略侧按开关/窗口判断是否启用（渲染后仍统一输出列名 volume_ratio）
     - volume_ratio_{volume_ratio_lookback}
 
-  SmallAccountTrendFilteredV1:
+  SmallAccountSpotTrendFilteredV1:
     - "@cta_core"
     - ema_short_{ema_short_len}
     - ema_long_{ema_long_len}

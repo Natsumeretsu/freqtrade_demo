@@ -1,10 +1,10 @@
 # 变更总结（2026-01-12）
 
-本次变更围绕 smallaccount 目标（稳定增长/控回撤，且尽量不跑输牛市）对 `SmallAccountTrendFilteredV1` 做了“风险层优先、信号层尽量少动”的迭代，并同步补齐了可追溯的知识与资料管线（来源登记、抓取缓存、vbrain 本地索引）。
+本次变更围绕 smallaccount 目标（稳定增长/控回撤，且尽量不跑输牛市）对 `SmallAccountSpotTrendFilteredV1` 做了“风险层优先、信号层尽量少动”的迭代，并同步补齐了可追溯的知识与资料管线（来源登记、抓取缓存、vbrain 本地索引）。
 
 ---
 
-## 1) 策略侧（SmallAccountTrendFilteredV1）
+## 1) 策略侧（SmallAccountSpotTrendFilteredV1）
 
 ### 1.1 核心原则
 
@@ -16,7 +16,7 @@
 - `reentry` 不再净拖累：对再入增加更强的趋势闸门（长周期 EMA 位置 + 短长 EMA 乖离阈值）。
 - bull 交易的尾部收敛：仅当浮亏超过最小亏损阈值时，才允许启用 ATR 动态止损，避免牛市正常回踩被“过早洗出”。
 - 弱势阶段的 bull 降仓：在更长 lookback 的弱势体制下，对 bull 档仓位单独降档，降低结构性下行期间的试错成本。
-- 参数文件同步：新增/调整参数已写入 `01_freqtrade/strategies/SmallAccountTrendFilteredV1.json`，便于复现与后续回测。
+- 参数文件同步：新增/调整参数已写入 `01_freqtrade/strategies/SmallAccountSpotTrendFilteredV1.json`，便于复现与后续回测。
 
 ---
 
@@ -64,7 +64,7 @@
     "20240101-20241231",
     "20250101-20251231"
   ) `
-  -RunId "bench_small10_annual_2020-2025_SmallAccountTrendFilteredV1_4h_riskB_2026-01-12"
+  -RunId "bench_small10_annual_2020-2025_SmallAccountSpotTrendFilteredV1_4h_riskB_2026-01-12"
 ```
 
 smallaccount 评估窗口（2023-2025）快照复现：
@@ -73,7 +73,7 @@ smallaccount 评估窗口（2023-2025）快照复现：
 ./scripts/analysis/small_account_benchmark.ps1 `
   -Pairs "BTC/USDT" `
   -Timeframe "4h" `
-  -RunId "bench_small10_SmallAccountTrendFilteredV1_4h_2026-01-12_15-57-16"
+  -RunId "bench_small10_SmallAccountSpotTrendFilteredV1_4h_2026-01-12_15-57-16"
 ```
 
 ---

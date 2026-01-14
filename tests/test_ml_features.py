@@ -51,6 +51,25 @@ class TestMlFeatures(unittest.TestCase):
         self.assertFalse(X.empty)
         self.assertFalse(y.empty)
 
+    def test_volume_ratio_alias_columns(self) -> None:
+        df = _sample_ohlcv(250)
+        feats = compute_features(df, feature_cols=["volume_ratio_72"])
+        self.assertIn("volume_ratio", feats.columns)
+        self.assertIn("volume_ratio_72", feats.columns)
+        self.assertTrue(
+            np.allclose(
+                feats["volume_ratio"].to_numpy(),
+                feats["volume_ratio_72"].to_numpy(),
+                equal_nan=True,
+            )
+        )
+
+        X, y, cols = build_supervised_dataset(df, horizon=1, threshold=0.0, feature_cols=["volume_ratio_72"])
+        self.assertEqual(cols, ["volume_ratio_72"])
+        self.assertIn("volume_ratio_72", X.columns)
+        self.assertFalse(X.empty)
+        self.assertFalse(y.empty)
+
 
 if __name__ == "__main__":
     unittest.main()

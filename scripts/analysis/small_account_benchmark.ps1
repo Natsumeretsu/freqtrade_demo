@@ -15,7 +15,7 @@
   ./scripts/analysis/small_account_benchmark.ps1 -Strategy "SimpleTrendFollowV6" -Pairs "BTC/USDT"
 
   ./scripts/analysis/small_account_benchmark.ps1 `
-    -Strategy "SmallAccountTrendHybridV1" `
+    -Strategy "SmallAccountSpotTrendHybridV1" `
     -Pairs @("BTC/USDT","ETH/USDT") `
     -Timeframe "4h" `
     -Timeranges @("20230101-20231231","20240101-20241231","20250101-20251231")
@@ -23,8 +23,8 @@
 [CmdletBinding()]
 param(
   [string]$Config = "04_shared/configs/small_account/config_small_spot_base.json",
-  [string]$Strategy = "SmallAccountTrendFilteredV1",
-  [string[]]$Pairs = @("BTC/USDT"),
+  [string]$Strategy = "SmallAccountSpotTrendFilteredV1",
+  [string[]]$Pairs = @(),
   [string]$Timeframe = "4h",
   [string[]]$Timeranges = @("20230101-20231231", "20240101-20241231", "20250101-20251231"),
 
@@ -54,6 +54,14 @@ param(
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
+# PowerShell 5.1 默认输出编码可能导致 UTF-8 中文乱码，这里强制为 UTF-8
+try {
+  [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+  $OutputEncoding = [System.Text.Encoding]::UTF8
+} catch {
+  # ignore
+}
+
 # 统一在 UTF-8 模式下运行（避免中文 Windows 默认编码导致子命令读文件失败）
 $env:PYTHONUTF8 = "1"
 $env:PYTHONIOENCODING = "utf-8"
@@ -63,6 +71,24 @@ Set-Location $repoRoot
 
 if (-not (Test-Path $Config)) {
   throw "未找到配置文件：$Config"
+}
+
+# 读取配置：用于兜底 pairs 展示（以及未来扩展时的参数默认值）
+$cfg = Get-Content -Raw -Encoding UTF8 $Config | ConvertFrom-Json
+$cfgPairs = @()
+try {
+  $cfgPairs = @($cfg.exchange.pair_whitelist | ForEach-Object { [string]$_ })
+} catch {
+  $cfgPairs = @()
+}
+
+$pairsText = ""
+if ($Pairs.Count -gt 0) {
+  $pairsText = $Pairs -join ", "
+} elseif ($cfgPairs.Count -gt 0) {
+  $pairsText = $cfgPairs -join ", "
+} else {
+  $pairsText = "(未指定，且配置文件未提供 pair_whitelist)"
 }
 
 $safeStrategy = ($Strategy -replace "[^0-9A-Za-z._-]", "_")
@@ -122,7 +148,7 @@ Write-Host "=== 小资金基准回测（稳定性评估）==="
 Write-Host "- config: $Config"
 Write-Host "- strategy: $Strategy"
 Write-Host "- timeframe: $Timeframe"
-Write-Host "- pairs: $($Pairs -join ', ')"
+Write-Host "- pairs: $pairsText"
 Write-Host "- timeranges: $($Timeranges -join ', ')"
 Write-Host "- output: $benchDir"
 
@@ -189,7 +215,7 @@ foreach ($tr in $Timeranges) {
     timerange = $tr
     strategy = $m.strategy
     timeframe = $m.timeframe
-    pairs = ($Pairs -join ",")
+    pairs = $(if ($Pairs.Count -gt 0) { $Pairs -join "," } elseif ($cfgPairs.Count -gt 0) { $cfgPairs -join "," } else { "" })
     total_trades = $trades
     profit_total_pct = [math]::Round($profitPct, 4)
     profit_total_abs = [math]::Round([double]$m.profit_total_abs, 8)
@@ -226,7 +252,7 @@ $lines += ""
 $lines += "- 运行: $benchName"
 $lines += "- 策略: $Strategy"
 $lines += "- timeframe: $Timeframe"
-$lines += "- pairs: $($Pairs -join ', ')"
+$lines += "- pairs: $pairsText"
 $lines += "- timeranges: $($Timeranges -join ', ')"
 $lines += ""
 $lines += "## 门槛"

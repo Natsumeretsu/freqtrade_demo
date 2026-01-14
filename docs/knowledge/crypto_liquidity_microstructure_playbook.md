@@ -215,7 +215,7 @@
 
 ---
 
-## 7) 与当前 `SmallAccountTrendFilteredV1` 的结合点（低过拟合优先）
+## 7) 与当前 `SmallAccountSpotTrendFilteredV1` 的结合点（低过拟合优先）
 
 你提供的框架最适合帮助我们解决两类问题：
 

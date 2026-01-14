@@ -2,18 +2,26 @@
   "$schema": "https://schema.freqtrade.io/schema.json",
   "user_data_dir": ".",
   "datadir": "data/okx/futures",
+
   "max_open_trades": 1,
   "stake_currency": "USDT",
   "stake_amount": "unlimited",
   "tradable_balance_ratio": 0.95,
   "fiat_display_currency": "USD",
+
   "dry_run": true,
   "dry_run_wallet": 10,
+
   "cancel_open_orders_on_exit": false,
   "enable_protections": true,
+
   "trading_mode": "futures",
   "margin_mode": "isolated",
-  "timeframe": "4h",
+
+  "timeframe": "15m",
+
+  "timing_policy_path": "04_shared/config/timing_policy_okx_futures_15m_1h.yaml",
+
   "unfilledtimeout": {
     "entry": 10,
     "exit": 10,
@@ -46,10 +54,13 @@
       "BTC/USDT:USDT",
       "ETH/USDT:USDT",
       "SOL/USDT:USDT",
-      "BNB/USDT:USDT",
       "XRP/USDT:USDT",
+      "DOGE/USDT:USDT",
+      "BNB/USDT:USDT",
       "ADA/USDT:USDT",
-      "DOGE/USDT:USDT"
+      "LTC/USDT:USDT",
+      "AVAX/USDT:USDT",
+      "LINK/USDT:USDT"
     ],
     "pair_blacklist": []
   },
@@ -82,3 +93,4 @@
     "process_throttle_secs": 5
   }
 }
+

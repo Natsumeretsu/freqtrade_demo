@@ -534,6 +534,24 @@ class SmallAccountFuturesTrendV1(IStrategy):
                         )
                         stake_frac = float(max(0.0, min(1.0, stake_frac)))
 
+        # 自动降风险闭环（制度 + 概念漂移）：作为“更高优先级”的风控叠加层
+        # 说明：这里只能影响“新开仓”的仓位/杠杆，无法改变已开的仓位（交易系统通用限制）。
+        try:
+            decision = get_container().auto_risk_service().decision_with_df(
+                df=df,
+                dp=dp,
+                pair=pair,
+                timeframe=str(self.timeframe),
+                current_time=current_time,
+                side=side_l,
+            )
+            s = float(getattr(decision, "stake_scale", 1.0))
+            if np.isfinite(s) and s > 0:
+                stake_frac *= float(s)
+                stake_frac = float(max(0.0, min(1.0, stake_frac)))
+        except Exception:
+            pass
+
         cfg_stake_amount = str(getattr(self, "config", {}).get("stake_amount", "")).strip().lower()
         base_stake = float(max_stake) if cfg_stake_amount == "unlimited" else float(proposed_stake)
         stake = float(base_stake * stake_frac)
@@ -696,6 +714,22 @@ class SmallAccountFuturesTrendV1(IStrategy):
                             )
                         )
 
+        # 自动降风险闭环（制度 + 概念漂移）
+        try:
+            decision = get_container().auto_risk_service().decision_with_df(
+                df=df,
+                dp=dp,
+                pair=pair,
+                timeframe=str(self.timeframe),
+                current_time=current_time,
+                side=side_l,
+            )
+            s = float(getattr(decision, "leverage_scale", 1.0))
+            if np.isfinite(s) and s > 0:
+                lev *= float(s)
+        except Exception:
+            pass
+
         lev = float(max(1.0, lev))
         acc_cap = self._account_leverage_cap()
         if acc_cap is not None and np.isfinite(acc_cap) and acc_cap > 0:
@@ -730,6 +764,21 @@ class SmallAccountFuturesTrendV1(IStrategy):
             return True
 
         dp = getattr(self, "dp", None)
+
+        # 自动降风险闭环（制度 + 概念漂移）：crit 或恢复期内直接禁止新开仓
+        if dp is not None:
+            try:
+                decision = get_container().auto_risk_service().decision(
+                    dp=dp,
+                    pair=pair,
+                    timeframe=str(self.timeframe),
+                    current_time=current_time,
+                    side=side_l,
+                )
+                if decision is not None and not bool(getattr(decision, "allow_entry", True)):
+                    return False
+            except Exception:
+                pass
 
         if bool(self.buy_use_funding_rate_filter.value) and dp is not None:
             funding_rate = get_latest_funding_rate(dp, pair=pair, current_time=current_time)

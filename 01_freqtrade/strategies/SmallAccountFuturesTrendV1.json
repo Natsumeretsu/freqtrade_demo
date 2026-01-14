@@ -31,7 +31,7 @@
       "buy_qlib_hard_fuse_enabled": true,
       "buy_qlib_hard_fuse_min_proba": 0.45,
       "buy_atr_pct_min": 0.004,
-      "buy_use_atr_pct_max_filter": false,
+      "buy_use_atr_pct_max_filter": true,
       "buy_atr_pct_max": 0.1,
       "buy_use_volume_ratio_filter": false,
       "buy_volume_ratio_lookback": 72,

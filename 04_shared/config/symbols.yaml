@@ -7,14 +7,29 @@
 pairs:
   - "BTC/USDT:USDT"
   - "ETH/USDT:USDT"
+  - "SOL/USDT:USDT"
+  - "BNB/USDT:USDT"
+  - "XRP/USDT:USDT"
+  - "ADA/USDT:USDT"
+  - "DOGE/USDT:USDT"
 
 qlib_symbols:
   - "BTC_USDT"
   - "ETH_USDT"
+  - "SOL_USDT"
+  - "BNB_USDT"
+  - "XRP_USDT"
+  - "ADA_USDT"
+  - "DOGE_USDT"
 
 market: "crypto_futures"
 
 # 交易对权重（用于研究脚本里的优先级/抽样权重）
 weights:
-  "BTC/USDT:USDT": 0.5
-  "ETH/USDT:USDT": 0.5
+  "BTC/USDT:USDT": 0.25
+  "ETH/USDT:USDT": 0.20
+  "SOL/USDT:USDT": 0.15
+  "BNB/USDT:USDT": 0.10
+  "XRP/USDT:USDT": 0.10
+  "ADA/USDT:USDT": 0.10
+  "DOGE/USDT:USDT": 0.10
