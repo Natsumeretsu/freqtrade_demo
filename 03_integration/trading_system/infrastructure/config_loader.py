@@ -111,6 +111,20 @@ class ConfigManager:
         syms = self.get("symbols.qlib_symbols", []) or []
         return [str(s).strip() for s in syms if str(s).strip()]
 
+    def koopman_config(self) -> dict:
+        """获取 Koopman 配置（带默认值）"""
+        defaults = {
+            "window": 512,
+            "embed_dim": 16,
+            "stride": 10,
+            "ridge": 0.001,
+            "pred_horizons": [1, 4],
+            "fft_window": 512,
+            "fft_topk": 8,
+        }
+        raw = self.get("trading_system.koopman", {}) or {}
+        return {**defaults, **raw}
+
     def display(self) -> str:
         """返回可打印的配置摘要（不直接 print，便于脚本复用）。"""
         lines = [

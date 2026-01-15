@@ -8,6 +8,24 @@ factor_engine:
     macd_signal: 9
     volume_ratio_lookback: 72
 
+# Koopman-lite 特征生成配置
+# 用于短期时序预测的 DMD/FFT 特征提取
+koopman:
+  # 滚动窗口长度（bars），建议 >= 128
+  window: 512
+  # 延迟嵌入维度（Takens embedding）
+  embed_dim: 16
+  # 算子更新步长（bars），越小越精确但计算量越大
+  stride: 10
+  # Ridge 正则系数，避免病态矩阵
+  ridge: 0.001
+  # 多步预测的步数列表
+  pred_horizons: [1, 4]
+  # FFT 滚动窗口长度
+  fft_window: 512
+  # FFT 低通保留的 TopK 频率分量数（不含 DC）
+  fft_topk: 8
+
 # 自动降风险闭环（从“可观测”到“可执行”）
 # - 推荐用法：先训练导出 model_info.json + feature_baseline.json，再在实盘/回测中启用
 # - 本配置为“仓库默认值”，你可以用 .env 覆盖开关（例如 AUTO_RISK_ENABLED=true）

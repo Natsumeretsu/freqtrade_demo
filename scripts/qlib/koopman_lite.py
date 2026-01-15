@@ -64,20 +64,14 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--symbols-yaml", default="", help="包含 pairs/weights 的 YAML 文件路径（留空则用 symbols.yaml）。")
     p.add_argument("--pairs", nargs="*", default=None, help="直接传入交易对列表（优先级最高）。")
 
-    p.add_argument("--window", type=int, default=512, help="滚动窗口长度（bars）。")
-    p.add_argument("--embed-dim", type=int, default=16, help="延迟嵌入维度（Takens embedding）。")
-    p.add_argument("--stride", type=int, default=10, help="算子更新步长（bars）。")
-    p.add_argument("--ridge", type=float, default=1e-3, help="rolling EDMD 的 ridge 正则系数（避免病态）。")
-    p.add_argument(
-        "--pred-horizons",
-        nargs="*",
-        type=int,
-        default=[1, 4],
-        help="输出多步预测累计收益的步数（bars），例如 1 4 16。",
-    )
-
-    p.add_argument("--fft-window", type=int, default=512, help="FFT 滚动窗口长度（bars）。")
-    p.add_argument("--fft-topk", type=int, default=8, help="FFT 低通保留的 TopK 频率分量数（不含 DC）。")
+    # Koopman 参数（命令行优先，否则从 trading_system.yaml 读取）
+    p.add_argument("--window", type=int, default=None, help="滚动窗口长度（bars），默认从配置读取。")
+    p.add_argument("--embed-dim", type=int, default=None, help="延迟嵌入维度，默认从配置读取。")
+    p.add_argument("--stride", type=int, default=None, help="算子更新步长（bars），默认从配置读取。")
+    p.add_argument("--ridge", type=float, default=None, help="ridge 正则系数，默认从配置读取。")
+    p.add_argument("--pred-horizons", nargs="*", type=int, default=None, help="多步预测步数，默认从配置读取。")
+    p.add_argument("--fft-window", type=int, default=None, help="FFT 滚动窗口长度，默认从配置读取。")
+    p.add_argument("--fft-topk", type=int, default=None, help="FFT TopK 频率分量数，默认从配置读取。")
 
     p.add_argument("--max-bars", type=int, default=0, help="最多使用最近 N 根 K 线（0=不限制）。")
     p.add_argument("--out", default="", help="输出 pkl 路径（默认 artifacts/koopman_lite/koopman_lite_<...>.pkl）。")
@@ -133,6 +127,9 @@ def main() -> int:
     args = _parse_args()
     cfg = get_config()
 
+    # 从配置文件读取 Koopman 默认参数
+    koop_cfg = cfg.koopman_config()
+
     exchange = str(args.exchange or "").strip() or cfg.freqtrade_exchange
     timeframe = str(args.timeframe or "").strip()
     if not timeframe:
@@ -157,7 +154,18 @@ def main() -> int:
         out_path = (_REPO_ROOT / "artifacts" / "koopman_lite" / f"koopman_lite_{exchange}_{timeframe}_{ts}.pkl").resolve()
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
-    pred_h = sorted({int(h) for h in (args.pred_horizons or []) if int(h) > 0})
+    # 命令行优先，否则从配置读取
+    window = args.window if args.window is not None else koop_cfg.get("window", 512)
+    embed_dim = args.embed_dim if args.embed_dim is not None else koop_cfg.get("embed_dim", 16)
+    stride = args.stride if args.stride is not None else koop_cfg.get("stride", 10)
+    ridge = args.ridge if args.ridge is not None else koop_cfg.get("ridge", 0.001)
+    fft_window = args.fft_window if args.fft_window is not None else koop_cfg.get("fft_window", 512)
+    fft_topk = args.fft_topk if args.fft_topk is not None else koop_cfg.get("fft_topk", 8)
+
+    if args.pred_horizons is not None:
+        pred_h = sorted({int(h) for h in args.pred_horizons if int(h) > 0})
+    else:
+        pred_h = sorted({int(h) for h in koop_cfg.get("pred_horizons", [1, 4]) if int(h) > 0})
     if not pred_h:
         pred_h = [1, 4]
 
@@ -166,13 +174,13 @@ def main() -> int:
         timeframe=timeframe,
         pairs=pairs,
         out_path=out_path,
-        window=int(args.window),
-        embed_dim=int(args.embed_dim),
-        stride=int(args.stride),
-        ridge=float(args.ridge),
+        window=int(window),
+        embed_dim=int(embed_dim),
+        stride=int(stride),
+        ridge=float(ridge),
         pred_horizons=pred_h,
-        fft_window=int(args.fft_window),
-        fft_topk=int(args.fft_topk),
+        fft_window=int(fft_window),
+        fft_topk=int(fft_topk),
         max_bars=int(args.max_bars),
     )
 

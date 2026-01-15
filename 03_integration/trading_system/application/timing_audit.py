@@ -163,10 +163,11 @@ def timing_strategy_series(
     yy = fwd_ret.astype("float64")
 
     # 滚动分位阈值（只需要 top/bottom 两条阈值）
+    # 注意：shift(1) 避免前向偏差（t 时刻的阈值只能用 t-1 及之前的数据）
     high_q = 1.0 - (1.0 / float(q))
     low_q = 1.0 / float(q)
-    q_high = xx.rolling(lookback_bars).quantile(high_q)
-    q_low = xx.rolling(lookback_bars).quantile(low_q)
+    q_high = xx.rolling(lookback_bars).quantile(high_q).shift(1)
+    q_low = xx.rolling(lookback_bars).quantile(low_q).shift(1)
 
     pos = position_from_thresholds(x=xx, q_high=q_high, q_low=q_low, direction=str(direction))
     pos = apply_trade_side(pos=pos, side=str(side))
@@ -497,8 +498,9 @@ def precompute_quantile_thresholds(*, X: pd.DataFrame, params: TimingAuditParams
     high_q = 1.0 - (1.0 / float(q))
     low_q = 1.0 / float(q)
 
-    q_high = work.rolling(lookback_bars).quantile(high_q)
-    q_low = work.rolling(lookback_bars).quantile(low_q)
+    # shift(1) 避免前向偏差（t 时刻的阈值只能用 t-1 及之前的数据）
+    q_high = work.rolling(lookback_bars).quantile(high_q).shift(1)
+    q_low = work.rolling(lookback_bars).quantile(low_q).shift(1)
     return q_high.replace([np.inf, -np.inf], np.nan), q_low.replace([np.inf, -np.inf], np.nan)
 
 
@@ -590,8 +592,9 @@ def choose_timing_direction(
     xx = x.astype("float64").copy()
     high_q = 1.0 - (1.0 / float(q))
     low_q = 1.0 / float(q)
-    q_high = xx.rolling(lookback_bars).quantile(high_q)
-    q_low = xx.rolling(lookback_bars).quantile(low_q)
+    # shift(1) 避免前向偏差（t 时刻的阈值只能用 t-1 及之前的数据）
+    q_high = xx.rolling(lookback_bars).quantile(high_q).shift(1)
+    q_low = xx.rolling(lookback_bars).quantile(low_q).shift(1)
 
     return choose_timing_direction_with_thresholds(
         x=xx,

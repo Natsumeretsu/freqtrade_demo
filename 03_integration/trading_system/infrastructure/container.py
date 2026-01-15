@@ -4,10 +4,11 @@ from __future__ import annotations
 container.py - 轻量依赖注入容器（配置驱动）
 
 目标：
-- 策略侧通过容器拿到“抽象用例”，而不是直接 new 具体实现
+- 策略侧通过容器拿到"抽象用例"，而不是直接 new 具体实现
 - 允许通过 04_shared/config/trading_system.yaml 切换实现
 """
 
+import threading
 from typing import Any
 
 from trading_system.application.factor_usecase import FactorComputationUseCase
@@ -67,10 +68,15 @@ class DependencyContainer:
 
 
 _CONTAINER: DependencyContainer | None = None
+_CONTAINER_LOCK = threading.Lock()
 
 
 def get_container() -> DependencyContainer:
+    """获取全局容器单例（线程安全）"""
     global _CONTAINER
     if _CONTAINER is None:
-        _CONTAINER = DependencyContainer()
+        with _CONTAINER_LOCK:
+            # Double-checked locking
+            if _CONTAINER is None:
+                _CONTAINER = DependencyContainer()
     return _CONTAINER
