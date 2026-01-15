@@ -101,6 +101,341 @@ factor_sets:
     - stoch_k_9_3_3
     - stoch_d_9_3_3
 
+  # Koopa-lite（Koopman/本征模态）额外因子候选池
+  # - 用于把“多尺度/算子谱/局部线性动力学”落到可体检、可执行的因子名
+  koopman_lite_v1:
+    - fft_hp_logp
+    - fft_lp_slope
+    - fft_lp_energy_ratio
+    - koop_spectral_radius
+    - koop_fit_rmse
+    - koop_pred_ret_h1
+    - koop_pred_ret_h4
+
+  # 择时候选池：timing_pool_v1 + Koopa-lite
+  timing_pool_koop_v1:
+    - "@timing_pool_v1"
+    - "@koopman_lite_v1"
+
+  # 择时（单币）因子筛选：更大的传统候选池（200 个）
+  #
+  # 说明：
+  # - 这是“研究/筛选用”的候选池，不建议直接全部上策略；最终仍用 timing_audit + export_timing_policy 选出 TopK。
+  # - 只依赖 OHLCV，保持可在线计算。
+  # - 避免 volume_ratio_<n> 多窗口：compute_features 会强制报错（需要单独改动别名规则才能支持）。
+  timing_pool_v2_200:
+    - "@timing_pool_v1"
+    # --- ret_*（更密的多尺度收益） ---
+    - ret_2
+    - ret_4
+    - ret_5
+    - ret_6
+    - ret_8
+    - ret_9
+    - ret_10
+    - ret_14
+    - ret_15
+    - ret_16
+    - ret_18
+    - ret_20
+    - ret_21
+    - ret_30
+    - ret_32
+    - ret_36
+    - ret_40
+    - ret_42
+    - ret_48
+    - ret_60
+    - ret_64
+    - ret_72
+    - ret_80
+    - ret_84
+    - ret_120
+    # --- vol_*（波动多窗口） ---
+    - vol_6
+    - vol_8
+    - vol_10
+    - vol_14
+    - vol_16
+    - vol_18
+    - vol_20
+    - vol_30
+    - vol_32
+    - vol_36
+    - vol_40
+    - vol_42
+    - vol_60
+    - vol_64
+    - vol_72
+    - vol_80
+    - vol_84
+    - vol_96
+    - vol_120
+    - vol_144
+    # --- EMA（更密的趋势尺度） ---
+    - ema_3
+    - ema_4
+    - ema_6
+    - ema_8
+    - ema_12
+    - ema_14
+    - ema_16
+    - ema_18
+    - ema_24
+    - ema_26
+    - ema_30
+    - ema_32
+    - ema_34
+    - ema_36
+    - ema_40
+    - ema_42
+    - ema_48
+    - ema_60
+    - ema_64
+    - ema_72
+    - ema_80
+    - ema_84
+    - ema_96
+    - ema_120
+    - ema_144
+    # --- RSI（多尺度动量/均值回复） ---
+    - rsi_2
+    - rsi_3
+    - rsi_4
+    - rsi_5
+    - rsi_6
+    - rsi_8
+    - rsi_9
+    - rsi_10
+    - rsi_11
+    - rsi_12
+    - rsi_13
+    - rsi_15
+    - rsi_16
+    - rsi_18
+    - rsi_20
+    - rsi_24
+    - rsi_28
+    - rsi_30
+    - rsi_34
+    - rsi_42
+    # --- ROC（更密的变速率） ---
+    - roc_3
+    - roc_5
+    - roc_6
+    - roc_8
+    - roc_10
+    - roc_14
+    - roc_16
+    - roc_18
+    - roc_20
+    - roc_28
+    - roc_30
+    - roc_32
+    - roc_36
+    - roc_40
+    - roc_42
+    # --- ADX/ATR/ATR%（更多窗口） ---
+    - adx_7
+    - adx_10
+    - adx_12
+    - adx_20
+    - adx_24
+    - adx_28
+    - adx_30
+    - adx_42
+    - adx_56
+    - adx_84
+    - atr_7
+    - atr_10
+    - atr_12
+    - atr_20
+    - atr_24
+    - atr_28
+    - atr_30
+    - atr_42
+    - atr_56
+    - atr_84
+    - atr_pct_7
+    - atr_pct_10
+    - atr_pct_12
+    - atr_pct_20
+    - atr_pct_24
+    - atr_pct_28
+    - atr_pct_30
+    - atr_pct_42
+    - atr_pct_56
+    - atr_pct_84
+    # --- 布林宽度/位置（更多组合） ---
+    - bb_width_10_2
+    - bb_width_10_3
+    - bb_width_14_2
+    - bb_width_14_3
+    - bb_width_20_3
+    - bb_width_30_2
+    - bb_width_30_3
+    - bb_width_40_3
+    - bb_width_60_2
+    - bb_width_80_2
+    - bb_percent_b_10_2
+    - bb_percent_b_10_3
+    - bb_percent_b_14_2
+    - bb_percent_b_14_3
+    - bb_percent_b_20_3
+    - bb_percent_b_30_2
+    - bb_percent_b_30_3
+    - bb_percent_b_40_3
+    - bb_percent_b_60_2
+    - bb_percent_b_80_2
+
+  # Koopa-lite v2：在 v1 基础上补充更多预测步长（更贴近“多尺度”）
+  koopman_lite_v2:
+    - "@koopman_lite_v1"
+    - koop_pred_ret_h2
+    - koop_pred_ret_h8
+    - koop_pred_ret_h16
+
+  # 择时候选池：timing_pool_v2_200 + Koopa-lite v2
+  timing_pool_koop_v2_200:
+    - "@timing_pool_v2_200"
+    - "@koopman_lite_v2"
+
+  # 择时（单币）因子筛选：基于 v2_200 体检结果的精炼传统候选池（v3_pruned）
+  #
+  # 口径：
+  # - 仅看 horizon=1（与 export_timing_policy 的 prefer_horizon=1 对齐）
+  # - 对每个 pair：先过滤 verdict ∈ {pass, watch}，再按 roll_30d_median 取 Top10
+  # - 只要在 15m 或 1h 任一时间框进入过 Top10，即保留
+  #
+  # 当前规模：121（传统） / 131（传统 + Koopa-lite v2）
+  timing_pool_v3_pruned:
+    - ret_12
+    - roc_12
+    - stoch_k_14_3_3
+    - vol_12
+    - skew_72
+    - kurt_72
+    - volume_z_72
+    - bb_width_20_2
+    - ema_5
+    - ema_10
+    - ema_20
+    - ema_50
+    - ema_100
+    - ema_200
+    - ema_spread
+    - adx
+    - atr
+    - atr_pct
+    - macd
+    - macdsignal
+    - macdhist
+    - ret_96
+    - vol_24
+    - vol_48
+    - bb_width_40_2
+    - cci_40
+    - mfi_21
+    - stoch_k_9_3_3
+    - stoch_d_9_3_3
+    - ret_5
+    - ret_6
+    - ret_16
+    - ret_60
+    - ret_72
+    - ret_80
+    - ret_120
+    - vol_10
+    - vol_14
+    - vol_16
+    - vol_18
+    - vol_20
+    - vol_30
+    - vol_32
+    - vol_36
+    - vol_40
+    - vol_42
+    - vol_60
+    - vol_64
+    - vol_72
+    - vol_80
+    - vol_84
+    - vol_96
+    - vol_120
+    - vol_144
+    - ema_3
+    - ema_4
+    - ema_6
+    - ema_8
+    - ema_12
+    - ema_14
+    - ema_16
+    - ema_18
+    - ema_24
+    - ema_26
+    - ema_30
+    - ema_32
+    - ema_34
+    - ema_36
+    - ema_40
+    - ema_42
+    - ema_48
+    - ema_60
+    - ema_64
+    - ema_72
+    - ema_80
+    - ema_84
+    - ema_96
+    - ema_120
+    - ema_144
+    - rsi_42
+    - roc_5
+    - roc_6
+    - roc_16
+    - roc_40
+    - adx_10
+    - adx_12
+    - adx_20
+    - adx_24
+    - adx_28
+    - adx_30
+    - adx_42
+    - adx_56
+    - adx_84
+    - atr_7
+    - atr_10
+    - atr_12
+    - atr_20
+    - atr_24
+    - atr_28
+    - atr_30
+    - atr_42
+    - atr_56
+    - atr_84
+    - atr_pct_7
+    - atr_pct_10
+    - atr_pct_12
+    - atr_pct_20
+    - atr_pct_24
+    - atr_pct_28
+    - atr_pct_42
+    - atr_pct_56
+    - atr_pct_84
+    - bb_width_14_2
+    - bb_width_14_3
+    - bb_width_20_3
+    - bb_width_30_2
+    - bb_width_30_3
+    - bb_width_40_3
+    - bb_width_60_2
+    - bb_width_80_2
+    - bb_percent_b_60_2
+
+  # 择时候选池：timing_pool_v3_pruned + Koopa-lite v2
+  timing_pool_koop_v3_pruned:
+    - "@timing_pool_v3_pruned"
+    - "@koopman_lite_v2"
+
   SmallAccountFuturesTrendV1:
     - "@cta_core"
     - ema_short_{ema_short_len}

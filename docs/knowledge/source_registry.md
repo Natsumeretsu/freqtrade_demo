@@ -1,6 +1,6 @@
 # 外部来源登记（MCP 抓取记录）
 
-更新日期：2026-01-12
+更新日期：2026-01-15
 说明：
 
 - 本清单用于记录“外部链接 → 可用性 → 关键要点 → 在本仓库的落地映射”。
@@ -2543,3 +2543,669 @@
 - 引入原因：用户提供的论文线索，用于补充执行成本/冲击模型/微观结构变量的实证与方法。
 - 落地到本仓库：
   - 工程化落地笔记：`docs/knowledge/crypto_liquidity_microstructure_playbook.md`
+
+---
+
+## P) 加密市场风险因子（用户综述参考）
+
+说明：
+
+- 以下条目来自用户提供的“加密货币市场风险因子”综述的参考文献列表，用于把 URL 正式纳入仓库的“来源登记 → 可追溯抓取/落盘”流程。
+- 当前仅完成登记，未执行抓取；后续可用 `scripts/tools/source_registry_fetch_sources.py` / `scripts/tools/source_registry_fetch_sources_playwright.py` 按需抓取。
+
+### S-972 ssrn.com：abstract=3379131（三因子模型）
+
+- URL：https://www.ssrn.com/abstract=3379131
+- 抓取方式：待定（建议优先 MCP `markitdown`，必要时 `playwright`）
+- 抓取状态：todo（待抓取）
+- 引入原因：用户综述引用 [1]，用于三因子模型（CMKT/CSMB/CMOM）的来源登记。
+- 落地到本仓库：
+  - 工程化落地地图：`docs/knowledge/crypto_risk_factors_engineering_playbook.md`
+
+### S-973 nber.org：w25882（三因子模型/定价）
+
+- URL：https://www.nber.org/system/files/working_papers/w25882/w25882.pdf
+- 抓取方式：待定（建议优先 MCP `markitdown`，必要时 `playwright`）
+- 抓取状态：todo（待抓取）
+- 引入原因：用户综述引用 [2]，用于三因子模型解释力与规模/流动性等定价维度的来源登记。
+- 落地到本仓库：
+  - 工程化落地地图：`docs/knowledge/crypto_risk_factors_engineering_playbook.md`
+
+### S-974 journals.vsu.ru：波动/流动性风险（综述/论文）
+
+- URL：https://journals.vsu.ru/econ/article/view/3614
+- 抓取方式：待定（建议优先 MCP `markitdown`，必要时 `playwright`）
+- 抓取状态：todo（待抓取）
+- 引入原因：用户综述引用 [3]，用于“高波动 + 流动性不足 + 清算级联”的风险维度来源登记。
+- 落地到本仓库：
+  - 工程化落地地图：`docs/knowledge/crypto_risk_factors_engineering_playbook.md`
+
+### S-975 investopedia.com：加密波动管理（科普）
+
+- URL：https://www.investopedia.com/riding-the-wave-how-to-manage-crypto-volatility-11833947
+- 抓取方式：待定（建议优先 MCP `markitdown`，必要时 `playwright`）
+- 抓取状态：todo（待抓取）
+- 引入原因：用户综述引用 [4]，用于“波动管理/风险控制”科普材料来源登记（需与学术/实证交叉验证）。
+- 落地到本仓库：
+  - 工程化落地地图：`docs/knowledge/crypto_risk_factors_engineering_playbook.md`
+
+### S-976 moomoo.com：价格影响因素（科普/媒体）
+
+- URL：https://www.moomoo.com/sg/hans/learn/detail-7-key-factors-that-could-impact-cryptocurrency-prices-117206-240769245
+- 抓取方式：待定（建议优先 MCP `markitdown`，必要时 `playwright`）
+- 抓取状态：todo（待抓取）
+- 引入原因：用户综述引用 [5]，用于“情绪/社媒/宏观等综合因素”科普材料来源登记（避免把叙事当作可执行结论）。
+- 落地到本仓库：
+  - 工程化落地地图：`docs/knowledge/crypto_risk_factors_engineering_playbook.md`
+
+### S-977 binance.com：2026 市场挑战（媒体/观点）
+
+- URL：https://www.binance.com/en/square/post/01-08-2026-crypto-markets-face-key-challenges-for-growth-in-2026-34792356442450
+- 抓取方式：待定（建议优先 MCP `playwright`）
+- 抓取状态：todo（待抓取）
+- 引入原因：用户综述引用 [6]，用于“2026 年监管/利率/机构化”等风险因子叙事线索登记（需与一手政策/数据源交叉验证）。
+- 落地到本仓库：
+  - 工程化落地地图：`docs/knowledge/crypto_risk_factors_engineering_playbook.md`
+
+### S-978 proceedings.stis.ac.id：利率/收益因果关系（论文/会议）
+
+- URL：https://proceedings.stis.ac.id/icdsos/article/view/727
+- 抓取方式：待定（建议优先 MCP `markitdown`，必要时 `playwright`）
+- 抓取状态：todo（待抓取）
+- 引入原因：用户综述引用 [7]，用于“央行政策 → BTC/ETH 收益”的宏观维度来源登记。
+- 落地到本仓库：
+  - 工程化落地地图：`docs/knowledge/crypto_risk_factors_engineering_playbook.md`
+
+### S-979 investing.com：BTC vs S&P500（市场分析/媒体）
+
+- URL：https://www.investing.com/analysis/bitcoin-vs-sp-500--risk-reassessment-into-2026-200673050
+- 抓取方式：待定（建议优先 MCP `playwright`）
+- 抓取状态：todo（待抓取）
+- 引入原因：用户综述引用 [8]，用于“传统金融关联/风险偏好联动”维度的市场分析线索登记。
+- 落地到本仓库：
+  - 工程化落地地图：`docs/knowledge/crypto_risk_factors_engineering_playbook.md`
+
+### S-980 binance.com：宏观/项目/黑天鹅（媒体/观点）
+
+- URL：https://www.binance.com/es-MX/square/post/23562037194689
+- 抓取方式：待定（建议优先 MCP `playwright`）
+- 抓取状态：todo（待抓取）
+- 引入原因：用户综述引用 [9]，用于“黑天鹅/项目基本面/安全”等综合风险叙事线索登记（需与独立来源交叉验证）。
+- 落地到本仓库：
+  - 工程化落地地图：`docs/knowledge/crypto_risk_factors_engineering_playbook.md`
+
+### S-981 jemaca.aks.or.id：情绪/机构化（论文/文章）
+
+- URL：https://jemaca.aks.or.id/jemaca/article/view/23
+- 抓取方式：待定（建议优先 MCP `markitdown`，必要时 `playwright`）
+- 抓取状态：todo（待抓取）
+- 引入原因：用户综述引用 [10]，用于“情绪驱动/机构化双刃剑”等维度来源登记。
+- 落地到本仓库：
+  - 工程化落地地图：`docs/knowledge/crypto_risk_factors_engineering_playbook.md`
+
+### S-982 hde.hr：羊群效应（论文/文章）
+
+- URL：https://www.hde.hr/sadrzaj_en.aspx?Podrucje=2034
+- 抓取方式：待定（建议优先 MCP `playwright`）
+- 抓取状态：todo（待抓取）
+- 引入原因：用户综述引用 [11]，用于“羊群效应/行为金融”维度来源登记。
+- 落地到本仓库：
+  - 工程化落地地图：`docs/knowledge/crypto_risk_factors_engineering_playbook.md`
+
+### S-983 arxiv.org：2308.08554（智能合约/安全风险）
+
+- URL：https://arxiv.org/pdf/2308.08554.pdf
+- 抓取方式：待定（建议优先 MCP `markitdown`）
+- 抓取状态：todo（待抓取）
+- 引入原因：用户综述引用 [12]，用于“智能合约漏洞/DeFi 安全风险”维度来源登记。
+- 落地到本仓库：
+  - 工程化落地地图：`docs/knowledge/crypto_risk_factors_engineering_playbook.md`
+
+### S-984 republic.com：数字资产风险披露（科普/披露）
+
+- URL：https://republic.com/help/what-are-the-risks-associated-with-digital-assets-blockchain-technology-utility-1
+- 抓取方式：待定（建议优先 MCP `playwright`）
+- 抓取状态：todo（待抓取）
+- 引入原因：用户综述引用 [13]，用于“共识/预言机/交易不可逆”等技术与交易对手风险线索登记。
+- 落地到本仓库：
+  - 工程化落地地图：`docs/knowledge/crypto_risk_factors_engineering_playbook.md`
+
+### S-985 taurushq.com：数字资产监管风险披露（机构/披露）
+
+- URL：https://www.taurushq.com/legal/regulatory-risk/risks-digitalassets/
+- 抓取方式：待定（建议优先 MCP `markitdown`，必要时 `playwright`）
+- 抓取状态：todo（待抓取）
+- 引入原因：用户综述引用 [14]，用于“监管与法律确定性”维度来源登记。
+- 落地到本仓库：
+  - 工程化落地地图：`docs/knowledge/crypto_risk_factors_engineering_playbook.md`
+
+### S-986 oanda.com：交易风险（科普/平台）
+
+- URL：https://www.oanda.com/us-en/trade-tap-blog/asset-classes/crypto/risks-of-trading-cryptocurrency/
+- 抓取方式：待定（建议优先 MCP `markitdown`，必要时 `playwright`）
+- 抓取状态：todo（待抓取）
+- 引入原因：用户综述引用 [15]，用于“交易所/托管/合约交易风险”科普材料来源登记（需与一手规则交叉验证）。
+- 落地到本仓库：
+  - 工程化落地地图：`docs/knowledge/crypto_risk_factors_engineering_playbook.md`
+
+### S-987 crypto.com：2026 关注资产（媒体/观点）
+
+- URL：https://crypto.com/en/market-updates/top-cryptos-to-watch-in-2026
+- 抓取方式：待定（建议优先 MCP `playwright`）
+- 抓取状态：todo（待抓取）
+- 引入原因：用户综述引用 [16]，用于“生态竞争/技术路线变化/机构化叙事”线索登记（需与数据/实证交叉验证）。
+- 落地到本仓库：
+  - 工程化落地地图：`docs/knowledge/crypto_risk_factors_engineering_playbook.md`
+
+### S-988 coincub.com：波动与风险评估（科普/媒体）
+
+- URL：https://coincub.com/risks-and-rewards-in-assessing-volatility-in-the-crypto-market/
+- 抓取方式：待定（建议优先 MCP `markitdown`，必要时 `playwright`）
+- 抓取状态：todo（待抓取）
+- 引入原因：用户综述引用 [17]，用于“波动风险与度量”科普材料来源登记。
+- 落地到本仓库：
+  - 工程化落地地图：`docs/knowledge/crypto_risk_factors_engineering_playbook.md`
+
+### S-989 mdpi.com：1911-8074/12/2/52（跨币蔓延/外溢风险）
+
+- URL：https://www.mdpi.com/1911-8074/12/2/52/pdf
+- 抓取方式：待定（建议优先 MCP `playwright` 或 `markitdown`）
+- 抓取状态：todo（待抓取）
+- 引入原因：用户综述引用 [18]，用于“跨币蔓延/溢出效应网络”维度来源登记。
+- 落地到本仓库：
+  - 工程化落地地图：`docs/knowledge/crypto_risk_factors_engineering_playbook.md`
+
+### S-990 journal.sinergi.or.id：黑天鹅/系统性风险（论文/文章）
+
+- URL：https://journal.sinergi.or.id/index.php/ijat/article/view/479
+- 抓取方式：待定（建议优先 MCP `markitdown`，必要时 `playwright`）
+- 抓取状态：todo（待抓取）
+- 引入原因：用户综述引用 [19]，用于“黑天鹅事件系统性冲击”维度来源登记。
+- 落地到本仓库：
+  - 工程化落地地图：`docs/knowledge/crypto_risk_factors_engineering_playbook.md`
+
+### S-991 arxiv.org：2407.15766（尾部风险/度量方法）
+
+- URL：http://arxiv.org/pdf/2407.15766.pdf
+- 抓取方式：待定（建议优先 MCP `markitdown`）
+- 抓取状态：todo（待抓取）
+- 引入原因：用户综述引用 [20]，用于“CVaR/尾部风险度量与方法论”维度来源登记。
+- 落地到本仓库：
+  - 工程化落地地图：`docs/knowledge/crypto_risk_factors_engineering_playbook.md`
+
+### S-992 garp.org：数字资产风险（行业/机构）
+
+- URL：https://www.garp.org/risk-intelligence/market/digital-asset-risk-241018
+- 抓取方式：待定（建议优先 MCP `playwright`）
+- 抓取状态：todo（待抓取）
+- 引入原因：用户综述引用 [21]，用于“风险治理与行业视角”维度来源登记。
+- 落地到本仓库：
+  - 工程化落地地图：`docs/knowledge/crypto_risk_factors_engineering_playbook.md`
+
+### S-993 bcg.com：数字金融资产风险与控制框架（行业框架）
+
+- URL：https://www.bcg.com/publications/2024/a-risk-and-control-framework-for-digital-financial-assets
+- 抓取方式：待定（建议优先 MCP `playwright`）
+- 抓取状态：todo（待抓取）
+- 引入原因：用户综述引用 [22]，用于“综合风险与控制框架（原则/控制措施）”维度来源登记。
+- 落地到本仓库：
+  - 工程化落地地图：`docs/knowledge/crypto_risk_factors_engineering_playbook.md`
+
+---
+
+## Q) 加密货币定价因子模型（五因子/动态因子）
+
+说明：
+
+- 本分区用于登记“横截面定价/多因子模型”相关来源，服务于五因子模型与后续研究复现。
+- 其中部分因子（NET/市值/币龄）依赖外部数据源；本仓库默认约束为 OHLCV，建议先用研究层离线验证，再考虑工程落地。
+- 当前项目主线为**单交易对时间序列预测/择时**；本分区内容主要用于风险语义与背景校准，后续如引入外部数据（P2）再讨论复现。
+
+### S-994 abfer.org：Cong 等（C-5/五因子）演示稿
+
+- URL：https://abfer.org/media/abfer-events-2022/annual-conference/slides-investfin/Lin-William-CONG-presentation.pdf
+- 抓取方式：待定（建议优先 MCP `markitdown`，必要时 `playwright`）
+- 抓取状态：todo（待抓取）
+- 引入原因：用户综述引用 [1]，用于 C-5（MKT/SMB/VAL/NET/MOM）五因子模型的定义与实证结果口径。
+- 落地到本仓库：
+  - 五因子模型笔记：`docs/knowledge/crypto_pricing_five_factor_models_playbook.md`
+
+### S-995 wp.lancs.ac.uk：Bianchi（IPCA/动态因子）演示稿
+
+- URL：http://wp.lancs.ac.uk/fofi2022/files/2022/08/FoFI-2022-056-Daniele-Bianchi.pdf
+- 抓取方式：待定（建议优先 MCP `markitdown`，必要时 `playwright`）
+- 抓取状态：todo（待抓取）
+- 引入原因：用户综述引用 [3]，用于 IPCA（Instrumented PCA）框架与“时变因子载荷”的实证口径。
+- 落地到本仓库：
+  - 五因子模型笔记：`docs/knowledge/crypto_pricing_five_factor_models_playbook.md`
+
+### S-996 emerald.com：Fama-French 五因子在加密中的适用性（论文/文章）
+
+- URL：http://www.emerald.com/cafr/article/25/2/145-183/14403
+- 抓取方式：待定（建议优先 MCP `playwright`）
+- 抓取状态：todo（待抓取）
+- 引入原因：用户综述引用 [4]，用于说明传统 FF5（RMW/CMA 等）在加密中的定义与适配挑战。
+- 落地到本仓库：
+  - 五因子模型笔记：`docs/knowledge/crypto_pricing_five_factor_models_playbook.md`
+
+### S-997 cambridge.org：Trend factor for the cross section of cryptocurrency returns（论文 PDF）
+
+- URL：https://www.cambridge.org/core/services/aop-cambridge-core/content/view/4C1509ACBA33D5DCAF0AC24379148178/S0022109024000747a.pdf/trend_factor_for_the_cross_section_of_cryptocurrency_returns.pdf
+- 抓取方式：待定（建议优先 MCP `markitdown`，必要时 `playwright`）
+- 抓取状态：todo（待抓取）
+- 引入原因：用户综述引用 [7]，用于 CTREND/趋势因子的研究线索与结果口径登记。
+- 落地到本仓库：
+  - 五因子模型笔记：`docs/knowledge/crypto_pricing_five_factor_models_playbook.md`
+
+### S-998 snb.ch：Bianchi（动态因子模型）研讨会材料
+
+- URL：https://www.snb.ch/dam/jcr:cd47611a-4261-4e74-bd69-061ab54433ce/sem_2023_05_26_bianchi.n.pdf
+- 抓取方式：待定（建议优先 MCP `markitdown`，必要时 `playwright`）
+- 抓取状态：todo（待抓取）
+- 引入原因：用户综述引用 [12]，用于“动态因子模型/样本外表现优于固定观测因子”的证据线索登记。
+- 落地到本仓库：
+  - 五因子模型笔记：`docs/knowledge/crypto_pricing_five_factor_models_playbook.md`
+
+### S-999 docs.cfbenchmarks.com：A Factor Model for Digital Assets（机构级因子模型白皮书）
+
+- URL：https://docs.cfbenchmarks.com/A-Factor-Model-for-Digital-Assets.pdf
+- 抓取方式：待定（建议优先 MCP `markitdown`，必要时 `playwright`）
+- 抓取状态：todo（待抓取）
+- 引入原因：用户综述引用 [55]，用于 CF Benchmarks 机构级因子模型（七因子、数据源与方法学）的来源登记。
+- 落地到本仓库：
+  - 因子模型生态综述：`docs/knowledge/crypto_factor_model_ecosystem_survey.md`
+### S-1000 cfbenchmarks.com：introduces first institutional-grade factor model（博客）
+
+- URL：https://www.cfbenchmarks.com/blog/cf-benchmarks-introduces-first-institutional-grade-factor-model-for-digital-assets
+- 抓取方式：待定（建议优先 MCP `playwright`）
+- 抓取状态：todo（待抓取）
+- 引入原因：用户综述引用 [4]，用于“机构级模型发布说明/解读”的线索登记（以白皮书为主、博客为辅）。
+- 落地到本仓库：
+  - 因子模型生态综述：`docs/knowledge/crypto_factor_model_ecosystem_survey.md`
+
+### S-1001 cfbenchmarks.com：CF Factor Intelligence（博客）
+
+- URL：https://www.cfbenchmarks.com/blog/cf-benchmarks-launches-cf-factor-intelligence-enabling-actionable-insights-from-our-validated-model
+- 抓取方式：待定（建议优先 MCP `playwright`）
+- 抓取状态：todo（待抓取）
+- 引入原因：用户综述引用 [5]，用于“模型落地产品化/因子信号服务化”的线索登记。
+- 落地到本仓库：
+  - 因子模型生态综述：`docs/knowledge/crypto_factor_model_ecosystem_survey.md`
+
+### S-1002 arxiv.org：2601.07664（Giglio-Xiu 三步法/隐层因子应用线索）
+
+- URL：https://arxiv.org/pdf/2601.07664.pdf
+- 抓取方式：待定（建议优先 MCP `markitdown`）
+- 抓取状态：todo（待抓取）
+- 引入原因：用户综述引用 [8]，用于“隐层因子 + Giglio-Xiu 三步法”在加密定价中的应用线索登记。
+- 落地到本仓库：
+  - 因子模型生态综述：`docs/knowledge/crypto_factor_model_ecosystem_survey.md`
+
+### S-1003 sciencedirect.com：pii/S1057521925004764（多因子扩展/11 因子框架线索）
+
+- URL：https://www.sciencedirect.com/science/article/abs/pii/S1057521925004764
+- 抓取方式：待定（建议优先 MCP `playwright`；可能存在付费墙/人机验证）
+- 抓取状态：todo（待抓取）
+- 引入原因：用户综述引用 [10]，用于“更高维度因子框架（例如 11 因子）”的研究线索登记。
+- 落地到本仓库：
+  - 因子模型生态综述：`docs/knowledge/crypto_factor_model_ecosystem_survey.md`
+
+### S-1004 dl.acm.org：10.1145/3764727.3764730（观测性模型/基准线索）
+
+- URL：https://dl.acm.org/doi/10.1145/3764727.3764730
+- 抓取方式：待定（建议优先 MCP `playwright`；可能存在付费墙/登录限制）
+- 抓取状态：todo（待抓取）
+- 引入原因：用户综述引用 [1]，用于“基础观测性模型（CAPM/单因子等）在加密中的基准表现”的线索登记。
+- 落地到本仓库：
+  - 因子模型生态综述：`docs/knowledge/crypto_factor_model_ecosystem_survey.md`
+
+### S-1005 eudl.eu：10.4108/eai.18-11-2022.2327109（四因子/反转扩展线索）
+
+- URL：https://eudl.eu/pdf/10.4108/eai.18-11-2022.2327109
+- 抓取方式：待定（建议优先 MCP `markitdown`，必要时 `playwright`）
+- 抓取状态：todo（待抓取）
+- 引入原因：用户综述引用 [3]，用于“Carhart 扩展（反转因子）在加密中的应用线索”的来源登记。
+- 落地到本仓库：
+  - 因子模型生态综述：`docs/knowledge/crypto_factor_model_ecosystem_survey.md`
+
+---
+
+## R) 加密资产价格预测模型（时间序列 / 深度学习）
+
+说明：
+
+- 本分区用于登记“价格/收益预测”模型的研究线索，服务于预测模型的工程验收与落地边界。
+- 注意：预测模型不等价于横截面定价因子模型；指标口径不可混用。
+- 当前项目主线为**单交易对时间序列预测/择时**；本分区为主线参考。
+
+### S-1006 arxiv.org：N-BEATS（时间序列预测）
+
+- URL：https://arxiv.org/pdf/1905.10437.pdf
+- 抓取方式：待定（建议优先 MCP `markitdown`，必要时 `playwright`）
+- 抓取状态：todo（待抓取）
+- 引入原因：N-BEATS 的原始论文，用于理解模型结构、训练与评估设置，并作为“高分结果需警惕”的对照基准。
+- 落地到本仓库：
+  - 预测模型工程验收：`docs/knowledge/crypto_price_forecasting_models_playbook.md`
+
+### S-1007 publications.eai.eu：N-BEATS 在加密价格预测中的应用（论文/案例）
+
+- URL：https://publications.eai.eu/index.php/sis/article/view/9006
+- 抓取方式：待定（建议优先 MCP `playwright`，必要时 `markitdown`）
+- 抓取状态：todo（待抓取）
+- 引入原因：用于登记“在加密场景报告的评估指标与设置”，并提示常见高分陷阱与复现要点。
+- 落地到本仓库：
+  - 预测模型工程验收：`docs/knowledge/crypto_price_forecasting_models_playbook.md`
+
+### S-1008 scitepress.org：CNN-BiLSTM + 注意力（加密价格预测，论文 PDF）
+
+- URL：https://www.scitepress.org/Papers/2024/132698/132698.pdf
+- 抓取方式：待定（建议优先 MCP `markitdown`，必要时 `playwright`）
+- 抓取状态：todo（待抓取）
+- 引入原因：用于混合深度模型（CNN+BiLSTM+Attention）在加密预测中的结构与评估口径线索登记。
+- 落地到本仓库：
+  - 预测模型工程验收：`docs/knowledge/crypto_price_forecasting_models_playbook.md`
+
+### S-1009 arxiv.org：TimeXer（Transformer 变体）时间序列预测（HTML）
+
+- URL：https://arxiv.org/html/2512.22326v1
+- 抓取方式：待定（建议优先 MCP `markitdown`，必要时 `playwright`）
+- 抓取状态：todo（待抓取）
+- 引入原因：用于登记 Transformer 变体在时间序列预测中的结构与多变量建模线索（含外部特征融合的工程注意事项）。
+- 落地到本仓库：
+  - 预测模型工程验收：`docs/knowledge/crypto_price_forecasting_models_playbook.md`
+
+---
+
+## S) 因子模型实现与框架集成（工程参考）
+
+说明：
+
+- 本分区用于登记“实现细节/数据治理/框架集成”相关来源，用于把论文口径落到本仓库的研究层与执行层。
+- 若来源与结论只用于“概念对齐”，不直接参与本仓库结论，则不强制登记（避免 registry 膨胀）。
+- 当前项目主线为**单交易对时间序列预测/择时**；因此这里的“因子模型实现”优先解释为：把因子语义映射到可在线计算的时间序列特征与 policy 输出，而不是横截面轮动实现。
+
+### S-1010 artemisanalytics.com：Crypto Factor Model Analysis（实现细节/口径参考）
+
+- URL：https://www.artemisanalytics.com/resources/crypto-factor-model-analysis
+- 抓取方式：待定（建议优先 MCP `playwright`，必要时 `markitdown`）
+- 抓取状态：todo（待抓取）
+- 引入原因：用户材料引用 [1]，用于 SMB/VAL/MOM/NET 的构建步骤、分组口径与“成本侵蚀”风险提示的实现参考。
+- 落地到本仓库：
+  - 实现与集成落地：`docs/knowledge/crypto_factor_model_implementation_playbook.md`
+
+### S-1011 qlib.readthedocs.io：Qlib 文档 PDF（v0.5.0）
+
+- URL：https://qlib.readthedocs.io/_/downloads/en/v0.5.0/pdf/
+- 抓取方式：待定（建议优先 MCP `playwright`；下载型页面可能需要渲染）
+- 抓取状态：todo（待抓取）
+- 引入原因：用户材料引用 [7]，用于 Qlib 工作流（数据→因子→模型→组合→回测）与研究侧组件的背景说明。
+- 落地到本仓库：
+  - 实现与集成落地：`docs/knowledge/crypto_factor_model_implementation_playbook.md`
+
+### S-1012 qlib.readthedocs.io：Advanced Alpha（因子/表达式系统）
+
+- URL：https://qlib.readthedocs.io/en/stable/advanced/alpha.html
+- 抓取方式：待定（建议优先 MCP `markitdown`，必要时 `playwright`）
+- 抓取状态：todo（待抓取）
+- 引入原因：用户材料引用 [8]，用于 Qlib 因子表达式系统的参考入口；本仓库默认不直接复用表达式系统（避免与 factor_engine 形成第二套口径）。
+- 落地到本仓库：
+  - 实现与集成落地：`docs/knowledge/crypto_factor_model_implementation_playbook.md`
+
+---
+
+## T) 信息论 / 转移熵 / 复杂系统（单交易对时间序列）
+
+说明：
+
+- 本分区用于登记“熵/转移熵/复杂度/信息流网络”等信息论方法在加密市场中的研究线索。
+- 当前项目主线为**单交易对时间序列预测/择时**：优先关注“熵/复杂度”作为噪声与体制特征的单币落地；跨币信息流网络仅作背景校准。
+
+### S-1013 arxiv.org：2210.02633（加密收益的信息论/分布特性线索）
+
+- URL：https://arxiv.org/pdf/2210.02633.pdf
+- 抓取方式：待定（建议优先 MCP `markitdown`）
+- 抓取状态：todo（待抓取）
+- 引入原因：用户材料引用 [1]，用于 Shannon 熵与重尾分布等信息论视角的研究线索登记。
+- 落地到本仓库：
+  - 信息论落地笔记：`docs/knowledge/crypto_information_theory_signal_system_playbook.md`
+
+### S-1014 mdpi.com：Entropy 24(11) 1583（重尾/非正态与信息论分析线索，PDF）
+
+- URL：https://www.mdpi.com/1099-4300/24/11/1583/pdf?version=1667289176
+- 抓取方式：待定（建议优先 MCP `markitdown`）
+- 抓取状态：todo（待抓取）
+- 引入原因：用户材料引用 [2]，用于“收益分布显著偏离正态、重尾拟合更优”等证据线索登记。
+- 落地到本仓库：
+  - 信息论落地笔记：`docs/knowledge/crypto_information_theory_signal_system_playbook.md`
+
+### S-1015 arxiv.org：1906.05740（情绪-价格 Transfer Entropy / 信息流向）
+
+- URL：https://arxiv.org/pdf/1906.05740.pdf
+- 抓取方式：待定（建议优先 MCP `markitdown`）
+- 抓取状态：todo（待抓取）
+- 引入原因：用户材料引用 [3]，用于“情绪与价格的非线性有向因果（TE）强于线性因果”的研究线索登记。
+- 落地到本仓库：
+  - 信息论落地笔记：`docs/knowledge/crypto_information_theory_signal_system_playbook.md`
+
+### S-1016 pmc.ncbi.nlm.nih.gov：PMC7540793（情绪/社媒与价格：非线性关系线索）
+
+- URL：https://pmc.ncbi.nlm.nih.gov/articles/PMC7540793/
+- 抓取方式：待定（建议优先 MCP `markitdown`，必要时 `playwright`）
+- 抓取状态：todo（待抓取）
+- 引入原因：用户材料引用 [4]，用于“社交情绪与价格非线性关系/双向耦合”的补充线索登记。
+- 落地到本仓库：
+  - 信息论落地笔记：`docs/knowledge/crypto_information_theory_signal_system_playbook.md`
+
+### S-1017 mdpi.com：Entropy 27(4) 450（复杂度-熵平面/噪声类型分类线索）
+
+- URL：https://www.mdpi.com/1099-4300/27/4/450
+- 抓取方式：待定（建议优先 MCP `markitdown`，必要时 `playwright`）
+- 抓取状态：todo（待抓取）
+- 引入原因：用户材料引用 [7]，用于“复杂度-熵平面（CECP）分类混沌/随机/有色噪声”的研究线索登记。
+- 落地到本仓库：
+  - 信息论落地笔记：`docs/knowledge/crypto_information_theory_signal_system_playbook.md`
+
+### S-1018 pmc.ncbi.nlm.nih.gov：PMC12027155（复杂度-熵平面：加密生命周期线索）
+
+- URL：https://pmc.ncbi.nlm.nih.gov/articles/PMC12027155/
+- 抓取方式：待定（建议优先 MCP `markitdown`，必要时 `playwright`）
+- 抓取状态：todo（待抓取）
+- 引入原因：用户材料引用 [8]，用于“按币种生命周期划分噪声类型/可预测性”的研究线索登记。
+- 落地到本仓库：
+  - 信息论落地笔记：`docs/knowledge/crypto_information_theory_signal_system_playbook.md`
+
+### S-1019 nature.com：s41598-023-31618-4（市场效率量化：量子模型线索）
+
+- URL：https://www.nature.com/articles/s41598-023-31618-4
+- 抓取方式：待定（建议优先 MCP `playwright`；可能需要渲染）
+- 抓取状态：todo（待抓取）
+- 引入原因：用户材料引用 [9]，用于“市场效率可量化指标”的背景校准线索登记。
+- 落地到本仓库：
+  - 信息论落地笔记：`docs/knowledge/crypto_information_theory_signal_system_playbook.md`
+
+### S-1020 arxiv.org：2309.04959（区块链队列系统：最大熵原理线索）
+
+- URL：https://arxiv.org/pdf/2309.04959.pdf
+- 抓取方式：待定（建议优先 MCP `markitdown`）
+- 抓取状态：todo（待抓取）
+- 引入原因：用户材料引用 [10]，用于“区块链系统视角（吞吐/延迟/参数约束）”的背景校准线索登记。
+- 落地到本仓库：
+  - 信息论落地笔记：`docs/knowledge/crypto_information_theory_signal_system_playbook.md`
+
+### S-1021 mdpi.com：Entropy 22(7) 760（转移熵网络：风险预警线索，PDF）
+
+- URL：https://res.mdpi.com/d_attachment/entropy/entropy-22-00760/article_deploy/entropy-22-00760.pdf
+- 抓取方式：待定（建议优先 MCP `markitdown`）
+- 抓取状态：todo（待抓取）
+- 引入原因：用户材料引用 [11]，用于“多变量转移熵网络在动荡期的聚类/复杂度变化”线索登记（跨币网络，背景）。
+- 落地到本仓库：
+  - 信息论落地笔记：`docs/knowledge/crypto_information_theory_signal_system_playbook.md`
+
+### S-1022 arxiv.org：2111.09057（信息流网络/系统风险线索）
+
+- URL：http://arxiv.org/pdf/2111.09057.pdf
+- 抓取方式：待定（建议优先 MCP `markitdown`）
+- 抓取状态：todo（待抓取）
+- 引入原因：用户材料引用 [12]，用于“信息流网络分析/风险预警”的补充线索登记（背景）。
+- 落地到本仓库：
+  - 信息论落地笔记：`docs/knowledge/crypto_information_theory_signal_system_playbook.md`
+
+### S-1023 mdpi.com：Entropy 27(12) 1234（市场反应窗口不对称：信息熵变化线索）
+
+- URL：https://www.mdpi.com/1099-4300/27/12/1234
+- 抓取方式：待定（建议优先 MCP `markitdown`，必要时 `playwright`）
+- 抓取状态：todo（待抓取）
+- 引入原因：用户材料引用 [14]，用于“利好/利空反应窗口差异与信息熵变化”的背景线索登记。
+- 落地到本仓库：
+  - 信息论落地笔记：`docs/knowledge/crypto_information_theory_signal_system_playbook.md`
+
+---
+
+## U) 信号组合 / 长短腿 / 去冗余（单交易对择时映射）
+
+说明：
+
+- 本分区主要来自传统股票/因子研究，但这里仅取其“组合构建与评估方法论”，映射到本仓库的单交易对择时与执行。
+- 重点不是横截面选币，而是：长/短方向分离评估、信号冲突处理、以及特征冗余（投影）的诊断与治理。
+
+### S-1024 research-center.amundi.com：拆分长短腿/纯多头因子（卖空受限下的组合构建线索）
+
+- URL：https://research-center.amundi.com/files/nuxeo/dl/64691927-6c77-4b12-b267-93cc85cd0619
+- 抓取方式：待定（建议优先 MCP `markitdown`，必要时 `playwright`）
+- 抓取状态：todo（待抓取）
+- 引入原因：用户材料引用，用于“长短腿分离优于简单混合、卖空约束下的可实施组合构建”的证据线索登记。
+- 落地到本仓库：
+  - 长/短信号分离与去冗余：`docs/knowledge/factor_single_vs_multi_timing.md`
+
+### S-1025 gsam.com：Combining Investment Signals in Long/Short Strategies（Integrated vs Sleeves 的方法论线索）
+
+- URL：https://www.gsam.com/content/dam/gsam/pdfs/institutions/en/articles/2018/Combining_Investment_Signals_in_LongShort_Strategies.pdf
+- 抓取方式：待定（建议优先 MCP `markitdown`）
+- 抓取状态：todo（待抓取）
+- 引入原因：用户材料引用，用于“信号组合：集成法 vs 分离法（sleeves）”的工程化对齐线索登记。
+- 落地到本仓库：
+  - 长/短信号分离与冲突处理：`docs/knowledge/factor_single_vs_multi_timing.md`
+
+### S-1026 alphaarchitect.com：combine vs separate factor exposures（因子暴露混合/分离的实践讨论）
+
+- URL：https://alphaarchitect.com/should-investors-combine-or-separate-their-factor-exposures/
+- 抓取方式：待定（建议优先 MCP `markitdown`，必要时 `playwright`）
+- 抓取状态：todo（待抓取）
+- 引入原因：用户材料引用，用于“信号混合会引入抵消/稀释；分离更便于治理”的直觉校准线索登记。
+- 落地到本仓库：
+  - 长/短信号分离与组合方式：`docs/knowledge/factor_single_vs_multi_timing.md`
+
+### S-1027 cfm.com：Equity Factors: To Short or Not To Short（空头腿的贡献、成本与可预测性不对称线索）
+
+- URL：https://www.cfm.com/wp-content/uploads/2022/12/137-Equity-Factors-To-Short-Or-Not-To-Short-That-Is-The-Question.pdf
+- 抓取方式：待定（建议优先 MCP `markitdown`）
+- 抓取状态：todo（待抓取）
+- 引入原因：用户材料引用，用于“空头腿是否值得纳入：预测能力阈值、分散化贡献与成本权衡”的线索登记。
+- 落地到本仓库：
+  - 按 side 拆开评估（长/短腿）：`docs/knowledge/factor_single_vs_multi_timing.md`
+
+### S-1028 quantpedia.com：Long-Short vs Long-Only Implementation of Equity Factors（实施约束/成本/容量对比线索）
+
+- URL：https://quantpedia.com/long-short-vs-long-only-implementation-of-equity-factors/
+- 抓取方式：待定（建议优先 MCP `playwright`；可能存在访问限制）
+- 抓取状态：todo（待抓取）
+- 引入原因：用户材料引用，用于“长短 vs 纯多头在成本/容量/约束下的取舍”线索登记。
+- 落地到本仓库：
+  - 合约择时的成本敏感与 side 评估：`docs/knowledge/factor_single_vs_multi_timing.md`
+
+### S-1029 nber.org：w24618（潜在因子/低维子空间与‘投影’直觉的理论背景线索）
+
+- URL：https://www.nber.org/system/files/working_papers/w24618/w24618.pdf
+- 抓取方式：待定（建议优先 MCP `markitdown`）
+- 抓取状态：todo（待抓取）
+- 引入原因：用户材料引用，用于“少数潜在维度张成大部分系统性信息、不同因子可能只是投影/旋转”的理论背景线索登记。
+- 落地到本仓库：
+  - 特征去冗余与‘本征子空间’视角：`docs/knowledge/factor_single_vs_multi_timing.md`
+
+### S-1030 sciencedirect.com：pii/S1566014119301669（factor spanning test / 冗余因子检验线索）
+
+- URL：https://www.sciencedirect.com/science/article/abs/pii/S1566014119301669
+- 抓取方式：待定（建议优先 MCP `playwright`；可能存在付费墙/登录限制）
+- 抓取状态：todo（待抓取）
+- 引入原因：用户材料引用，用于“spanning test：检验新因子是否可由已有因子线性解释，从而过滤冗余”的方法论线索登记。
+- 落地到本仓库：
+  - 用 spanning 思路判断新特征是否新增维度：`docs/knowledge/factor_single_vs_multi_timing.md`
+
+---
+
+## V) 采样 / 多尺度 / 时间尺度（单交易对）
+
+说明：
+
+- 本分区用于登记“时间尺度不是周期、采样与混叠、以及多尺度分解/体制识别”的基础概念来源。
+- 这些来源主要服务于：单交易对择时的评估口径（固定 timeframe + 跨尺度 sanity check），以及微观结构信号的半衰期/尺度错配解释。
+
+### S-1031 en.wikipedia.org：Nyquist frequency（采样与混叠的基础定义）
+
+- URL：https://en.wikipedia.org/wiki/Nyquist_frequency
+- 抓取方式：待定（建议优先 MCP `markitdown`）
+- 抓取状态：todo（待抓取）
+- 引入原因：用于“timeframe=采样间隔 Δt，改变周期会改变可观测频率范围；高频结构可能混叠成低频伪规律”的概念对齐。
+- 落地到本仓库：
+  - timeframe 作为超参数与跨尺度复核：`docs/knowledge/factor_single_vs_multi_timing.md`
+  - 半衰期错配 + aliasing 风险提示：`docs/knowledge/crypto_liquidity_microstructure_playbook.md`
+
+### S-1032 pmc.ncbi.nlm.nih.gov：PMC4447444（Hurst 指数与自相似性的基础线索）
+
+- URL：https://pmc.ncbi.nlm.nih.gov/articles/PMC4447444/
+- 抓取方式：待定（建议优先 MCP `markitdown`）
+- 抓取状态：todo（待抓取）
+- 引入原因：用于“自相似/长期记忆可用 Hurst 指数刻画；且 H 会随尺度变化（multiscaling）”的概念锚点。
+- 落地到本仓库：
+  - 多尺度体制标签（可选增强）：`docs/knowledge/factor_single_vs_multi_timing.md`
+
+### S-1033 hindawi.com：4024953（Wavelet/EMD 的多尺度分解线索）
+
+- URL：https://www.hindawi.com/journals/mpe/2022/4024953/
+- 抓取方式：待定（建议优先 MCP `markitdown`）
+- 抓取状态：todo（待抓取）
+- 引入原因：用于“别选最优周期，而是做多尺度分解（趋势/中频/高频/噪声）并按尺度融合”的方法论线索登记。
+- 落地到本仓库：
+  - 多尺度融合的工程化直觉（可选增强）：`docs/knowledge/factor_single_vs_multi_timing.md`
+
+### S-1034 arxiv.org：2201.10466（rough volatility：波动的多尺度与粗糙性线索）
+
+- URL：http://arxiv.org/pdf/2201.10466.pdf
+- 抓取方式：待定（建议优先 MCP `markitdown`）
+- 抓取状态：todo（待抓取）
+- 引入原因：用于“波动本身具有多尺度粗糙性（H 很低）的证据线索”，提醒波动预测/风控信号要做尺度分段与样本外检验。
+- 落地到本仓库：
+  - 风险标签与波动门控的尺度意识：`docs/knowledge/crypto_risk_factors_engineering_playbook.md`
+  - timeframe 选择与稳健性校验：`docs/knowledge/factor_single_vs_multi_timing.md`
+
+---
+
+## W) Koopman / 本征模态（时序预测：从“选周期”到“学算子”）
+
+说明：
+
+- 本分区用于登记 Koopman/DMD/EDMD 相关的参考来源（面向“非平稳时序”的动力系统视角）。
+- 在本仓库的落地优先级：先跑通“可验收闭环”（额外因子 → timing_audit 体检 → policy 去冗余），再考虑引入更重的训练型模型。
+
+### S-1035 arxiv.org：2305.18803（Koopa: Learning Non-stationary Time Series Dynamics with Koopman Predictors）
+
+- URL：https://arxiv.org/abs/2305.18803
+- 抓取方式：待定（建议优先 MCP `markitdown`）
+- 抓取状态：todo（待抓取）
+- 引入原因：
+  - 用户提供的核心参考：用 Koopman Predictor + 时变/时不变拆分，建模非平稳时间序列动力学；
+  - 其中 FourierFilter（频域拆分）与局部算子（eDMD）设计，直接启发本仓库的 Koopa-lite 原型。
+- 落地到本仓库：
+  - Koopa-lite 原型脚本（FFT 拆分 + rolling Koopman/DMD）：`scripts/qlib/koopman_lite.py`
+  - 额外特征接入择时体检（同口径验收）：`scripts/qlib/timing_audit.py`
+
+### S-1036 github.com：thuml/Koopa（Koopa 代码仓库）
+
+- URL：https://github.com/thuml/Koopa
+- 抓取方式：待定（建议优先 MCP `markitdown`；若 README 渲染不全再用 `playwright`）
+- 抓取状态：todo（待抓取）
+- 引入原因：
+  - 作为“实现参照系”：FourierFilter、KPLayer（全局/局部 Koopman Predictor）、operator adaptation 的工程细节。
+- 落地到本仓库：
+  - 参照实现后的轻量闭环：`scripts/qlib/koopman_lite.py`
+  - 本征模态/去冗余的工程化说明：`docs/knowledge/factor_single_vs_multi_timing.md`

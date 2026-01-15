@@ -12,7 +12,7 @@ import yaml
 from freqtrade.persistence import Trade
 from freqtrade.strategy import BooleanParameter, DecimalParameter, IStrategy, IntParameter, merge_informative_pair
 
-from trading_system.application.timing_audit import TimingAuditParams, position_from_thresholds, precompute_quantile_thresholds
+from trading_system.application.timing_audit import TimingAuditParams, continuous_score_from_thresholds, precompute_quantile_thresholds
 from trading_system.infrastructure.container import get_container
 from trading_system.infrastructure.freqtrade_data import get_analyzed_dataframe_upto_time
 
@@ -45,7 +45,7 @@ class SmallAccountFuturesTimingExecV1(IStrategy):
     本策略就是这个“通用执行器”：
     - 主信号：15m（默认）
     - 复核信号：1h（默认）
-    - 每个 timeframe 支持多因子加权投票（默认取 TopK=3 的同权）
+    - 每个 timeframe 支持多因子加权连续评分（更像“投影/加权和”，默认取 TopK=3）
     - 信号生成方式与 scripts/qlib/timing_audit.py 一致：滚动分位阈值 -> 多/空/空仓
 
     配置入口：
@@ -80,10 +80,17 @@ class SmallAccountFuturesTimingExecV1(IStrategy):
     buy_main_quantiles = IntParameter(3, 10, default=5, space="buy", optimize=False)
     buy_main_lookback_days = IntParameter(3, 15, default=14, space="buy", optimize=False)
     buy_main_entry_threshold = DecimalParameter(0.10, 1.00, default=0.67, decimals=2, space="buy", optimize=False)
+    buy_main_exit_threshold = DecimalParameter(0.10, 1.00, default=0.67, decimals=2, space="buy", optimize=False)
 
     buy_confirm_quantiles = IntParameter(3, 10, default=5, space="buy", optimize=False)
     buy_confirm_lookback_days = IntParameter(5, 60, default=30, space="buy", optimize=False)
     buy_confirm_entry_threshold = DecimalParameter(0.10, 1.00, default=0.67, decimals=2, space="buy", optimize=False)
+    buy_confirm_exit_threshold = DecimalParameter(0.10, 1.00, default=0.67, decimals=2, space="buy", optimize=False)
+
+    buy_fusion_main_weight = DecimalParameter(0.0, 1.0, default=0.70, decimals=2, space="buy", optimize=False)
+    buy_fusion_confirm_weight = DecimalParameter(0.0, 1.0, default=0.30, decimals=2, space="buy", optimize=False)
+    buy_fusion_entry_threshold = DecimalParameter(0.10, 1.00, default=0.90, decimals=2, space="buy", optimize=False)
+    buy_fusion_exit_threshold = DecimalParameter(0.10, 1.00, default=0.80, decimals=2, space="buy", optimize=False)
 
     buy_require_confirm = BooleanParameter(default=True, space="buy", optimize=False)
     buy_enable_short = BooleanParameter(default=True, space="buy", optimize=False)
@@ -227,22 +234,22 @@ class SmallAccountFuturesTimingExecV1(IStrategy):
         timeframe: str,
         quantiles: int,
         lookback_days: int,
-    ) -> tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         if df is None or df.empty or not factor_specs:
             z = np.zeros(len(df), dtype="float64")
-            return z, z
+            return z, z, z
 
         names = [s.name for s in factor_specs if str(s.name).strip()]
         names = list(dict.fromkeys(names))  # 去重保序
         if not names:
             z = np.zeros(len(df), dtype="float64")
-            return z, z
+            return z, z, z
 
         missing = [n for n in names if n not in df.columns]
         if missing:
             # 缺列属于“配置/计算不一致”，直接当作无信号（避免误用）
             z = np.zeros(len(df), dtype="float64")
-            return z, z
+            return z, z, z
 
         X = df[names].astype("float64")
         p = TimingAuditParams(
@@ -257,63 +264,79 @@ class SmallAccountFuturesTimingExecV1(IStrategy):
         q_high, q_low = precompute_quantile_thresholds(X=X, params=p)
         if q_high is None or q_low is None or q_high.empty or q_low.empty:
             z = np.zeros(len(df), dtype="float64")
-            return z, z
+            return z, z, z
 
-        long_votes = np.zeros(len(df), dtype="float64")
-        short_votes = np.zeros(len(df), dtype="float64")
+        # 连续强度：每个因子先用 (q_low, q_high) 做鲁棒缩放映射到 [-1, 1]，再进行加权“投影/求和”。
+        long_strength = np.zeros(len(df), dtype="float64")
+        short_strength = np.zeros(len(df), dtype="float64")
+        net_num = np.zeros(len(df), dtype="float64")
         denom_long = 0.0
         denom_short = 0.0
+        denom_net = 0.0
         for spec in factor_specs:
             if spec.name not in X.columns:
                 continue
-            pos = position_from_thresholds(
+
+            score = continuous_score_from_thresholds(
                 x=X[spec.name],
                 q_high=q_high[spec.name],
                 q_low=q_low[spec.name],
                 direction=str(spec.direction),
-            ).fillna(0.0)
+            )
             w = float(spec.weight)
             if not np.isfinite(w) or w <= 0:
                 continue
 
+            denom_net += float(w)
             side = str(spec.side).strip().lower()
-            arr = pos.to_numpy(dtype="float64")
+            arr = score.to_numpy(dtype="float64")
+            if side == "long":
+                net_part = np.clip(arr, a_min=0.0, a_max=None)
+            elif side == "short":
+                net_part = np.clip(arr, a_min=None, a_max=0.0)
+            else:
+                net_part = arr
+            net_num += float(w) * net_part
+
             if side in {"both", "long"}:
                 denom_long += float(w)
-                long_votes += float(w) * (arr > 0.0).astype("float64")
+                long_strength += float(w) * np.clip(arr, a_min=0.0, a_max=None)
             if side in {"both", "short"}:
                 denom_short += float(w)
-                short_votes += float(w) * (arr < 0.0).astype("float64")
+                short_strength += float(w) * np.clip(-arr, a_min=0.0, a_max=None)
 
         if not np.isfinite(denom_long) or denom_long <= 0:
             long_score = np.zeros(len(df), dtype="float64")
         else:
-            long_score = (long_votes / float(denom_long)).astype("float64")
+            long_score = (long_strength / float(denom_long)).astype("float64")
 
         if not np.isfinite(denom_short) or denom_short <= 0:
             short_score = np.zeros(len(df), dtype="float64")
         else:
-            short_score = (short_votes / float(denom_short)).astype("float64")
+            short_score = (short_strength / float(denom_short)).astype("float64")
 
-        return long_score, short_score
+        if not np.isfinite(denom_net) or denom_net <= 0:
+            net_score = np.zeros(len(df), dtype="float64")
+        else:
+            net_score = (net_num / float(denom_net)).astype("float64")
+
+        return long_score, short_score, net_score
 
     @staticmethod
-    def _signal_from_long_short_scores(long_score: np.ndarray, short_score: np.ndarray, *, threshold: float) -> np.ndarray:
+    def _signal_from_net_score(net_score: np.ndarray, *, threshold: float) -> np.ndarray:
+        """
+        用净投影分数生成多/空/空仓信号：
+        - net_score >= +threshold -> 1
+        - net_score <= -threshold -> -1
+        - 其余 -> 0
+        """
         thr = float(threshold)
         if not np.isfinite(thr) or thr <= 0:
             thr = 0.67
 
-        sig = np.zeros(len(long_score), dtype="float64")
-        long_ok = long_score >= thr
-        short_ok = short_score >= thr
-
-        sig[long_ok & (~short_ok)] = 1.0
-        sig[short_ok & (~long_ok)] = -1.0
-
-        # 发生“多空同时满足阈值”的情况时，选更强的一侧；打平则空仓
-        both = long_ok & short_ok
-        sig[both & (long_score > short_score)] = 1.0
-        sig[both & (short_score > long_score)] = -1.0
+        sig = np.zeros(len(net_score), dtype="float64")
+        sig[net_score >= thr] = 1.0
+        sig[net_score <= -thr] = -1.0
         return sig
 
     # -------------------------
@@ -333,6 +356,9 @@ class SmallAccountFuturesTimingExecV1(IStrategy):
         main_thr = float(
             self._policy_setting(scope="main", key="entry_threshold", default=float(self.buy_main_entry_threshold.value))
         )
+        main_exit_thr = float(
+            self._policy_setting(scope="main", key="exit_threshold", default=float(self.buy_main_exit_threshold.value))
+        )
 
         confirm_quantiles = int(
             self._policy_setting(scope="confirm", key="quantiles", default=int(self.buy_confirm_quantiles.value))
@@ -345,12 +371,28 @@ class SmallAccountFuturesTimingExecV1(IStrategy):
                 scope="confirm", key="entry_threshold", default=float(self.buy_confirm_entry_threshold.value)
             )
         )
+        confirm_exit_thr = float(
+            self._policy_setting(scope="confirm", key="exit_threshold", default=float(self.buy_confirm_exit_threshold.value))
+        )
+
+        fusion_main_w = float(
+            self._policy_setting(scope="fusion", key="main_weight", default=float(self.buy_fusion_main_weight.value))
+        )
+        fusion_confirm_w = float(
+            self._policy_setting(scope="fusion", key="confirm_weight", default=float(self.buy_fusion_confirm_weight.value))
+        )
+        fusion_thr = float(
+            self._policy_setting(scope="fusion", key="entry_threshold", default=float(self.buy_fusion_entry_threshold.value))
+        )
+        fusion_exit_thr = float(
+            self._policy_setting(scope="fusion", key="exit_threshold", default=float(self.buy_fusion_exit_threshold.value))
+        )
 
         # 1) 计算主周期因子
         main_factor_names = [s.name for s in main_specs]
         dataframe = get_container().factor_usecase().execute(dataframe, main_factor_names)
 
-        main_long, main_short = self._long_short_scores_from_factors(
+        main_long, main_short, main_net = self._long_short_scores_from_factors(
             df=dataframe,
             factor_specs=main_specs,
             timeframe=str(self.timeframe),
@@ -359,8 +401,9 @@ class SmallAccountFuturesTimingExecV1(IStrategy):
         )
         dataframe["timing_main_long_score"] = main_long
         dataframe["timing_main_short_score"] = main_short
-        dataframe["timing_main_score"] = (main_long - main_short).astype("float64")
-        dataframe["timing_main_sig"] = self._signal_from_long_short_scores(main_long, main_short, threshold=float(main_thr))
+        dataframe["timing_main_score"] = main_net.astype("float64")
+        dataframe["timing_main_sig"] = self._signal_from_net_score(main_net, threshold=float(main_thr))
+        dataframe["timing_main_exit_sig"] = self._signal_from_net_score(main_net, threshold=float(main_exit_thr))
 
         # 2) 计算复核周期因子，并 merge 到主 dataframe
         dp = getattr(self, "dp", None)
@@ -374,7 +417,7 @@ class SmallAccountFuturesTimingExecV1(IStrategy):
                 confirm_factor_names = [s.name for s in confirm_specs]
                 inf2 = get_container().factor_usecase().execute(inf, confirm_factor_names)
 
-                confirm_long, confirm_short = self._long_short_scores_from_factors(
+                confirm_long, confirm_short, confirm_net = self._long_short_scores_from_factors(
                     df=inf2,
                     factor_specs=confirm_specs,
                     timeframe=inf_tf,
@@ -383,15 +426,51 @@ class SmallAccountFuturesTimingExecV1(IStrategy):
                 )
                 inf2["timing_confirm_long_score"] = confirm_long
                 inf2["timing_confirm_short_score"] = confirm_short
-                inf2["timing_confirm_score"] = (confirm_long - confirm_short).astype("float64")
-                inf2["timing_confirm_sig"] = self._signal_from_long_short_scores(
-                    confirm_long, confirm_short, threshold=float(confirm_thr)
+                inf2["timing_confirm_score"] = confirm_net.astype("float64")
+                inf2["timing_confirm_sig"] = self._signal_from_net_score(confirm_net, threshold=float(confirm_thr))
+                inf2["timing_confirm_exit_sig"] = self._signal_from_net_score(
+                    confirm_net, threshold=float(confirm_exit_thr)
                 )
 
                 informative_small = inf2[
-                    ["date", "timing_confirm_long_score", "timing_confirm_short_score", "timing_confirm_score", "timing_confirm_sig"]
+                    [
+                        "date",
+                        "timing_confirm_long_score",
+                        "timing_confirm_short_score",
+                        "timing_confirm_score",
+                        "timing_confirm_sig",
+                        "timing_confirm_exit_sig",
+                    ]
                 ].copy()
                 dataframe = merge_informative_pair(dataframe, informative_small, self.timeframe, inf_tf, ffill=True)
+
+        # 3) 融合（二维投影）：final_score = w_main * main_net + w_confirm * confirm_net
+        # 说明：w_* 会先裁剪为非负，再做归一化（防止阈值含义随权重尺度飘移）。
+        w_main = float(fusion_main_w) if np.isfinite(fusion_main_w) else 0.0
+        w_confirm = float(fusion_confirm_w) if np.isfinite(fusion_confirm_w) else 0.0
+        w_main = float(max(0.0, w_main))
+        w_confirm = float(max(0.0, w_confirm))
+
+        confirm_score_col = f"timing_confirm_score_{inf_tf}"
+        confirm_net_s = dataframe.get(confirm_score_col)
+        if confirm_net_s is None:
+            w_confirm = 0.0
+            confirm_net = np.zeros(len(dataframe), dtype="float64")
+        else:
+            confirm_net = confirm_net_s.astype("float64").replace([np.inf, -np.inf], np.nan).fillna(0.0).to_numpy(dtype="float64")
+
+        s = float(w_main + w_confirm)
+        if not np.isfinite(s) or s <= 0:
+            w_main_n = 1.0
+            w_confirm_n = 0.0
+        else:
+            w_main_n = float(w_main / s)
+            w_confirm_n = float(w_confirm / s)
+
+        final_score = (w_main_n * main_net + w_confirm_n * confirm_net).astype("float64")
+        dataframe["timing_final_score"] = final_score
+        dataframe["timing_final_sig"] = self._signal_from_net_score(final_score, threshold=float(fusion_thr))
+        dataframe["timing_final_exit_sig"] = self._signal_from_net_score(final_score, threshold=float(fusion_exit_thr))
 
         return dataframe.replace([np.inf, -np.inf], np.nan)
 
@@ -403,24 +482,23 @@ class SmallAccountFuturesTimingExecV1(IStrategy):
             return dataframe
 
         inf_tf = str(getattr(self, "confirm_timeframe", "1h")).strip() or "1h"
-        confirm_col = f"timing_confirm_sig_{inf_tf}"
+        confirm_score_col = f"timing_confirm_score_{inf_tf}"
 
-        main_sig = dataframe.get("timing_main_sig")
-        confirm_sig = dataframe.get(confirm_col)
-
-        if main_sig is None:
+        final_sig = dataframe.get("timing_final_sig")
+        if final_sig is None:
             return dataframe
 
-        # confirm 不可用时：可选择 fail-open（不要求 confirm）
         require_confirm = bool(self.buy_require_confirm.value)
-        if require_confirm and confirm_sig is None:
+        if require_confirm and confirm_score_col not in dataframe.columns:
             return dataframe
 
-        long_ok = main_sig.astype("float64") == 1.0
-        short_ok = main_sig.astype("float64") == -1.0
-        if confirm_sig is not None:
-            long_ok = long_ok & (confirm_sig.astype("float64") == 1.0)
-            short_ok = short_ok & (confirm_sig.astype("float64") == -1.0)
+        long_ok = final_sig.astype("float64") == 1.0
+        short_ok = final_sig.astype("float64") == -1.0
+        if require_confirm:
+            confirm_net = dataframe[confirm_score_col].astype("float64")
+            ok_confirm = confirm_net.notna()
+            long_ok = long_ok & ok_confirm
+            short_ok = short_ok & ok_confirm
 
         dataframe.loc[long_ok & (dataframe["volume"] > 0), "enter_long"] = 1
         if bool(self.buy_enable_short.value):
@@ -434,22 +512,16 @@ class SmallAccountFuturesTimingExecV1(IStrategy):
         if dataframe is None or dataframe.empty:
             return dataframe
 
-        inf_tf = str(getattr(self, "confirm_timeframe", "1h")).strip() or "1h"
-        confirm_col = f"timing_confirm_sig_{inf_tf}"
-
-        main_sig = dataframe.get("timing_main_sig")
-        confirm_sig = dataframe.get(confirm_col)
-        if main_sig is None:
+        final_sig = dataframe.get("timing_final_sig")
+        final_exit_sig = dataframe.get("timing_final_exit_sig")
+        if final_sig is None:
             return dataframe
+        if final_exit_sig is None:
+            final_exit_sig = final_sig
 
-        require_confirm = bool(self.buy_require_confirm.value)
-
-        # 退出规则：任一信号不再同向则退出（更偏“快进快出”）
-        exit_long = main_sig.astype("float64") != 1.0
-        exit_short = main_sig.astype("float64") != -1.0
-        if require_confirm and confirm_sig is not None:
-            exit_long = exit_long | (confirm_sig.astype("float64") != 1.0)
-            exit_short = exit_short | (confirm_sig.astype("float64") != -1.0)
+        # 退出规则（迟滞）：使用融合后的 final_exit_sig 判定是否“仍然保持同向”。
+        exit_long = final_exit_sig.astype("float64") != 1.0
+        exit_short = final_exit_sig.astype("float64") != -1.0
 
         dataframe.loc[exit_long & (dataframe["volume"] > 0), "exit_long"] = 1
         dataframe.loc[exit_short & (dataframe["volume"] > 0), "exit_short"] = 1

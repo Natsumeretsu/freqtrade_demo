@@ -153,7 +153,7 @@ def _write_text(path: Path, lines: list[str]) -> None:
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-_ENTRY_HEADER_RE = re.compile(r"^###\s+(S-\d{3})(?:\s*[:：]?\s*)(.*)\s*$")
+_ENTRY_HEADER_RE = re.compile(r"^###\s+(S-\d{3,})(?:\s*[:：]?\s*)(.*)\s*$")
 _URL_RE = re.compile(r"^\s*-\s*URL\s*[:：]\s*(\S+)\s*$")
 _STATUS_RE = re.compile(r"^\s*-\s*抓取状态\s*[:：]\s*(.*)\s*$")
 

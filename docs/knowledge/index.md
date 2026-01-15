@@ -1,11 +1,16 @@
 # 项目固有知识结构索引（持续迭代）
 
-更新日期：2026-01-14
+更新日期：2026-01-15
 
 本目录用于沉淀“可复用的项目知识”，其目标是：
 
 - 把外部资料（链接）转化为**可执行的工程结论**（参数、风险、边界、落地映射）。
 - 让策略迭代不再依赖“记忆/口口相传”，而是依赖可追溯文档与来源登记。
+
+当前研究主线（重要）：
+
+- 暂时只做**单交易对**的**时间序列预测/择时**（研究层验证 → 执行层落地）。
+- “横截面多币因子模型”（SMB/NET/C-5 等）仅作为**风险语义/背景知识**与未来扩展，不作为近期落地目标。
 
 ---
 
@@ -18,6 +23,11 @@
 - K线/Pin Bar（工程化落地笔记）：`docs/knowledge/candlestick_pinbar_playbook.md`
 - 流动性/微观结构（工程化落地笔记）：`docs/knowledge/crypto_liquidity_microstructure_playbook.md`
 - 加密市场风险因子（工程化落地地图）：`docs/knowledge/crypto_risk_factors_engineering_playbook.md`
+- 加密资产定价因子模型（五因子/IPCA/趋势因子，落地边界）：`docs/knowledge/crypto_pricing_five_factor_models_playbook.md`
+- 加密因子模型实现与集成落地（SMB/VAL/MOM/NET/IPCA，研究→执行）：`docs/knowledge/crypto_factor_model_implementation_playbook.md`
+- 加密因子模型生态综述（定价 vs 预测、指标口径与落地边界）：`docs/knowledge/crypto_factor_model_ecosystem_survey.md`
+- 加密资产价格预测模型（工程验收与落地边界）：`docs/knowledge/crypto_price_forecasting_models_playbook.md`
+- 信息论、信号与系统视角（单交易对时间序列主线）：`docs/knowledge/crypto_information_theory_signal_system_playbook.md`
 - 单因子 vs 多因子（择时视角，本仓库口径）：`docs/knowledge/factor_single_vs_multi_timing.md`
 - 项目统一命名规范（v1）：`docs/knowledge/project_naming_conventions.md`
 - 因子消融检查清单（SmallAccountFuturesTrendV1）：`docs/knowledge/factor_ablation_checklist_smallaccount_futures.md`

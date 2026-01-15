@@ -550,8 +550,8 @@ async def _cmd_search_async(repo_root: Path, args: argparse.Namespace) -> int:
             return 0
 
 
-_SID_RE = re.compile(r"\bS-\d{3}\b")
-_SID_HEADER_RE = re.compile(r"^###\s+(S-\d{3})\b", re.IGNORECASE)
+_SID_RE = re.compile(r"\bS-\d{3,}\b")
+_SID_HEADER_RE = re.compile(r"^###\s+(S-\d{3,})\b", re.IGNORECASE)
 
 
 def _load_registry_ids(registry_path: Path) -> set[str]:

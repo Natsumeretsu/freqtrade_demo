@@ -1,0 +1,1204 @@
+version: 2
+exchange: okx
+trading_mode: futures
+meta:
+  generated_at: '2026-01-15T18:01:36'
+  generator: scripts/qlib/export_timing_policy.py
+  main_csv: artifacts/timing_audit/timing_audit_mix_15m_top40_v2_200/timing_summary.csv
+  confirm_csv: artifacts/timing_audit/timing_audit_mix_1h_top40_v2_200/timing_summary.csv
+  main_series_dir: artifacts/timing_audit/timing_audit_mix_15m_top40_v2_200
+  confirm_series_dir: artifacts/timing_audit/timing_audit_mix_1h_top40_v2_200
+  topk: 3
+  allow_watch: true
+  roll_key: roll_30d_median
+  prefer_horizon: 1
+  allow_other_horizons: false
+  dedupe:
+    method: corr
+    threshold: 0.9
+    min_common_obs: 200
+    note: 去冗余基于择时序列 pos 的 |corr|（active 优先），用于逼近“少数模态张成”的信号集合。
+main:
+  timeframe: 15m
+  quantiles: 5
+  lookback_days: 14
+  entry_threshold: 0.67
+confirm:
+  timeframe: 1h
+  quantiles: 5
+  lookback_days: 30
+  entry_threshold: 0.67
+defaults:
+  main:
+    factors:
+    - name: ema_20
+      direction: neg
+      side: both
+      weight: 1.0
+  confirm:
+    factors:
+    - name: ema_20
+      direction: neg
+      side: both
+      weight: 1.0
+pairs:
+  AAVE/USDT:USDT:
+    main:
+      factors:
+      - name: koop_spectral_radius
+        direction: neg
+        side: long
+        weight: 1.0
+      - name: ema_200
+        direction: neg
+        side: both
+        weight: 1.0
+      - name: vol_84
+        direction: neg
+        side: long
+        weight: 1.0
+    confirm:
+      factors:
+      - name: koop_spectral_radius
+        direction: pos
+        side: short
+        weight: 1.0
+      - name: ema_60
+        direction: neg
+        side: both
+        weight: 1.0
+      - name: vol_120
+        direction: neg
+        side: both
+        weight: 1.0
+  ADA/USDT:USDT:
+    main:
+      factors:
+      - name: adx_30
+        direction: pos
+        side: both
+        weight: 1.0
+      - name: adx_42
+        direction: pos
+        side: both
+        weight: 1.0
+      - name: adx_24
+        direction: pos
+        side: both
+        weight: 1.0
+    confirm:
+      factors:
+      - name: bb_width_60_2
+        direction: pos
+        side: both
+        weight: 1.0
+      - name: koop_pred_ret_h16
+        direction: pos
+        side: short
+        weight: 1.0
+      - name: bb_width_80_2
+        direction: pos
+        side: long
+        weight: 1.0
+  ARB/USDT:USDT:
+    main:
+      factors:
+      - name: adx_56
+        direction: neg
+        side: long
+        weight: 1.0
+      - name: fft_lp_slope
+        direction: pos
+        side: both
+        weight: 1.0
+      - name: adx_28
+        direction: neg
+        side: long
+        weight: 1.0
+    confirm:
+      factors:
+      - name: vol_144
+        direction: neg
+        side: both
+        weight: 1.0
+      - name: vol_42
+        direction: neg
+        side: both
+        weight: 1.0
+      - name: ret_120
+        direction: neg
+        side: short
+        weight: 1.0
+  ATOM/USDT:USDT:
+    main:
+      factors:
+      - name: koop_spectral_radius
+        direction: neg
+        side: both
+        weight: 1.0
+      - name: fft_lp_slope
+        direction: pos
+        side: both
+        weight: 1.0
+      - name: fft_hp_logp
+        direction: neg
+        side: short
+        weight: 1.0
+    confirm:
+      factors:
+      - name: vol_12
+        direction: neg
+        side: both
+        weight: 1.0
+      - name: vol_14
+        direction: neg
+        side: both
+        weight: 1.0
+      - name: vol_42
+        direction: neg
+        side: both
+        weight: 1.0
+  AVAX/USDT:USDT:
+    main:
+      factors:
+      - name: vol_96
+        direction: neg
+        side: long
+        weight: 1.0
+      - name: fft_lp_energy_ratio
+        direction: neg
+        side: both
+        weight: 1.0
+      - name: adx_10
+        direction: neg
+        side: short
+        weight: 1.0
+    confirm:
+      factors:
+      - name: vol_48
+        direction: neg
+        side: both
+        weight: 1.0
+      - name: atr_56
+        direction: pos
+        side: both
+        weight: 1.0
+      - name: ret_120
+        direction: neg
+        side: long
+        weight: 1.0
+  BCH/USDT:USDT:
+    main:
+      factors:
+      - name: adx_56
+        direction: neg
+        side: both
+        weight: 1.0
+      - name: ema_20
+        direction: neg
+        side: both
+        weight: 1.0
+      - name: ema_200
+        direction: neg
+        side: both
+        weight: 1.0
+    confirm:
+      factors:
+      - name: fft_hp_logp
+        direction: neg
+        side: both
+        weight: 1.0
+      - name: fft_lp_slope
+        direction: pos
+        side: both
+        weight: 1.0
+      - name: ema_64
+        direction: neg
+        side: both
+        weight: 1.0
+  BNB/USDT:USDT:
+    main:
+      factors:
+      - name: koop_fit_rmse
+        direction: pos
+        side: both
+        weight: 1.0
+      - name: vol_42
+        direction: pos
+        side: long
+        weight: 1.0
+      - name: vol_40
+        direction: pos
+        side: long
+        weight: 1.0
+    confirm:
+      factors:
+      - name: adx_84
+        direction: pos
+        side: both
+        weight: 1.0
+      - name: vol_64
+        direction: pos
+        side: both
+        weight: 1.0
+      - name: adx_28
+        direction: pos
+        side: both
+        weight: 1.0
+  BTC/USDT:USDT:
+    main:
+      factors:
+      - name: ema_20
+        direction: neg
+        side: both
+        weight: 1.0
+      - name: ema_120
+        direction: neg
+        side: both
+        weight: 1.0
+      - name: koop_fit_rmse
+        direction: neg
+        side: both
+        weight: 1.0
+    confirm:
+      factors:
+      - name: bb_width_80_2
+        direction: pos
+        side: both
+        weight: 1.0
+      - name: koop_spectral_radius
+        direction: pos
+        side: both
+        weight: 1.0
+      - name: vol_42
+        direction: pos
+        side: long
+        weight: 1.0
+  CRV/USDT:USDT:
+    main:
+      factors:
+      - name: macdsignal
+        direction: neg
+        side: long
+        weight: 1.0
+      - name: atr_pct_56
+        direction: pos
+        side: both
+        weight: 1.0
+      - name: koop_pred_ret_h4
+        direction: neg
+        side: long
+        weight: 1.0
+    confirm:
+      factors:
+      - name: adx_84
+        direction: pos
+        side: both
+        weight: 1.0
+      - name: koop_spectral_radius
+        direction: pos
+        side: both
+        weight: 1.0
+      - name: ret_60
+        direction: neg
+        side: long
+        weight: 1.0
+  DOGE/USDT:USDT:
+    main:
+      factors:
+      - name: adx_56
+        direction: pos
+        side: both
+        weight: 1.0
+      - name: adx_84
+        direction: pos
+        side: long
+        weight: 1.0
+      - name: vol_144
+        direction: pos
+        side: both
+        weight: 1.0
+    confirm:
+      factors:
+      - name: adx_84
+        direction: pos
+        side: both
+        weight: 1.0
+      - name: adx_56
+        direction: pos
+        side: both
+        weight: 1.0
+      - name: adx_42
+        direction: pos
+        side: both
+        weight: 1.0
+  DOT/USDT:USDT:
+    main:
+      factors:
+      - name: ema_80
+        direction: neg
+        side: long
+        weight: 1.0
+      - name: ema_84
+        direction: neg
+        side: long
+        weight: 1.0
+      - name: ema_96
+        direction: neg
+        side: long
+        weight: 1.0
+    confirm:
+      factors:
+      - name: adx_84
+        direction: pos
+        side: short
+        weight: 1.0
+      - name: adx_42
+        direction: pos
+        side: short
+        weight: 1.0
+      - name: vol_120
+        direction: neg
+        side: both
+        weight: 1.0
+  DYDX/USDT:USDT:
+    main:
+      factors:
+      - name: macdsignal
+        direction: neg
+        side: short
+        weight: 1.0
+      - name: vol_96
+        direction: neg
+        side: long
+        weight: 1.0
+      - name: vol_84
+        direction: neg
+        side: long
+        weight: 1.0
+    confirm:
+      factors:
+      - name: vol_144
+        direction: neg
+        side: both
+        weight: 1.0
+      - name: vol_42
+        direction: neg
+        side: both
+        weight: 1.0
+      - name: vol_24
+        direction: neg
+        side: both
+        weight: 1.0
+  ETC/USDT:USDT:
+    main:
+      factors:
+      - name: vol_120
+        direction: pos
+        side: both
+        weight: 1.0
+      - name: vol_144
+        direction: pos
+        side: both
+        weight: 1.0
+      - name: fft_hp_logp
+        direction: neg
+        side: short
+        weight: 1.0
+    confirm:
+      factors:
+      - name: adx_84
+        direction: pos
+        side: both
+        weight: 1.0
+      - name: adx_28
+        direction: pos
+        side: both
+        weight: 1.0
+      - name: adx_42
+        direction: pos
+        side: both
+        weight: 1.0
+  ETH/USDT:USDT:
+    main:
+      factors:
+      - name: ema_32
+        direction: neg
+        side: both
+        weight: 1.0
+      - name: koop_spectral_radius
+        direction: pos
+        side: long
+        weight: 1.0
+      - name: vol_64
+        direction: pos
+        side: long
+        weight: 1.0
+    confirm:
+      factors:
+      - name: adx_56
+        direction: pos
+        side: both
+        weight: 1.0
+      - name: ema_120
+        direction: neg
+        side: both
+        weight: 1.0
+      - name: adx_42
+        direction: pos
+        side: both
+        weight: 1.0
+  FIL/USDT:USDT:
+    main:
+      factors:
+      - name: ema_64
+        direction: neg
+        side: long
+        weight: 1.0
+      - name: ema_60
+        direction: neg
+        side: long
+        weight: 1.0
+      - name: ema_40
+        direction: neg
+        side: long
+        weight: 1.0
+    confirm:
+      factors:
+      - name: adx_56
+        direction: pos
+        side: both
+        weight: 1.0
+      - name: adx_42
+        direction: pos
+        side: both
+        weight: 1.0
+      - name: ema_96
+        direction: neg
+        side: both
+        weight: 1.0
+  GALA/USDT:USDT:
+    main:
+      factors:
+      - name: ema_96
+        direction: neg
+        side: long
+        weight: 1.0
+      - name: ema_64
+        direction: neg
+        side: long
+        weight: 1.0
+      - name: ema_100
+        direction: neg
+        side: long
+        weight: 1.0
+    confirm:
+      factors:
+      - name: adx_42
+        direction: pos
+        side: both
+        weight: 1.0
+      - name: adx_56
+        direction: pos
+        side: both
+        weight: 1.0
+      - name: fft_hp_logp
+        direction: neg
+        side: both
+        weight: 1.0
+  GRT/USDT:USDT:
+    main:
+      factors:
+      - name: adx_56
+        direction: pos
+        side: long
+        weight: 1.0
+      - name: fft_lp_slope
+        direction: pos
+        side: short
+        weight: 1.0
+      - name: ema_144
+        direction: neg
+        side: long
+        weight: 1.0
+    confirm:
+      factors:
+      - name: adx_42
+        direction: pos
+        side: short
+        weight: 1.0
+      - name: adx_28
+        direction: pos
+        side: short
+        weight: 1.0
+      - name: adx_56
+        direction: pos
+        side: short
+        weight: 1.0
+  ICP/USDT:USDT:
+    main:
+      factors:
+      - name: ema_96
+        direction: neg
+        side: long
+        weight: 1.0
+      - name: ema_80
+        direction: neg
+        side: long
+        weight: 1.0
+      - name: ema_84
+        direction: neg
+        side: long
+        weight: 1.0
+    confirm:
+      factors:
+      - name: adx_56
+        direction: pos
+        side: both
+        weight: 1.0
+      - name: adx_42
+        direction: pos
+        side: both
+        weight: 1.0
+      - name: adx_30
+        direction: pos
+        side: both
+        weight: 1.0
+  INJ/USDT:USDT:
+    main:
+      factors:
+      - name: fft_hp_logp
+        direction: neg
+        side: long
+        weight: 1.0
+      - name: koop_pred_ret_h16
+        direction: neg
+        side: short
+        weight: 1.0
+      - name: atr_10
+        direction: neg
+        side: both
+        weight: 1.0
+    confirm:
+      factors:
+      - name: vol_16
+        direction: neg
+        side: both
+        weight: 1.0
+      - name: vol_20
+        direction: neg
+        side: both
+        weight: 1.0
+      - name: vol_14
+        direction: neg
+        side: both
+        weight: 1.0
+  JUP/USDT:USDT:
+    main:
+      factors:
+      - name: adx_42
+        direction: pos
+        side: short
+        weight: 1.0
+      - name: adx_56
+        direction: pos
+        side: both
+        weight: 1.0
+      - name: bb_width_80_2
+        direction: pos
+        side: short
+        weight: 1.0
+    confirm:
+      factors:
+      - name: adx_10
+        direction: pos
+        side: both
+        weight: 1.0
+      - name: bb_width_40_2
+        direction: pos
+        side: both
+        weight: 1.0
+      - name: adx_42
+        direction: pos
+        side: both
+        weight: 1.0
+  LDO/USDT:USDT:
+    main:
+      factors:
+      - name: atr_pct_84
+        direction: pos
+        side: both
+        weight: 1.0
+      - name: skew_72
+        direction: pos
+        side: both
+        weight: 1.0
+      - name: adx_30
+        direction: neg
+        side: both
+        weight: 1.0
+    confirm:
+      factors:
+      - name: fft_hp_logp
+        direction: neg
+        side: both
+        weight: 1.0
+      - name: koop_pred_ret_h4
+        direction: pos
+        side: long
+        weight: 1.0
+      - name: koop_pred_ret_h1
+        direction: pos
+        side: both
+        weight: 1.0
+  LINK/USDT:USDT:
+    main:
+      factors:
+      - name: bb_width_60_2
+        direction: neg
+        side: long
+        weight: 1.0
+      - name: adx_84
+        direction: pos
+        side: long
+        weight: 1.0
+      - name: ema_72
+        direction: neg
+        side: long
+        weight: 1.0
+    confirm:
+      factors:
+      - name: adx_56
+        direction: pos
+        side: both
+        weight: 1.0
+      - name: adx_84
+        direction: pos
+        side: both
+        weight: 1.0
+      - name: vol_64
+        direction: pos
+        side: both
+        weight: 1.0
+  LTC/USDT:USDT:
+    main:
+      factors:
+      - name: ema_30
+        direction: neg
+        side: both
+        weight: 1.0
+      - name: vol_40
+        direction: neg
+        side: long
+        weight: 1.0
+      - name: vol_60
+        direction: neg
+        side: long
+        weight: 1.0
+    confirm:
+      factors:
+      - name: koop_pred_ret_h16
+        direction: neg
+        side: both
+        weight: 1.0
+      - name: koop_pred_ret_h4
+        direction: neg
+        side: both
+        weight: 1.0
+      - name: koop_pred_ret_h1
+        direction: neg
+        side: both
+        weight: 1.0
+  NEAR/USDT:USDT:
+    main:
+      factors:
+      - name: koop_fit_rmse
+        direction: neg
+        side: both
+        weight: 1.0
+      - name: ema_64
+        direction: neg
+        side: both
+        weight: 1.0
+      - name: bb_width_40_2
+        direction: neg
+        side: both
+        weight: 1.0
+    confirm:
+      factors:
+      - name: adx_84
+        direction: pos
+        side: short
+        weight: 1.0
+      - name: koop_fit_rmse
+        direction: neg
+        side: both
+        weight: 1.0
+      - name: vol_120
+        direction: neg
+        side: long
+        weight: 1.0
+  OKB/USDT:USDT:
+    main:
+      factors:
+      - name: atr_84
+        direction: pos
+        side: both
+        weight: 1.0
+      - name: vol_48
+        direction: pos
+        side: both
+        weight: 1.0
+      - name: bb_width_80_2
+        direction: pos
+        side: both
+        weight: 1.0
+    confirm:
+      factors:
+      - name: atr_24
+        direction: pos
+        side: both
+        weight: 1.0
+      - name: atr_pct_7
+        direction: pos
+        side: long
+        weight: 1.0
+      - name: bb_width_14_3
+        direction: pos
+        side: long
+        weight: 1.0
+  ONDO/USDT:USDT:
+    main:
+      factors:
+      - name: atr_84
+        direction: pos
+        side: long
+        weight: 1.0
+      - name: atr_pct_10
+        direction: pos
+        side: long
+        weight: 1.0
+      - name: atr_24
+        direction: pos
+        side: long
+        weight: 1.0
+    confirm:
+      factors:
+      - name: bb_width_80_2
+        direction: pos
+        side: long
+        weight: 1.0
+      - name: adx_56
+        direction: pos
+        side: both
+        weight: 1.0
+      - name: koop_spectral_radius
+        direction: pos
+        side: both
+        weight: 1.0
+  OP/USDT:USDT:
+    main:
+      factors:
+      - name: atr_56
+        direction: neg
+        side: both
+        weight: 1.0
+      - name: ema_36
+        direction: neg
+        side: both
+        weight: 1.0
+      - name: atr_30
+        direction: neg
+        side: both
+        weight: 1.0
+    confirm:
+      factors:
+      - name: vol_16
+        direction: neg
+        side: both
+        weight: 1.0
+      - name: vol_14
+        direction: neg
+        side: both
+        weight: 1.0
+      - name: vol_120
+        direction: neg
+        side: both
+        weight: 1.0
+  PEPE/USDT:USDT:
+    main:
+      factors:
+      - name: adx_84
+        direction: pos
+        side: both
+        weight: 1.0
+      - name: atr_pct_10
+        direction: pos
+        side: long
+        weight: 1.0
+      - name: vol_20
+        direction: pos
+        side: long
+        weight: 1.0
+    confirm:
+      factors:
+      - name: bb_width_60_2
+        direction: pos
+        side: both
+        weight: 1.0
+      - name: bb_width_80_2
+        direction: pos
+        side: both
+        weight: 1.0
+      - name: bb_width_40_2
+        direction: pos
+        side: short
+        weight: 1.0
+  POL/USDT:USDT:
+    main:
+      factors:
+      - name: adx_84
+        direction: pos
+        side: both
+        weight: 1.0
+      - name: kurt_72
+        direction: neg
+        side: short
+        weight: 1.0
+      - name: atr_56
+        direction: pos
+        side: short
+        weight: 1.0
+    confirm:
+      factors:
+      - name: vol_48
+        direction: neg
+        side: long
+        weight: 1.0
+      - name: koop_pred_ret_h1
+        direction: pos
+        side: short
+        weight: 1.0
+      - name: atr_84
+        direction: pos
+        side: both
+        weight: 1.0
+  PYTH/USDT:USDT:
+    main:
+      factors:
+      - name: fft_lp_slope
+        direction: pos
+        side: both
+        weight: 1.0
+      - name: koop_pred_ret_h2
+        direction: neg
+        side: long
+        weight: 1.0
+      - name: fft_hp_logp
+        direction: neg
+        side: short
+        weight: 1.0
+    confirm:
+      factors:
+      - name: vol_32
+        direction: neg
+        side: both
+        weight: 1.0
+      - name: vol_48
+        direction: neg
+        side: both
+        weight: 1.0
+      - name: adx_84
+        direction: pos
+        side: short
+        weight: 1.0
+  SAND/USDT:USDT:
+    main:
+      factors:
+      - name: fft_hp_logp
+        direction: neg
+        side: short
+        weight: 1.0
+      - name: adx_24
+        direction: pos
+        side: short
+        weight: 1.0
+      - name: fft_lp_slope
+        direction: pos
+        side: short
+        weight: 1.0
+    confirm:
+      factors:
+      - name: adx_56
+        direction: pos
+        side: both
+        weight: 1.0
+      - name: adx_84
+        direction: pos
+        side: both
+        weight: 1.0
+      - name: adx_42
+        direction: pos
+        side: both
+        weight: 1.0
+  SEI/USDT:USDT:
+    main:
+      factors:
+      - name: adx_24
+        direction: pos
+        side: both
+        weight: 1.0
+      - name: macdsignal
+        direction: neg
+        side: both
+        weight: 1.0
+      - name: macd
+        direction: neg
+        side: both
+        weight: 1.0
+    confirm:
+      factors:
+      - name: stoch_k_9_3_3
+        direction: neg
+        side: both
+        weight: 1.0
+      - name: stoch_k_14_3_3
+        direction: neg
+        side: both
+        weight: 1.0
+      - name: macdhist
+        direction: neg
+        side: both
+        weight: 1.0
+  SHIB/USDT:USDT:
+    main:
+      factors:
+      - name: adx_42
+        direction: pos
+        side: both
+        weight: 1.0
+      - name: koop_spectral_radius
+        direction: neg
+        side: long
+        weight: 1.0
+      - name: vol_12
+        direction: pos
+        side: long
+        weight: 1.0
+    confirm:
+      factors:
+      - name: ema_144
+        direction: neg
+        side: both
+        weight: 1.0
+      - name: bb_width_40_2
+        direction: pos
+        side: both
+        weight: 1.0
+      - name: ema_100
+        direction: neg
+        side: long
+        weight: 1.0
+  SOL/USDT:USDT:
+    main:
+      factors:
+      - name: koop_spectral_radius
+        direction: neg
+        side: long
+        weight: 1.0
+      - name: bb_width_20_2
+        direction: pos
+        side: long
+        weight: 1.0
+      - name: ema_60
+        direction: neg
+        side: long
+        weight: 1.0
+    confirm:
+      factors:
+      - name: ret_72
+        direction: neg
+        side: both
+        weight: 1.0
+      - name: bb_width_14_2
+        direction: neg
+        side: long
+        weight: 1.0
+      - name: vol_30
+        direction: neg
+        side: long
+        weight: 1.0
+  SUI/USDT:USDT:
+    main:
+      factors:
+      - name: koop_pred_ret_h8
+        direction: neg
+        side: both
+        weight: 1.0
+      - name: ema_42
+        direction: neg
+        side: both
+        weight: 1.0
+      - name: koop_pred_ret_h16
+        direction: neg
+        side: both
+        weight: 1.0
+    confirm:
+      factors:
+      - name: bb_width_40_2
+        direction: pos
+        side: both
+        weight: 1.0
+      - name: bb_width_60_2
+        direction: pos
+        side: both
+        weight: 1.0
+      - name: vol_18
+        direction: neg
+        side: long
+        weight: 1.0
+  TIA/USDT:USDT:
+    main:
+      factors:
+      - name: vol_80
+        direction: neg
+        side: long
+        weight: 1.0
+      - name: ema_200
+        direction: neg
+        side: both
+        weight: 1.0
+      - name: ema_spread
+        direction: neg
+        side: short
+        weight: 1.0
+    confirm:
+      factors:
+      - name: ema_96
+        direction: neg
+        side: both
+        weight: 1.0
+      - name: vol_14
+        direction: neg
+        side: both
+        weight: 1.0
+      - name: adx_84
+        direction: pos
+        side: both
+        weight: 1.0
+  TON/USDT:USDT:
+    main:
+      factors:
+      - name: fft_lp_slope
+        direction: pos
+        side: both
+        weight: 1.0
+      - name: macdsignal
+        direction: neg
+        side: short
+        weight: 1.0
+      - name: fft_hp_logp
+        direction: neg
+        side: both
+        weight: 1.0
+    confirm:
+      factors:
+      - name: adx_56
+        direction: pos
+        side: both
+        weight: 1.0
+      - name: ema_spread
+        direction: neg
+        side: short
+        weight: 1.0
+      - name: adx_42
+        direction: pos
+        side: both
+        weight: 1.0
+  TRX/USDT:USDT:
+    main:
+      factors:
+      - name: fft_lp_energy_ratio
+        direction: neg
+        side: long
+        weight: 1.0
+      - name: adx_84
+        direction: pos
+        side: both
+        weight: 1.0
+      - name: adx_56
+        direction: pos
+        side: long
+        weight: 1.0
+    confirm:
+      factors:
+      - name: adx_30
+        direction: pos
+        side: both
+        weight: 1.0
+      - name: adx_42
+        direction: pos
+        side: long
+        weight: 1.0
+      - name: adx_20
+        direction: pos
+        side: long
+        weight: 1.0
+  WLD/USDT:USDT:
+    main:
+      factors:
+      - name: adx_20
+        direction: pos
+        side: both
+        weight: 1.0
+      - name: koop_fit_rmse
+        direction: neg
+        side: long
+        weight: 1.0
+      - name: adx_24
+        direction: pos
+        side: both
+        weight: 1.0
+    confirm:
+      factors:
+      - name: adx_84
+        direction: pos
+        side: both
+        weight: 1.0
+      - name: koop_spectral_radius
+        direction: pos
+        side: both
+        weight: 1.0
+      - name: adx_28
+        direction: pos
+        side: both
+        weight: 1.0
+  XRP/USDT:USDT:
+    main:
+      factors:
+      - name: koop_fit_rmse
+        direction: pos
+        side: both
+        weight: 1.0
+      - name: adx_84
+        direction: pos
+        side: both
+        weight: 1.0
+      - name: ema_200
+        direction: neg
+        side: long
+        weight: 1.0
+    confirm:
+      factors:
+      - name: bb_width_80_2
+        direction: pos
+        side: both
+        weight: 1.0
+      - name: atr_pct_56
+        direction: pos
+        side: both
+        weight: 1.0
+      - name: vol_60
+        direction: pos
+        side: both
+        weight: 1.0

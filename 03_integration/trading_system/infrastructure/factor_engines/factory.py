@@ -27,8 +27,13 @@ def create_factor_engine(cfg: ConfigManager | None = None) -> IFactorEngine:
             macd_slow=int(p.get("macd_slow", 26)),
             macd_signal=int(p.get("macd_signal", 9)),
             volume_ratio_lookback=int(p.get("volume_ratio_lookback", 72)),
+            koop_window=int(p.get("koop_window", 512)),
+            koop_embed_dim=int(p.get("koop_embed_dim", 16)),
+            koop_stride=int(p.get("koop_stride", 10)),
+            koop_ridge=float(p.get("koop_ridge", 1e-3)),
+            fft_window=int(p.get("fft_window", 512)),
+            fft_topk=int(p.get("fft_topk", 8)),
         )
         return TalibFactorEngine(params=params)
 
     raise ValueError(f"未知 factor_engine.type：{engine_type}")
-

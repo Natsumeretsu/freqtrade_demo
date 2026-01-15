@@ -243,7 +243,8 @@ uv run python -X utf8 "scripts/qlib/timing_audit.py" `
   --horizons 1 4 `
   --lookback-days 30 `
   --rolling-days 30 60 `
-  --fee 0.0006
+  --fee 0.0006 `
+  --export-series
 
 uv run python -X utf8 "scripts/qlib/timing_audit.py" `
   --exchange okx `
@@ -253,7 +254,8 @@ uv run python -X utf8 "scripts/qlib/timing_audit.py" `
   --horizons 1 4 `
   --lookback-days 30 `
   --rolling-days 30 60 `
-  --fee 0.0006
+  --fee 0.0006 `
+  --export-series
 ```
 
 输出目录位于：`artifacts/timing_audit/.../`（`timing_summary.csv` + `summary.md`）。
@@ -267,7 +269,47 @@ uv run python -X utf8 "scripts/qlib/export_timing_policy.py" `
   --out "04_shared/config/timing_policy_okx_futures_15m_1h.yaml" `
   --topk 3 `
   --allow-watch
+
+> 注意：`export_timing_policy.py` 默认会按择时序列（`pos`）做相关性去冗余（逼近“少数模态张成”）；因此需要上一步 `timing_audit.py` 带 `--export-series` 输出序列文件。若你临时只想复现旧行为，可传 `--dedupe-method none`。
 ```
+
+### 2.4.4 Koopa-lite（Koopman/本征模态）额外因子：生成 → 体检 → 导出 policy
+
+如果你想把“多尺度/本征模态”的想法落到可执行闭环，推荐先用 `koopman_lite.py` 生成一批额外因子，再交给 `timing_audit.py` 用同口径验收。
+
+1) 生成 Koopa-lite 额外因子（输出为 pkl：每个 pair 一张特征表）：
+
+```powershell
+uv run python -X utf8 "scripts/qlib/koopman_lite.py" `
+  --exchange okx `
+  --timeframe 15m `
+  --symbols-yaml "04_shared/config/symbols_research_okx_futures_top40.yaml" `
+  --window 512 `
+  --embed-dim 16 `
+  --stride 10 `
+  --pred-horizons 1 4 `
+  --fft-window 512 `
+  --fft-topk 8
+```
+
+2) 只体检这些额外因子（忽略 feature-set）：
+
+```powershell
+uv run python -X utf8 "scripts/qlib/timing_audit.py" `
+  --exchange okx `
+  --timeframe 15m `
+  --symbols-yaml "04_shared/config/symbols_research_okx_futures_top40.yaml" `
+  --only-extra-factors `
+  --extra-features "artifacts/koopman_lite/<run>.pkl" `
+  --extra-factors koop_pred_ret_h1 koop_pred_ret_h4 fft_hp_logp `
+  --horizons 1 4 `
+  --lookback-days 30 `
+  --rolling-days 30 60 `
+  --fee 0.0006 `
+  --export-series
+```
+
+3) 与常规流程一致：用 `export_timing_policy.py` 把 `timing_summary.csv` 合成 YAML，再交给执行器策略回测/实盘。
 
 生成的 policy 中，每个因子条目包含：
 - `name`：因子名

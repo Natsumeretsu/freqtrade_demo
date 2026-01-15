@@ -59,14 +59,30 @@ if (Test-Path $integrationRoot) {
   }
 }
 
-$argsList = @(
-  "run",
-  "python",
-  "-X",
-  "utf8",
-  "-m",
-  "freqtrade"
-)
+# 优先使用本仓库的 venv Python 直接运行，避免 uv run 在 Windows 上因文件占用触发依赖重装失败（os error 32）。
+# 若 .venv 不存在，再回退到 uv run。
+$venvPython = Join-Path $repoRoot ".venv/Scripts/python.exe"
+$useVenvPython = Test-Path $venvPython
+
+if ($useVenvPython) {
+  $cmd = $venvPython
+  $argsList = @(
+    "-X",
+    "utf8",
+    "-m",
+    "freqtrade"
+  )
+} else {
+  $cmd = "uv"
+  $argsList = @(
+    "run",
+    "python",
+    "-X",
+    "utf8",
+    "-m",
+    "freqtrade"
+  )
+}
 
 $hasUserdir = $false
 for ($i = 0; $i -lt $FreqtradeArgs.Count; $i++) {
@@ -96,7 +112,7 @@ else {
 }
 
 Write-Host ""
-Write-Host "Running: uv $($argsList -join ' ')"
+Write-Host "Running: $cmd $($argsList -join ' ')"
 Write-Host ""
 
-& uv @argsList
+& $cmd @argsList

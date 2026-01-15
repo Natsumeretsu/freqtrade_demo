@@ -36,6 +36,7 @@ import pandas as pd
 import talib.abstract as ta
 
 from trading_system.domain.factor_engine import IFactorEngine
+from trading_system.infrastructure.koopman_lite import compute_koopman_lite_features
 
 
 _EMA_RE = re.compile(r"^(ema|ema_short|ema_long)_(\d+)$", re.IGNORECASE)
@@ -57,6 +58,7 @@ _BB_WIDTH_RE = re.compile(r"^bb_width_(\d+)_(\d+)$", re.IGNORECASE)
 _BB_PCTB_RE = re.compile(r"^bb_percent_b_(\d+)_(\d+)$", re.IGNORECASE)
 _STOCH_K_RE = re.compile(r"^stoch_k_(\d+)_(\d+)_(\d+)$", re.IGNORECASE)
 _STOCH_D_RE = re.compile(r"^stoch_d_(\d+)_(\d+)_(\d+)$", re.IGNORECASE)
+_KOOP_PRED_RET_RE = re.compile(r"^koop_pred_ret_h(\d+)$", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -67,6 +69,13 @@ class TalibEngineParams:
     macd_slow: int = 26
     macd_signal: int = 9
     volume_ratio_lookback: int = 72
+    # Koopa-lite（Koopman/本征模态）参数：默认按 15m/1h 的经验取值
+    koop_window: int = 512
+    koop_embed_dim: int = 16
+    koop_stride: int = 10
+    koop_ridge: float = 1e-3
+    fft_window: int = 512
+    fft_topk: int = 8
 
 
 class TalibFactorEngine(IFactorEngine):
@@ -88,7 +97,15 @@ class TalibFactorEngine(IFactorEngine):
             "volume_ratio",
             "hl_range",
             "ema_spread",
+            # Koopa-lite（用于“本征模态/体制”视角的额外因子）
+            "fft_hp_logp",
+            "fft_lp_slope",
+            "fft_lp_energy_ratio",
+            "koop_spectral_radius",
+            "koop_fit_rmse",
         }:
+            return True
+        if _KOOP_PRED_RET_RE.match(name):
             return True
 
         if _EMA_RE.match(name):
@@ -354,6 +371,37 @@ class TalibFactorEngine(IFactorEngine):
                 continue
             mean = volume.rolling(lb).mean().replace(0, np.nan)
             out[col] = volume / mean
+
+        # --- Koopa-lite（Koopman/FFT）额外因子 ---
+        need_fft = any(n in {"fft_hp_logp", "fft_lp_slope", "fft_lp_energy_ratio"} for n in factor_names)
+        need_koop_core = any(n in {"koop_spectral_radius", "koop_fit_rmse"} for n in factor_names)
+        pred_horizons: set[int] = set()
+        for n in factor_names:
+            mm = _KOOP_PRED_RET_RE.match(str(n))
+            if mm is None:
+                continue
+            try:
+                hh = int(mm.group(1))
+            except Exception:
+                continue
+            if hh > 0:
+                pred_horizons.add(int(hh))
+
+        if need_fft or need_koop_core or pred_horizons:
+            feats = compute_koopman_lite_features(
+                close=close,
+                window=int(self._p.koop_window),
+                embed_dim=int(self._p.koop_embed_dim),
+                stride=int(self._p.koop_stride),
+                ridge=float(self._p.koop_ridge),
+                pred_horizons=sorted(pred_horizons),
+                fft_window=int(self._p.fft_window) if need_fft else 0,
+                fft_topk=int(self._p.fft_topk) if need_fft else 0,
+            )
+
+            for col in feats.columns:
+                if col in set(factor_names):
+                    out[col] = feats[col]
 
         if not out:
             return pd.DataFrame(index=data.index)

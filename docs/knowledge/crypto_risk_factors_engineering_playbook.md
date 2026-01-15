@@ -1,6 +1,6 @@
 # 加密市场风险因子：工程化落地地图（本仓库版）
 
-更新日期：2026-01-14
+更新日期：2026-01-15
 
 本文目标：
 
@@ -15,6 +15,8 @@
 - 周期：`4h`（信号层/风控层）
 - 数据：研究层以 `02_qlib_research/qlib_data/.../*.pkl` 为主（OHLCV）
 - 工程底座：`factors.yaml`（特征单一来源）+ `features.py`（离线/在线一致）+ `auto_risk`（漂移/制度 → 动作闭环）
+
+当前研究主线（重要）：本项目暂时以**单交易对时间序列预测/择时**为主；横截面多币因子（SMB/NET/C-5 等）仅作为风险语义与背景知识。
 
 ---
 
@@ -40,6 +42,31 @@
 1. **把因子模型当作“风险语义层”**：告诉我们应该关心哪些风险维度（规模、动量、流动性、网络采用、下行风险、相关性外溢等）。
 2. **把策略当作“执行层”**：仍然做单币（或少币）择时，但在上层叠加“风险预算/禁开仓/降杠杆”的闭环。
 3. **把可获得数据决定的部分先做完**：先用 OHLCV 代理（P0），再引入外部数据把关键缺口补齐（P1/P2）。
+
+### 1.1 三因子模型（CMKT / CSMB / CMOM）：把“解释力”翻译成“工程语义”
+
+学术叙事（常见口径）：
+
+- **CMKT（市场因子）**：所有代币按市值加权的整体市场收益（market-wide risk）。
+- **CSMB（规模因子）**：小盘组合收益 - 大盘组合收益（size）。
+- **CMOM（动量因子）**：赢家组合收益 - 输家组合收益（momentum）。
+
+工程解读（对本仓库更有用的部分）：
+
+- 这类模型主要解释“跨币种的预期收益差异”（横截面），不是单币择时规则。
+- 你提供的综述引用指出：三因子模型对加密横截面收益的解释力可达 **50%~80%** [2]；规模效应可能为负（小币相对大币超额收益约 **-3.4%~-4.1%/周**）[2]；动量溢价为正（赢家-输家约 **+2.5%~+4.1%/周**）[1]。这些数字强依赖样本与时间窗，落地前必须用本仓库的币池与数据口径复核。
+- 在本仓库的 P0 约束下：
+  - CMKT → 用 BTC 作为 market proxy（见 2.1 / `auto_risk.market_context`）。
+  - CSMB → 需要市值数据与更大的 universe（P2），否则不建议硬做（见 2.4）。
+  - CMOM → 先用 `ret_*`/`ema_spread` 做单币时间序列动量；再决定是否扩展到横截面赢家-输家（见 2.5）。
+
+### 1.2 五因子/动态因子模型：更适合研究层落地
+
+如需进一步了解 C-5、IPCA、Trend factor 等“横截面定价”研究与落地边界，见：`docs/knowledge/crypto_pricing_five_factor_models_playbook.md`。
+更宏观的因子模型生态地图与指标口径见：`docs/knowledge/crypto_factor_model_ecosystem_survey.md`。
+因子模型实现与集成落地（研究→执行）见：`docs/knowledge/crypto_factor_model_implementation_playbook.md`。
+价格预测模型的工程验收（避免“高分但不可交易”）见：`docs/knowledge/crypto_price_forecasting_models_playbook.md`。
+信息论视角下的“熵/转移熵/复杂度”特征与风险含义见：`docs/knowledge/crypto_information_theory_signal_system_playbook.md`。
 
 ---
 
@@ -89,13 +116,16 @@
 - 建议动作：
   - Soft：流动性下降时降低单笔仓位、降低杠杆；
   - Hard：数据/成交不可用时禁新开仓（只允许退出）。
+- 进一步阅读（微观结构/执行层）：`docs/knowledge/crypto_liquidity_microstructure_playbook.md`
 
 ### 2.4 规模因子（CSMB / SMB）：横截面因子，当前数据约束下不建议硬做
 
-工程含义：小币相对大币存在系统性溢价/风险溢价，但它需要**大量币种**与**市值数据**构造长短组合。
+工程含义：规模效应在加密中可能表现为“溢价”也可能表现为“折价”，但它需要**大量币种**与**市值数据**构造长短组合。
 
 - P0（仅 BTC/ETH + OHLCV）现实情况：
   - 无法形成稳健的“大小盘分组”，做出来很容易是噪声。
+- 你提供的摘要中提到：
+  - 小币相对大币的超额收益约 **-3.4%~-4.1%/周**（示例口径）。这意味着规模效应可能为负；但仍需按本地币池与样本期复核。
 - 建议落地方式（如果未来扩展到 Top50）：
   - P2：引入市值数据（CoinMarketCap/交易所/第三方），构建稳定 universe，再做 SMB。
 - 本仓库建议：
@@ -106,7 +136,10 @@
 工程含义：趋势/动量在加密中很强，但不同币、不同市值段可能表现不同（小币甚至会反向）。
 
 - P0（仅 OHLCV）可做：
-  - 直接用 `ret_*`/`ema_spread` 等作为趋势强弱（本仓库已有）
+  - **时间序列动量（单币）**：直接用 `ret_*`/`ema_spread` 等作为趋势强弱（本仓库已有）
+  - **横截面动量（赢家-输家）**：需要足够币池 + 定期再平衡；更适合先在研究层做离线复核，再决定是否接入执行层
+- 你提供的摘要中提到：
+  - 赢家相对输家的超额收益约 **+2.5%~+4.1%/周**（示例口径）。落地时更重要的是“在不同制度/不同币池是否稳定”，而不是数字本身。
 - 建议动作：
   - Soft：顺势方向降低风险折扣（against_trend 降低）；
   - Hard：不要用“动量反向”直接停机（更适合当信号层/策略层）。
@@ -139,6 +172,10 @@
 - 建议落地方式：
   - 手动/日历型的风险开关（重大事件窗口禁新开/降杠杆）
   - 保持证据落盘（事件→动作→收益/回撤影响）
+- 2026 年度重点（示例，不构成预测）：
+  - 监管确定性变化（例如美国监管框架立法进展、欧盟 MiCA 落地节奏等）
+  - 利率路径与风险偏好（央行政策转向、资金流变化）
+  - 机构化带来的相关性变化（例如 ETF 资金流与“更像风险资产”的联动增强）
 - 未来可选（P2+）：
   - 引入宏观指标与新闻情绪，但要有严格的回测验证与数据对齐。
 
@@ -149,6 +186,8 @@
 - P0（仅 OHLCV）可做：
   - 极端上涨/下跌 + 放量（FOMO/恐慌 proxy）
   - 尾部形态（skew/kurt）用于解释（不建议单独触发硬禁开）
+- P2（外部数据）更合理：
+  - 恐惧贪婪指数、社媒热度/KOL 事件、资金净流等，更适合作为“风险预算/降档”而非信号层硬规则
 
 ### 2.10 技术/安全/交易对手风险：OHLCV 无法提前预测，但可以快速止损/停机
 
@@ -158,6 +197,8 @@
   - 数据缺失/时间戳跳变/成交量异常为 0（数据或交易不可用）
 - P1 可做（交易所状态）：
   - 获取交易所维护/异常公告（若可自动化），或人工开关
+- 工程提醒：
+  - 智能合约漏洞/共识攻击/交易所破产等事件往往无法提前量化预测，但会通过“波动+流动性”渠道迅速传导；应优先保证硬停机与退出路径可靠
 
 ### 2.11 外溢/传染（BTC 主导、跨币相关性断裂）：P0 也能做，ROI 很高
 
@@ -169,6 +210,27 @@
 - 建议动作：
   - Soft：相关性下降/结构变化时降低杠杆或缩小仓位上限；
   - Hard：当相关性断裂 + 高波动同时出现，可短期禁新开（可选）。
+
+### 2.12 项目基本面与竞争风险：更适合 universe 管理，而不是信号层
+
+工程含义：tokenomics、解锁计划、生态竞争（L1/L2、AppChain/Rollup 等）会带来中长期“生存/归零”风险，但短周期 OHLCV 难以提前稳定识别。
+
+- P0（无需外部数据）建议做法：
+  - 把这类风险当作“标的选择”问题：白名单/黑名单、最小上市时间、最小流动性门槛（避免薄盘与操纵型标的）
+- P2（第三方/链上/基本面）可做：
+  - 供应与解锁、持仓集中度、TVL/活跃用户、开发活跃度等，作为 universe 打分或仓位上限
+- 工程提醒：
+  - 这类指标更适合“慢变量”（周/月级更新），避免高频切换导致过拟合与执行噪声
+
+### 2.13 风险衡量与管理：VaR 不够，用尾部视角做复盘与校准
+
+工程含义：加密收益分布厚尾、跳跃、极端归零事件更多，传统正态 VaR 往往低估尾部。
+
+- 建议把尾部风险主要放在“离线评估/报告”层：
+  - 用 CVaR/Expected Shortfall、极值理论（EVT）等衡量极端损失
+  - 配合成本敏感性与压力测试做稳健性验收
+- 与本仓库的对齐：
+  - 这类度量更适合作为 `scripts/analysis/*` 的报告指标，而不是策略实时硬开关（否则容易误触）
 
 ---
 
@@ -229,12 +291,67 @@
 
 ---
 
-## 7) 来源（用户提供，待抓取）
+## 7) 来源（用户摘要，待登记/抓取）
 
-你提供的链接覆盖了三类信息：
+说明：
 
-- 定价与因子：三因子/五因子（NBER/SSRN）、C-5、IPCA、CTREND、机构级因子（CF Benchmarks）
-- 风险框架：监管/宏观/情绪/安全/托管/微观结构等
-- 度量方法：VaR/CVaR、GARCH-EVT-Copula 等尾部风险方法
+- 为保持仓库工具链兼容性，source registry 的 S-ID 使用 `S-<至少 3 位数字>`（相关抓取/ingest 脚本依赖该格式）。因此本次仅将正文引用到的核心来源 [1]~[22] 登记为 `S-972`~`S-993`。
+- [23]~[52] 为扩展阅读，暂未逐条登记；如后续需要抓取与落盘，可从中挑选关键条目补录。
 
-建议后续按 `docs/knowledge/source_registry.md` 的规则逐条登记并抓取落盘，便于在不同设备上复现与迭代。
+### 7.1 核心来源（已登记到 `docs/knowledge/source_registry.md`）
+
+- [1] https://www.ssrn.com/abstract=3379131（S-972）
+- [2] https://www.nber.org/system/files/working_papers/w25882/w25882.pdf（S-973）
+- [3] https://journals.vsu.ru/econ/article/view/3614（S-974）
+- [4] https://www.investopedia.com/riding-the-wave-how-to-manage-crypto-volatility-11833947（S-975）
+- [5] https://www.moomoo.com/sg/hans/learn/detail-7-key-factors-that-could-impact-cryptocurrency-prices-117206-240769245（S-976）
+- [6] https://www.binance.com/en/square/post/01-08-2026-crypto-markets-face-key-challenges-for-growth-in-2026-34792356442450（S-977）
+- [7] https://proceedings.stis.ac.id/icdsos/article/view/727（S-978）
+- [8] https://www.investing.com/analysis/bitcoin-vs-sp-500--risk-reassessment-into-2026-200673050（S-979）
+- [9] https://www.binance.com/es-MX/square/post/23562037194689（S-980）
+- [10] https://jemaca.aks.or.id/jemaca/article/view/23（S-981）
+- [11] https://www.hde.hr/sadrzaj_en.aspx?Podrucje=2034（S-982）
+- [12] https://arxiv.org/pdf/2308.08554.pdf（S-983）
+- [13] https://republic.com/help/what-are-the-risks-associated-with-digital-assets-blockchain-technology-utility-1（S-984）
+- [14] https://www.taurushq.com/legal/regulatory-risk/risks-digitalassets/（S-985）
+- [15] https://www.oanda.com/us-en/trade-tap-blog/asset-classes/crypto/risks-of-trading-cryptocurrency/（S-986）
+- [16] https://crypto.com/en/market-updates/top-cryptos-to-watch-in-2026（S-987）
+- [17] https://coincub.com/risks-and-rewards-in-assessing-volatility-in-the-crypto-market/（S-988）
+- [18] https://www.mdpi.com/1911-8074/12/2/52/pdf（S-989）
+- [19] https://journal.sinergi.or.id/index.php/ijat/article/view/479（S-990）
+- [20] http://arxiv.org/pdf/2407.15766.pdf（S-991）
+- [21] https://www.garp.org/risk-intelligence/market/digital-asset-risk-241018（S-992）
+- [22] https://www.bcg.com/publications/2024/a-risk-and-control-framework-for-digital-financial-assets（S-993）
+
+### 7.2 扩展阅读（未逐条登记）
+
+- [23] https://link.springer.com/10.1007/s43546-023-00577-3
+- [24] https://link.springer.com/10.1007/s10614-025-10888-2
+- [25] https://dinastires.org/JAFM/article/view/2379
+- [26] https://www.emerald.com/insight/content/doi/10.1108/JCMS-07-2024-0038/full/html
+- [27] https://arxiv.org/pdf/1912.05228.pdf
+- [28] https://downloads.hindawi.com/journals/complexity/2021/5581843.pdf
+- [29] http://arxiv.org/pdf/2406.19401.pdf
+- [30] https://www.mdpi.com/1911-8074/15/11/532/pdf?version=1668428001
+- [31] https://arxiv.org/pdf/2411.09676.pdf
+- [32] https://pmc.ncbi.nlm.nih.gov/articles/PMC8996802/
+- [33] https://www.sciencedirect.com/science/article/abs/pii/S1057521925004764
+- [34] https://www.straitsfinancial.com/insights/manage-digital-assets-effectively
+- [35] https://onlinelibrary.wiley.com/doi/full/10.1002/fut.22425
+- [36] https://finance.yahoo.com/news/why-crypto-today-january-13-142615613.html
+- [37] https://www.ey.com/en_us/insights/financial-services/token-due-diligence-a-structured-approach-to-digital-asset-risk
+- [38] https://www.sciencedirect.com/science/article/abs/pii/S095219762400808X
+- [39] https://www.weforum.org/stories/2026/01/digital-economy-inflection-point-what-to-expect-for-digital-assets-in-2026/
+- [40] https://wmi.edu.sg/programmes/asset-management/digital-assets-strategies-risks-regulations/
+- [41] https://www.semanticscholar.org/paper/ca0baff8a87e52442f88822989bd02fb5a2a5ee3
+- [42] https://rbes.fa.ru/jour/article/download/94/94
+- [43] http://arxiv.org/pdf/2411.13615.pdf
+- [44] https://journals.sagepub.com/doi/pdf/10.1177/21582440231193600
+- [45] https://zodia-custody.com/digital-asset-risk-disclosures/
+- [46] https://www.cmcmarkets.com/zh-nz/cfd/learn/cfd-asset-classes/crypto-risks
+- [47] https://www.osl.com/hk-en/academy/article/cryptocurrency-price-movements-key-factors-that-drive-volatility
+- [48] http://gaoli.ruc.edu.cn/jrkjqy/ea0f47a83317449bb963e7f24932d0f1.htm
+- [49] https://www.cftc.gov/sites/default/files/2022-09/DigitalAssetRisks.pdf
+- [50] https://www.kroll.com/zh-cn/publications/navigating-the-crypto-maze-mitigating-risks-maximizing-opportunities
+- [51] https://www.blackrock.com/us/financial-professionals/insights/exploring-crypto-volatility
+- [52] https://www.moneysense.gov.sg/risks-of-trading-payment-token-derivatives/

@@ -75,6 +75,8 @@ class AuditConfig:
     benchmark_symbol: str
     outdir: Path
     export_series: bool
+    export_series_topk: int
+    export_series_pos_only: bool
 
 
 def _parse_args() -> argparse.Namespace:
@@ -88,6 +90,14 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--strategy-params", default="", help="策略参数 JSON（用于渲染占位符）。")
     p.add_argument("--var", action="append", default=[], help="额外渲染变量（可重复），格式 key=value。")
     p.add_argument("--factors", nargs="*", default=None, help="只评估指定因子名（默认评估 feature-set 全部因子）。")
+    p.add_argument(
+        "--extra-features",
+        action="append",
+        default=[],
+        help="额外特征文件（pkl，可重复）。典型来源：scripts/qlib/koopman_lite.py 输出。",
+    )
+    p.add_argument("--extra-factors", nargs="*", default=None, help="只评估指定的额外特征列名（默认评估全部额外特征列）。")
+    p.add_argument("--only-extra-factors", action="store_true", help="只评估额外特征（忽略 feature-set 因子）。")
 
     p.add_argument("--horizons", nargs="*", type=int, default=[1, 4], help="持仓步长（K 线数），例如 1 4。")
     p.add_argument("--quantiles", type=int, default=5, help="分位数组数（默认 5）。")
@@ -107,6 +117,17 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--outdir", default="", help="输出目录（默认 artifacts/timing_audit/<run_id>）。")
     p.add_argument("--run-id", default="", help="输出目录名后缀（可用于实验编号）。")
     p.add_argument("--export-series", action="store_true", help="输出每个因子的明细序列（会产生较多文件）。")
+    p.add_argument(
+        "--export-series-topk",
+        type=int,
+        default=0,
+        help="限制序列导出的数量：每个 pair、每个 horizon 分别导出 TopK 个 pass 和 TopK 个 watch（按 roll_30d_median 排序）。0 表示不限制。",
+    )
+    p.add_argument(
+        "--export-series-pos-only",
+        action="store_true",
+        help="仅导出 pos 列（用于 corr 去冗余），显著减少文件体积。",
+    )
     return p.parse_args()
 
 
@@ -193,6 +214,63 @@ def _resolve_outdir(*, outdir_arg: str, run_id: str) -> Path:
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     suffix = f"_{str(run_id).strip()}" if str(run_id).strip() else ""
     return (_REPO_ROOT / "artifacts" / "timing_audit" / f"timing_audit_{ts}{suffix}").resolve()
+
+
+def _load_extra_features(paths: list[str]) -> dict[str, pd.DataFrame]:
+    """
+    加载“额外特征文件”（pkl），支持的格式：
+    - {"pairs": {pair: DataFrame}, "__meta__": {...}}  （koopman_lite 默认输出）
+    - {pair: DataFrame, ...}                            （简化映射）
+    """
+    out: dict[str, pd.DataFrame] = {}
+    for raw in paths:
+        p = (_REPO_ROOT / Path(str(raw))).resolve()
+        if not p.is_file():
+            raise FileNotFoundError(f"未找到 extra-features：{p.as_posix()}")
+        obj = pd.read_pickle(p)
+        if obj is None:
+            continue
+
+        pair_map: dict[str, pd.DataFrame] = {}
+        if isinstance(obj, dict) and "pairs" in obj and isinstance(obj.get("pairs"), dict):
+            pair_map = obj.get("pairs") or {}
+        elif isinstance(obj, dict):
+            # 过滤掉 meta 类键
+            tmp: dict[str, pd.DataFrame] = {}
+            for k, v in obj.items():
+                if str(k).startswith("__"):
+                    continue
+                if isinstance(v, pd.DataFrame):
+                    tmp[str(k)] = v
+            pair_map = tmp
+        else:
+            raise ValueError(f"不支持的 extra-features 格式：{p.as_posix()}（期望 dict->DataFrame 映射）")
+
+        for pair, df in pair_map.items():
+            if df is None or df.empty:
+                continue
+            if not isinstance(df.index, pd.DatetimeIndex):
+                raise ValueError(f"extra-features 的 index 必须是 DatetimeIndex：pair={pair}")
+
+            clean = df.copy()
+            clean = clean.replace([np.inf, -np.inf], np.nan)
+            # 统一成 float（避免 rolling.quantile 在 object 上出错）
+            for c in list(clean.columns):
+                clean[c] = pd.to_numeric(clean[c], errors="coerce")
+
+            if pair not in out:
+                out[pair] = clean
+            else:
+                # 多来源拼接：同列名以后出现的覆盖（后者优先）
+                merged = out[pair].join(clean, how="outer", rsuffix="__dup")
+                dup_cols = [c for c in merged.columns if str(c).endswith("__dup")]
+                for dc in dup_cols:
+                    base = str(dc).removesuffix("__dup")
+                    merged[base] = merged[dc].combine_first(merged.get(base))
+                    merged = merged.drop(columns=[dc])
+                out[pair] = merged
+
+    return out
 
 
 def _load_dataset(*, cfg, pair: str, exchange: str, timeframe: str) -> pd.DataFrame:
@@ -312,13 +390,34 @@ def main() -> int:
     strategy_vars.update(_parse_key_value_pairs(list(args.var or [])))
 
     factor_names = _resolve_factor_names(feature_set=str(args.feature_set), strategy_vars=strategy_vars)
-    if args.factors is not None:
+    if bool(args.only_extra_factors):
+        factor_names = []
+    elif args.factors is not None:
         factors = [str(f).strip() for f in (args.factors or []) if str(f).strip()]
         if not factors:
             raise ValueError("--factors 为空：要么不传，要么至少提供一个因子名")
         factor_names = [f for f in factor_names if f in set(factors)]
         if not factor_names:
             raise ValueError("指定的 --factors 未命中 feature-set 渲染结果")
+
+    extra_features_paths = [str(x).strip() for x in (args.extra_features or []) if str(x).strip()]
+    extra_map: dict[str, pd.DataFrame] = _load_extra_features(extra_features_paths) if extra_features_paths else {}
+
+    extra_factor_names: list[str] = []
+    if extra_map:
+        # 以第一个非空 pair 的列集合作为“默认额外因子集合”
+        for _, df in extra_map.items():
+            if df is None or df.empty:
+                continue
+            extra_factor_names = [str(c).strip() for c in df.columns if str(c).strip()]
+            break
+        if args.extra_factors is not None:
+            pick = [str(f).strip() for f in (args.extra_factors or []) if str(f).strip()]
+            if not pick:
+                raise ValueError("--extra-factors 为空：要么不传，要么至少提供一个额外特征列名")
+            extra_factor_names = [c for c in extra_factor_names if c in set(pick)]
+            if not extra_factor_names:
+                raise ValueError("指定的 --extra-factors 未命中 extra-features 的列名")
 
     horizons = sorted({int(h) for h in (args.horizons or []) if int(h) > 0})
     if not horizons:
@@ -339,12 +438,13 @@ def main() -> int:
     outdir = _resolve_outdir(outdir_arg=str(args.outdir), run_id=str(args.run_id))
     outdir.mkdir(parents=True, exist_ok=True)
 
+    # 注意：audit_cfg.factor_names 是“最终评估列表”，后续会把 extra-features join 进 feats 里。
     audit_cfg = AuditConfig(
         exchange=exchange,
         timeframe=timeframe,
         pairs=pairs,
         weights=weights_norm,
-        factor_names=factor_names,
+        factor_names=list(factor_names) + list(extra_factor_names),
         horizons=horizons,
         quantiles=quantiles,
         lookback_days=lookback_days,
@@ -358,6 +458,8 @@ def main() -> int:
         benchmark_symbol=str(args.benchmark_symbol).strip() or "BTC_USDT",
         outdir=outdir,
         export_series=bool(args.export_series),
+        export_series_topk=int(args.export_series_topk),
+        export_series_pos_only=bool(args.export_series_pos_only),
     )
 
     print("")
@@ -366,7 +468,7 @@ def main() -> int:
     print(f"- timeframe: {audit_cfg.timeframe}")
     print(f"- pairs: {len(audit_cfg.pairs)}")
     print(f"- feature_set: {args.feature_set}")
-    print(f"- factors: {len(audit_cfg.factor_names)}")
+    print(f"- factors: {len(audit_cfg.factor_names)}（feature-set={len(factor_names)} / extra={len(extra_factor_names)}）")
     print(f"- horizons: {audit_cfg.horizons}")
     print(f"- quantiles: {audit_cfg.quantiles}")
     print(f"- lookback_days: {audit_cfg.lookback_days}")
@@ -382,6 +484,9 @@ def main() -> int:
     print(f"- min_ic_ir      : {audit_cfg.min_ic_ir}")
     print(f"- min_alpha_btc_net: {audit_cfg.min_alpha_btc_net}")
     print(f"- outdir: {audit_cfg.outdir.as_posix()}")
+    if audit_cfg.export_series:
+        print(f"- export_series_topk: {int(audit_cfg.export_series_topk)}")
+        print(f"- export_series_pos_only: {bool(audit_cfg.export_series_pos_only)}")
 
     # 1) 加载数据（每个币一个数据集）
     datasets: dict[str, pd.DataFrame] = {}
@@ -416,7 +521,12 @@ def main() -> int:
     roll_day = 30 if 30 in set(audit_cfg.rolling_days or []) else (audit_cfg.rolling_days[0] if audit_cfg.rolling_days else None)
 
     for pair, ohlcv in datasets.items():
-        feats = compute_features(ohlcv, feature_cols=audit_cfg.factor_names)
+        base_factor_names = list(factor_names)
+        feats = compute_features(ohlcv, feature_cols=base_factor_names)
+        if extra_map:
+            extra = extra_map.get(str(pair))
+            if extra is not None and not extra.empty:
+                feats = feats.join(extra, how="left")
         close = ohlcv["close"].astype("float64")
 
         # 预计算滚动分位阈值（一次性算全列），用于加速“多因子批量体检”
@@ -451,6 +561,13 @@ def main() -> int:
                 rolling_days=list(audit_cfg.rolling_days or []),
             )
             eff_tf = _effective_timeframe(timeframe=audit_cfg.timeframe, horizon=hh)
+
+            # 若启用 TopK 导出：在“每个 pair、每个 horizon”内维护一个小的候选池，避免全量落盘
+            export_topk = int(audit_cfg.export_series_topk)
+            export_pass: list[tuple[float, str, pd.DataFrame]] = []
+            export_watch: list[tuple[float, str, pd.DataFrame]] = []
+            roll_key = f"roll_{int(roll_day)}d_median" if roll_day else "roll_30d_median"
+            safe_pair = str(pair).replace("/", "_").replace(":", "_").replace("\\", "_")
 
             for factor in audit_cfg.factor_names:
                 if factor not in feats.columns:
@@ -507,10 +624,46 @@ def main() -> int:
 
                 summary_rows.append(row)
 
-                if audit_cfg.export_series and ret_df is not None and not ret_df.empty:
-                    safe_pair = str(pair).replace("/", "_").replace(":", "_").replace("\\", "_")
-                    safe_factor = str(factor).replace("/", "_").replace(":", "_").replace("\\", "_")
-                    ret_df.to_csv(audit_cfg.outdir / f"timing_{safe_pair}_{safe_factor}_h{hh}.csv", encoding="utf-8")
+                if not audit_cfg.export_series:
+                    continue
+                if ret_df is None or ret_df.empty:
+                    continue
+
+                safe_factor = str(factor).replace("/", "_").replace(":", "_").replace("\\", "_")
+                out_path = audit_cfg.outdir / f"timing_{safe_pair}_{safe_factor}_h{hh}.csv"
+
+                if export_topk > 0:
+                    # 先按默认验收规则给出 verdict（pass/watch/drop），用于导出排序
+                    verdict_now = _verdict_row(pd.Series(row), cfg=audit_cfg, roll_day=roll_day)
+                    if verdict_now not in {"pass", "watch"}:
+                        continue
+                    try:
+                        roll_v = float(row.get(roll_key, float("-inf")))
+                    except Exception:
+                        roll_v = float("-inf")
+                    roll_v = roll_v if np.isfinite(roll_v) else float("-inf")
+
+                    target = export_pass if verdict_now == "pass" else export_watch
+                    target.append((-float(roll_v), str(factor), ret_df))
+                    target.sort(key=lambda x: x[0])
+                    if len(target) > export_topk:
+                        del target[export_topk:]
+                else:
+                    # 不限流：直接落盘（支持 pos-only）
+                    if audit_cfg.export_series_pos_only:
+                        ret_df[["pos"]].to_csv(out_path, encoding="utf-8")
+                    else:
+                        ret_df.to_csv(out_path, encoding="utf-8")
+
+            # TopK 模式：在该 horizon 结束后统一落盘（避免全量导出）
+            if audit_cfg.export_series and export_topk > 0 and (export_pass or export_watch):
+                for _, fac, rdf in list(export_pass) + list(export_watch):
+                    safe_factor = str(fac).replace("/", "_").replace(":", "_").replace("\\", "_")
+                    out_path = audit_cfg.outdir / f"timing_{safe_pair}_{safe_factor}_h{hh}.csv"
+                    if audit_cfg.export_series_pos_only:
+                        rdf[["pos"]].to_csv(out_path, encoding="utf-8")
+                    else:
+                        rdf.to_csv(out_path, encoding="utf-8")
 
     summary = pd.DataFrame(summary_rows)
     if summary.empty:

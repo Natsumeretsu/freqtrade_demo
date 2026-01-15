@@ -270,6 +270,59 @@ def position_from_thresholds(*, x: pd.Series, q_high: pd.Series, q_low: pd.Serie
     return pos
 
 
+def continuous_score_from_thresholds(
+    *,
+    x: pd.Series,
+    q_high: pd.Series,
+    q_low: pd.Series,
+    direction: str,
+    clip: float = 1.0,
+    eps: float = 1e-12,
+) -> pd.Series:
+    """
+    使用滚动分位阈值把因子值映射为 [-clip, clip] 的连续得分（更像“投影/加权和”，而非二值投票）。
+
+    约定（direction=pos）：
+    - x == q_low  -> score == -1
+    - x == q_high -> score == +1
+    - x 在 (q_low, q_high) 内线性插值
+
+    direction=neg：符号翻转（因子越小越偏多）。
+
+    注意：
+    - q_high/q_low 可能因为 lookback 不足而为 NaN，此时返回 0（不贡献信号）。
+    - 当 q_high≈q_low（序列近似常数）时，用 eps 做数值稳定。
+    """
+    if x is None or x.empty:
+        return pd.Series(dtype="float64")
+    if q_high is None or q_low is None:
+        return pd.Series(0.0, index=x.index, dtype="float64")
+
+    xx = x.astype("float64")
+    hi = q_high.astype("float64").reindex(xx.index)
+    lo = q_low.astype("float64").reindex(xx.index)
+
+    mid = (hi + lo) / 2.0
+    half_span = (hi - lo).abs() / 2.0
+
+    c = float(clip)
+    if not np.isfinite(c) or c <= 0:
+        c = 1.0
+
+    e = float(eps)
+    if not np.isfinite(e) or e <= 0:
+        e = 1e-12
+
+    denom = half_span + e
+    raw = (xx - mid) / denom
+    raw = raw.replace([np.inf, -np.inf], np.nan).clip(lower=-c, upper=c).fillna(0.0)
+
+    d = str(direction or "").strip().lower()
+    if d == "neg":
+        raw = -raw
+    return raw.astype("float64")
+
+
 def apply_trade_side(*, pos: pd.Series, side: str) -> pd.Series:
     """
     将目标仓位裁剪为“只做多 / 只做空 / 多空都做”。

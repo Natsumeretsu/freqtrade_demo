@@ -197,7 +197,7 @@ def _local_rag_stdio_config(
     return command, args, env
 
 
-_SID_DIR_RE = re.compile(r"^S-\d{3}$", re.IGNORECASE)
+_SID_DIR_RE = re.compile(r"^S-\d{3,}$", re.IGNORECASE)
 
 
 def _looks_like_workflow_source(title: str) -> bool:

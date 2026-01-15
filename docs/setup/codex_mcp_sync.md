@@ -146,7 +146,7 @@ Copy-Item -Path (Join-Path $src '*') -Destination $dst -Recurse -Force
 如需自定义：
 
 ```powershell
-./scripts/mcp/setup_codex.ps1 -WolframMode python -WolframMcpRepoDir "C:/Users/Difg/.codex/tools/Wolfram-MCP" -WolframMcpRepoUrl "https://github.com/Natsumeretsu/Wolfram-MCP.git"
+./scripts/mcp/setup_codex.ps1 -WolframMode python -WolframMcpRepoDir "$HOME/.codex/tools/Wolfram-MCP" -WolframMcpRepoUrl "https://github.com/Natsumeretsu/Wolfram-MCP.git"
 ```
 
 ### 方案 B：Paclet 模式（可选）
