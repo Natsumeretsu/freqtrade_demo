@@ -43,14 +43,45 @@ class SimpleMVPStrategy(IStrategy):
         return dataframe
 
     def populate_entry_trend(self, dataframe: pd.DataFrame, metadata: dict) -> pd.DataFrame:
-        """入场信号 - 待实现"""
-        # TODO: 根据验证通过的因子实现入场逻辑
-        dataframe['enter_long'] = 0
-        dataframe['enter_short'] = 0
+        """
+        入场信号 - 基于动量因子的简单规则
+
+        做多条件: 动量 > 2% 且成交量 > 0
+        做空条件: 动量 < -2% 且成交量 > 0
+        """
+        dataframe.loc[
+            (
+                (dataframe['momentum_8h'] > 0.02) &  # 动量 > 2%
+                (dataframe['volume'] > 0)
+            ),
+            'enter_long'] = 1
+
+        dataframe.loc[
+            (
+                (dataframe['momentum_8h'] < -0.02) &  # 动量 < -2%
+                (dataframe['volume'] > 0)
+            ),
+            'enter_short'] = 1
+
         return dataframe
 
     def populate_exit_trend(self, dataframe: pd.DataFrame, metadata: dict) -> pd.DataFrame:
-        """出场信号 - 待实现"""
-        dataframe['exit_long'] = 0
-        dataframe['exit_short'] = 0
+        """
+        出场信号 - 基于动量反转的简单规则
+
+        平多条件: 动量 < -1% (反转)
+        平空条件: 动量 > 1% (反转)
+        """
+        dataframe.loc[
+            (
+                (dataframe['momentum_8h'] < -0.01)  # 动量反转
+            ),
+            'exit_long'] = 1
+
+        dataframe.loc[
+            (
+                (dataframe['momentum_8h'] > 0.01)  # 动量反转
+            ),
+            'exit_short'] = 1
+
         return dataframe

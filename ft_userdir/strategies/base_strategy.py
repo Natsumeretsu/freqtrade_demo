@@ -53,7 +53,7 @@ class BaseStrategy(IStrategy, ABC):
 
         子类可以覆盖此方法添加自定义缓存。
         """
-        self._macro_inf_df: Optional[DataFrame] = None
+        self._macro_inf_df: dict = {}  # 改为字典,按 pair+timeframe+timestamp 缓存
         self._gate_funnel_cache: dict = {}
 
     def _safe_dataframe_operation(
@@ -161,9 +161,15 @@ class MacroFilteredStrategy(BaseStrategy, ABC):
         Returns:
             宏观 DataFrame 或 None
         """
+        # 生成缓存键 (pair + timeframe + 最新时间戳)
+        if not dataframe.empty:
+            cache_key = f"{metadata['pair']}_{self.informative_timeframe}_{dataframe['date'].iloc[-1]}"
+        else:
+            cache_key = f"{metadata['pair']}_{self.informative_timeframe}_empty"
+
         # 检查缓存
-        if self._macro_inf_df is not None and not self._macro_inf_df.empty:
-            return self._macro_inf_df
+        if cache_key in self._macro_inf_df:
+            return self._macro_inf_df[cache_key]
 
         dp = getattr(self, "dp", None)
         if dp is None:
@@ -175,8 +181,8 @@ class MacroFilteredStrategy(BaseStrategy, ABC):
                 timeframe=self.informative_timeframe
             )
             if inf is not None and not inf.empty:
-                self._macro_inf_df = inf.copy()
-                return self._macro_inf_df
+                self._macro_inf_df[cache_key] = inf.copy()
+                return self._macro_inf_df[cache_key]
         except Exception as e:
             logger.warning(f"获取宏观数据失败: {e}")
 

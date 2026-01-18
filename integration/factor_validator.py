@@ -27,14 +27,21 @@ def calculate_ic(
 
     Returns:
         IC 值
+
+    Raises:
+        ValueError: 当输入长度不一致或样本数不足时
     """
+    # 输入验证
+    if len(factor) != len(forward_return):
+        raise ValueError(f"因子和收益长度不一致: {len(factor)} vs {len(forward_return)}")
+
     # 移除 NaN 值
     valid_mask = factor.notna() & forward_return.notna()
     factor_clean = factor[valid_mask]
     return_clean = forward_return[valid_mask]
 
     if len(factor_clean) < 10:
-        return np.nan
+        raise ValueError(f"有效样本数不足 10: {len(factor_clean)}")
 
     if method == 'pearson':
         ic, _ = stats.pearsonr(factor_clean, return_clean)
