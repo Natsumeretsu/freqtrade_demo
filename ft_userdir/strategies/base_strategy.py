@@ -4,16 +4,12 @@
 """
 from __future__ import annotations
 
-from abc import ABC
-from datetime import datetime
 import logging
-from typing import Optional
+from abc import ABC
 
 import numpy as np
-from pandas import DataFrame
-
 from freqtrade.strategy import IStrategy
-
+from pandas import DataFrame
 
 logger = logging.getLogger(__name__)
 
@@ -150,7 +146,7 @@ class MacroFilteredStrategy(BaseStrategy, ABC):
             return []
         return [(pair, self.informative_timeframe) for pair in dp.current_whitelist()]
 
-    def _get_macro_dataframe(self, metadata: dict) -> Optional[DataFrame]:
+    def _get_macro_dataframe(self, metadata: dict) -> DataFrame | None:
         """获取宏观时间框架的 DataFrame
 
         使用缓存避免重复获取。
@@ -161,11 +157,8 @@ class MacroFilteredStrategy(BaseStrategy, ABC):
         Returns:
             宏观 DataFrame 或 None
         """
-        # 生成缓存键 (pair + timeframe + 最新时间戳)
-        if not dataframe.empty:
-            cache_key = f"{metadata['pair']}_{self.informative_timeframe}_{dataframe['date'].iloc[-1]}"
-        else:
-            cache_key = f"{metadata['pair']}_{self.informative_timeframe}_empty"
+        # 生成缓存键 (pair + timeframe)
+        cache_key = f"{metadata['pair']}_{self.informative_timeframe}"
 
         # 检查缓存
         if cache_key in self._macro_inf_df:

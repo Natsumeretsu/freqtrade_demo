@@ -3,14 +3,7 @@
 """
 
 import pandas as pd
-import numpy as np
-import pytest
-
-from data_pipeline import (
-    clean_ohlcv_data,
-    calculate_forward_returns,
-    split_train_val_test
-)
+from data_pipeline import calculate_forward_returns, clean_ohlcv_data, split_train_val_test
 
 
 class TestCleanOHLCVData:

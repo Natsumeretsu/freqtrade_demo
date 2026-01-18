@@ -7,8 +7,6 @@
 from __future__ import annotations
 
 import pandas as pd
-import numpy as np
-from typing import Tuple, Optional
 
 
 def clean_ohlcv_data(
@@ -84,7 +82,7 @@ def split_train_val_test(
     train_ratio: float = 0.6,
     val_ratio: float = 0.2,
     test_ratio: float = 0.2
-) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     分割训练集、验证集、测试集
 

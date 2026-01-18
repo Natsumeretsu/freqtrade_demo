@@ -6,12 +6,13 @@
 
 from __future__ import annotations
 
-from freqtrade.strategy import IStrategy
-import pandas as pd
-
 # 导入简化的因子模块
 import sys
 from pathlib import Path
+
+import pandas as pd
+from freqtrade.strategy import IStrategy
+
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "integration"))
 
 from simple_factors.basic_factors import calculate_all_factors
@@ -28,7 +29,7 @@ class SimpleMVPStrategy(IStrategy):
     """
 
     INTERFACE_VERSION = 3
-    can_short = True
+    can_short = True  # 期货市场支持做空
 
     timeframe = "15m"
     startup_candle_count = 100
@@ -74,13 +75,13 @@ class SimpleMVPStrategy(IStrategy):
         """
         dataframe.loc[
             (
-                (dataframe['momentum_8h'] < -0.01)  # 动量反转
+                dataframe['momentum_8h'] < -0.01  # 动量反转
             ),
             'exit_long'] = 1
 
         dataframe.loc[
             (
-                (dataframe['momentum_8h'] > 0.01)  # 动量反转
+                dataframe['momentum_8h'] > 0.01  # 动量反转
             ),
             'exit_short'] = 1
 

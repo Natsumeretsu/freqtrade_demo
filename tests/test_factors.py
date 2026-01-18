@@ -3,14 +3,11 @@
 """
 
 import pandas as pd
-import numpy as np
-import pytest
-
 from simple_factors.basic_factors import (
+    calculate_all_factors,
     calculate_momentum,
     calculate_volatility,
     calculate_volume_surge,
-    calculate_all_factors
 )
 
 

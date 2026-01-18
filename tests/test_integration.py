@@ -2,13 +2,12 @@
 
 测试从数据清洗到因子计算再到验证的完整流程。
 """
-import pytest
-import pandas as pd
 import numpy as np
-
-from data_pipeline import clean_ohlcv_data, calculate_forward_returns
-from simple_factors.basic_factors import calculate_all_factors
+import pandas as pd
+import pytest
+from data_pipeline import calculate_forward_returns, clean_ohlcv_data
 from factor_validator import validate_factor
+from simple_factors.basic_factors import calculate_all_factors
 
 
 @pytest.fixture

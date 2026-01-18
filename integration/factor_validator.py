@@ -6,10 +6,9 @@
 
 from __future__ import annotations
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 from scipy import stats
-from typing import Dict, Tuple
 
 
 def calculate_ic(
@@ -57,7 +56,7 @@ def calculate_ic_stats(
     factor: pd.Series,
     forward_return: pd.Series,
     method: str = 'pearson'
-) -> Dict[str, float]:
+) -> dict[str, float]:
     """
     计算 IC 和 t 统计量
 
@@ -141,7 +140,7 @@ def validate_factor(
     return_col: str,
     ic_threshold: float = 0.05,
     t_threshold: float = 2.0
-) -> Tuple[bool, Dict[str, float]]:
+) -> tuple[bool, dict[str, float]]:
     """
     验证因子是否有效
 

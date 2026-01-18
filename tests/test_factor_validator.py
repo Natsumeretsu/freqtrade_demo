@@ -2,16 +2,9 @@
 因子验证模块集成测试
 """
 
-import pandas as pd
 import numpy as np
-import pytest
-
-from factor_validator import (
-    calculate_ic,
-    calculate_ic_stats,
-    quantile_analysis,
-    validate_factor
-)
+import pandas as pd
+from factor_validator import calculate_ic, calculate_ic_stats, quantile_analysis, validate_factor
 
 
 class TestCalculateIC:
