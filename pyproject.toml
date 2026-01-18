@@ -12,6 +12,7 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "alphalens-reloaded>=0.4.6",
     "empyrical-reloaded>=0.5.12",
+    "pydantic>=2.0.0",
 ]
 
 [tool.uv]
@@ -26,4 +27,30 @@ dev = [
     "ipywidgets>=8.1.8",
     "plotly",
     "pytest>=9.0.2",
+    "mypy>=1.0.0",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-v",
+    "--strict-markers",
+    "--tb=short",
+]
+pythonpath = ["03_integration"]
+markers = [
+    "unit: 单元测试",
+    "integration: 集成测试",
+    "slow: 运行时间较长的测试",
+]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+ignore_missing_imports = true
+mypy_path = "03_integration"
