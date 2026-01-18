@@ -17,10 +17,13 @@ freqtrade = { git = "https://github.com/freqtrade/freqtrade.git", rev = "8e91fea
 
 [dependency-groups]
 dev = [
-    "plotly",
     "pytest>=9.0.2",
     "mypy>=1.0.0",
     "ruff>=0.1.0",
+]
+
+viz = [
+    "plotly",
 ]
 
 [tool.pytest.ini_options]

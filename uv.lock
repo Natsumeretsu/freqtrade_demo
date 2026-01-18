@@ -693,9 +693,11 @@ dependencies = [
 [package.dev-dependencies]
 dev = [
     { name = "mypy" },
-    { name = "plotly" },
     { name = "pytest" },
     { name = "ruff" },
+]
+viz = [
+    { name = "plotly" },
 ]
 
 [package.metadata]
@@ -709,10 +711,10 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "mypy", specifier = ">=1.0.0" },
-    { name = "plotly" },
     { name = "pytest", specifier = ">=9.0.2" },
     { name = "ruff", specifier = ">=0.1.0" },
 ]
+viz = [{ name = "plotly" }]
 
 [[package]]
 name = "frozenlist"
