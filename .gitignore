@@ -18,6 +18,8 @@
 # 市场数据（OHLCV/资金费率/盘口等）体积大且可再生成，默认不使用 Git 同步。
 # 如确需跨设备复现：建议用脚本重新下载，或使用独立存储（NAS/对象存储）或 Git LFS。
 /ft_userdir/data/
+/ft_userdir/backtest_results/
+/ft_userdir/plot/
 /*.sqlite*
 /*.log
 /*.db-shm
