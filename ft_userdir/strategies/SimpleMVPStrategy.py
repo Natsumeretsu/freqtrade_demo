@@ -6,7 +6,6 @@
 
 from __future__ import annotations
 
-# 导入简化的因子模块
 import sys
 from pathlib import Path
 
@@ -15,7 +14,7 @@ from freqtrade.strategy import IStrategy
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "integration"))
 
-from simple_factors.basic_factors import calculate_all_factors
+from factor_library import FactorLibrary
 
 
 class SimpleMVPStrategy(IStrategy):
@@ -26,6 +25,7 @@ class SimpleMVPStrategy(IStrategy):
     1. 只使用经过验证的因子
     2. 逻辑清晰，易于调试
     3. 避免过度优化
+    4. 支持动态因子加载
     """
 
     INTERFACE_VERSION = 3
@@ -38,9 +38,17 @@ class SimpleMVPStrategy(IStrategy):
     minimal_roi = {"0": 0.05}  # 5% 止盈
     stoploss = -0.03  # 3% 止损
 
+    def __init__(self, config: dict) -> None:
+        """初始化策略"""
+        super().__init__(config)
+        # 初始化因子库
+        self.factor_lib = FactorLibrary()
+        # 从配置文件读取要使用的因子列表
+        self.factor_names = ["momentum_8h", "volatility_24h", "volume_surge"]
+
     def populate_indicators(self, dataframe: pd.DataFrame, metadata: dict) -> pd.DataFrame:
-        """计算因子"""
-        dataframe = calculate_all_factors(dataframe)
+        """计算因子 - 使用因子库动态加载"""
+        dataframe = self.factor_lib.calculate_factors(dataframe, self.factor_names)
         return dataframe
 
     def populate_entry_trend(self, dataframe: pd.DataFrame, metadata: dict) -> pd.DataFrame:

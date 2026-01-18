@@ -1,0 +1,35 @@
+# 因子库配置文件
+#
+# 定义所有可用因子及其参数
+
+factors:
+  # 动量因子（8小时）
+  momentum_8h:
+    class: MomentumFactor
+    params:
+      window: 96  # 8小时 @ 5分钟
+    enabled: true
+    weight: 0.3
+    description: "8小时动量因子，衡量价格趋势强度"
+    category: technical
+
+  # 波动率因子（24小时）
+  volatility_24h:
+    class: VolatilityFactor
+    params:
+      window: 288  # 24小时 @ 5分钟
+    enabled: true
+    weight: 0.3
+    description: "24小时波动率因子，衡量市场波动程度"
+    category: technical
+
+  # 成交量激增因子
+  volume_surge:
+    class: VolumeSurgeFactor
+    params:
+      window: 96  # 8小时 @ 5分钟
+      threshold: 2.0
+    enabled: true
+    weight: 0.4
+    description: "成交量激增因子，检测异常成交量"
+    category: volume
