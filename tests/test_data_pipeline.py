@@ -9,8 +9,7 @@ import pytest
 from data_pipeline import (
     clean_ohlcv_data,
     calculate_forward_returns,
-    split_train_val_test,
-    normalize_features
+    split_train_val_test
 )
 
 
@@ -112,32 +111,3 @@ class TestSplitTrainValTest:
         assert len(train_idx & val_idx) == 0
         assert len(train_idx & test_idx) == 0
         assert len(val_idx & test_idx) == 0
-
-
-class TestNormalizeFeatures:
-    """特征标准化测试"""
-
-    def test_zscore_normalization(self):
-        """测试 Z-score 标准化"""
-        df = pd.DataFrame({
-            'feature1': [1, 2, 3, 4, 5],
-            'feature2': [10, 20, 30, 40, 50]
-        })
-
-        result = normalize_features(df, ['feature1', 'feature2'], method='zscore')
-
-        # Z-score 标准化后均值应接近 0，标准差应接近 1
-        assert abs(result['feature1'].mean()) < 1e-10
-        assert abs(result['feature1'].std() - 1.0) < 1e-10
-
-    def test_minmax_normalization(self):
-        """测试 Min-Max 标准化"""
-        df = pd.DataFrame({
-            'feature1': [1, 2, 3, 4, 5]
-        })
-
-        result = normalize_features(df, ['feature1'], method='minmax')
-
-        # Min-Max 标准化后范围应为 [0, 1]
-        assert result['feature1'].min() == 0.0
-        assert result['feature1'].max() == 1.0

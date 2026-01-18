@@ -46,29 +46,6 @@ def calculate_ic(
     return ic
 
 
-def calculate_ic_series(
-    df: pd.DataFrame,
-    factor_col: str,
-    return_col: str,
-    method: str = 'pearson'
-) -> pd.Series:
-    """
-    计算滚动 IC 序列
-
-    Args:
-        df: 包含因子和收益的 DataFrame
-        factor_col: 因子列名
-        return_col: 收益列名
-        method: 相关系数方法
-
-    Returns:
-        IC 时间序列
-    """
-    return df.groupby(df.index).apply(
-        lambda x: calculate_ic(x[factor_col], x[return_col], method)
-    )
-
-
 def calculate_ic_stats(
     factor: pd.Series,
     forward_return: pd.Series,
