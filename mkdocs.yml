@@ -1,0 +1,129 @@
+# MkDocs 配置文件
+site_name: Freqtrade Demo 文档
+site_description: Freqtrade + Qlib 量化交易系统文档
+site_author: 项目团队
+
+# 仓库信息
+repo_url: https://github.com/your-username/freqtrade_demo
+repo_name: freqtrade_demo
+
+# 文档目录
+docs_dir: docs
+
+# 主题配置
+theme:
+  name: material
+  language: zh
+  palette:
+    # 浅色模式
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: 切换到深色模式
+    # 深色模式
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: 切换到浅色模式
+  features:
+    - navigation.instant      # 即时加载
+    - navigation.tracking     # 锚点跟踪
+    - navigation.tabs         # 顶部导航标签
+    - navigation.sections     # 导航分组
+    - navigation.expand       # 展开导航
+    - navigation.top          # 返回顶部按钮
+    - search.suggest          # 搜索建议
+    - search.highlight        # 搜索高亮
+    - search.share            # 搜索分享
+    - toc.follow              # 目录跟随
+    - content.code.copy       # 代码复制按钮
+
+# Markdown 扩展
+markdown_extensions:
+  - admonition              # 提示框
+  - pymdownx.details        # 可折叠提示框
+  - pymdownx.superfences    # 代码块增强
+  - pymdownx.tabbed:        # 标签页
+      alternate_style: true
+  - pymdownx.highlight:     # 代码高亮
+      anchor_linenums: true
+  - pymdownx.inlinehilite   # 行内代码高亮
+  - pymdownx.snippets       # 代码片段
+  - tables                  # 表格
+  - attr_list               # 属性列表
+  - md_in_html              # HTML 中的 Markdown
+  - toc:                    # 目录
+      permalink: true
+      toc_depth: 3
+
+# 插件
+plugins:
+  - search:
+      lang:
+        - zh
+        - en
+      separator: '[\s\-\.]+'
+
+# 导航结构
+nav:
+  - 首页: README.md
+  - 知识库:
+    - 知识结构索引: knowledge/index.md
+    - 来源登记清单: knowledge/source_registry.md
+    - 交易策略:
+      - 小资金实战指南: knowledge/strategies/small_account_10_to_10000_practice_guide.md
+      - 加密货币交易策略深度分析: knowledge/strategies/crypto_exchange_strategy_deep_dive.md
+      - EMA MACD Vegas 策略: knowledge/strategies/ema_macd_vegas_playbook.md
+      - Pin Bar 策略: knowledge/strategies/candlestick_pinbar_playbook.md
+      - 流动性微观结构: knowledge/strategies/crypto_liquidity_microstructure_playbook.md
+      - 行业最佳实践支撑分析: knowledge/strategies/industry_best_practices_support_analysis.md
+      - 行业最佳实践改进空间: knowledge/strategies/industry_best_practices_improvement_space.md
+    - 因子模型:
+      - 时间序列因子分类: knowledge/factors/time_series_factors_classification.md
+      - 时间序列因子 Part 2: knowledge/factors/time_series_factors_part2.md
+      - 因子消融检查清单: knowledge/factors/factor_ablation_checklist_smallaccount_futures.md
+      - 单因子 vs 多因子择时: knowledge/factors/factor_single_vs_multi_timing.md
+      - 加密货币因子模型生态调研: knowledge/factors/crypto_factor_model_ecosystem_survey.md
+      - 加密货币因子模型实施手册: knowledge/factors/crypto_factor_model_implementation_playbook.md
+      - 加密货币价格预测模型: knowledge/factors/crypto_price_forecasting_models_playbook.md
+      - 加密货币定价五因子模型: knowledge/factors/crypto_pricing_five_factor_models_playbook.md
+      - 加密货币风险因子工程: knowledge/factors/crypto_risk_factors_engineering_playbook.md
+      - 因果因子识别手册: knowledge/factors/causal_factor_identification_crypto_playbook.md
+    - 工程化工具:
+      - Freqtrade-Qlib 工程化工作流: knowledge/tools/freqtrade_qlib_engineering_workflow.md
+      - 加密货币信息论信号系统: knowledge/tools/crypto_information_theory_signal_system_playbook.md
+      - MCP 浏览器自动化全景: knowledge/tools/mcp_browser_automation_landscape.md
+      - MCP 知识记忆全景: knowledge/tools/mcp_knowledge_memory_landscape.md
+    - 项目命名规范: knowledge/project_naming_conventions.md
+  - 规范指南:
+    - 代码风格指南: guidelines/code_style_guide.md
+    - Git 提交规范: guidelines/git_commit_conventions.md
+    - 文档编写规范: guidelines/documentation_writing_guide.md
+    - 文档命名规范: guidelines/document_naming_conventions.md
+    - 回测报告标准: guidelines/backtest_reporting_standard.md
+    - 归档策略: guidelines/archive_policy.md
+    - 重构规范: guidelines/refactor_policy.md
+    - 工具使用指南: guidelines/tools_usage_guide.md
+  - 架构文档:
+    - 目录结构说明: architecture/directory_structure.md
+  - 技术报告:
+    - 项目结构分析: reports/project_structure_analysis_2026-01-17.md
+    - 文档结构分析: reports/docs_structure_analysis_2026-01-17.md
+    - Markdown 文档管理建议: reports/markdown_documentation_management_recommendations_2026-01-17.md
+    - 技术债务评审: reports/tech_debt_review_2026-01-15_v1.0.md
+    - 加密货币交易框架评审: reports/crypto_trading_framework_review_2026-01-15_v1.0.md
+    - 量化交易全栈指南: reports/quant_trading_full_stack_guide_2026-01-15_v1.0.md
+  - 评估报告:
+    - 策略修复方案: evaluation/strategy_fix_proposal_SmallAccountFuturesTimingExecV1_2026-01-16.md
+    - P0 改进摘要: evaluation/p0_improvements_summary_2026-01-16.md
+    - 因子质量分析: evaluation/factor_quality_analysis_2026-01-16.md
+  - 研究笔记:
+    - CTA 因子系列研究: research/cta_factors_series_crypto_research_2026-01-13.md
+    - Qlib 因子库研究: research/qlib_factor_library_crypto_research_2026-01-13.md
+  - 环境配置:
+    - Claude MCP 同步指南: setup/claude_mcp_sync.md
+

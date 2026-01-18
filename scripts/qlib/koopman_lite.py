@@ -1,28 +1,31 @@
 from __future__ import annotations
 
 """
-koopman_lite.py - Koopa/Koopman 思路的“轻量原型”（不依赖 torch）
+koopman_lite.py - Koopman eigenmode extraction using PyDMD HODMD
 
-目标（工程闭环导向）：
-- 在本仓库现有 `qlib_data`（OHLCV）上，生成一批“更接近本征模态/多尺度”的额外因子序列；
-- 输出结果可被 `scripts/qlib/timing_audit.py` 读取并纳入同口径体检（成本后收益、滚动稳定性等）。
+Goal:
+- Extract Koopman operator eigenmodes from OHLCV data in qlib_data
+- Output can be used by timing_audit.py for factor validation
 
-核心做法（Koopa-lite）：
-1) FFT 低通/高通（近似 Koopa 的时不变/时变拆分）：
-   - 在滚动窗口内选择能量最大的 TopK 频率分量，重建低通趋势；
-   - 输出高通残差（更接近平稳）与低通斜率（趋势速度）。
-2) Rolling DMD/EDMD（Koopman Predictor 的解析近似）：
-   - 在 log-return 的延迟嵌入上做滚动线性算子估计（ridge 最小二乘）；
-   - 输出多步预测的累计收益（与 timing_audit 的 fwd_ret 口径更接近）以及算子稳定性指标。
+Core approach (PyDMD-based):
+1) HODMD (Higher Order DMD):
+   - Automatic delay embedding, DMD in delay coordinate space
+   - Extract eigenvalues (frequency, decay) and eigenmodes (amplitude)
+2) Eigenmode linear combination prediction:
+   - Formula: x(t) = sum_i phi_i(x0) * lambda_i^t * v_i
+   - Output multi-step cumulative return predictions
 
-注意：
-- 该脚本偏研究/原型，默认用 stride 降低计算频率，再用 ffill 保持“在线可用”的特征。
-- 本脚本不尝试复刻 Koopa 的 MLP 编解码与分层残差块；我们先把“可验证闭环”跑通。
+Output factors:
+- koop_spectral_radius: spectral radius (system stability)
+- koop_reconstruction_error: reconstruction error (model fit quality)
+- koop_mode_{i}_amp: amplitude of i-th eigenmode
+- koop_mode_{i}_freq: frequency of i-th eigenmode
+- koop_mode_{i}_decay: decay rate of i-th eigenmode
+- koop_pred_ret_h{N}: N-step predicted return
 """
 
 import argparse
 import json
-import math
 import sys
 from dataclasses import dataclass
 from datetime import datetime
@@ -52,63 +55,61 @@ class KoopmanLiteConfig:
     stride: int
     ridge: float
     pred_horizons: list[int]
-    fft_window: int
-    fft_topk: int
+    n_modes: int
     max_bars: int
 
 
 def _parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Koopa-lite：FFT 拆分 + rolling DMD/EDMD 生成额外特征。")
-    p.add_argument("--timeframe", default="15m", help="时间周期，例如 15m/1h/4h。")
-    p.add_argument("--exchange", default="", help="交易所名（默认读取配置）。")
-    p.add_argument("--symbols-yaml", default="", help="包含 pairs/weights 的 YAML 文件路径（留空则用 symbols.yaml）。")
-    p.add_argument("--pairs", nargs="*", default=None, help="直接传入交易对列表（优先级最高）。")
+    p = argparse.ArgumentParser(description="Koopman eigenmode extraction using PyDMD HODMD")
+    p.add_argument("--timeframe", default="15m", help="Timeframe, e.g. 15m/1h/4h")
+    p.add_argument("--exchange", default="", help="Exchange name (default from config)")
+    p.add_argument("--symbols-yaml", default="", help="YAML file with pairs/weights")
+    p.add_argument("--pairs", nargs="*", default=None, help="Trading pairs list")
 
-    # Koopman 参数（命令行优先，否则从 trading_system.yaml 读取）
-    p.add_argument("--window", type=int, default=None, help="滚动窗口长度（bars），默认从配置读取。")
-    p.add_argument("--embed-dim", type=int, default=None, help="延迟嵌入维度，默认从配置读取。")
-    p.add_argument("--stride", type=int, default=None, help="算子更新步长（bars），默认从配置读取。")
-    p.add_argument("--ridge", type=float, default=None, help="ridge 正则系数，默认从配置读取。")
-    p.add_argument("--pred-horizons", nargs="*", type=int, default=None, help="多步预测步数，默认从配置读取。")
-    p.add_argument("--fft-window", type=int, default=None, help="FFT 滚动窗口长度，默认从配置读取。")
-    p.add_argument("--fft-topk", type=int, default=None, help="FFT TopK 频率分量数，默认从配置读取。")
+    # Koopman parameters (CLI overrides config)
+    p.add_argument("--window", type=int, default=None, help="Rolling window length (bars)")
+    p.add_argument("--embed-dim", type=int, default=None, help="Delay embedding dimension")
+    p.add_argument("--stride", type=int, default=None, help="Operator update stride (bars)")
+    p.add_argument("--ridge", type=float, default=None, help="Ridge regularization")
+    p.add_argument("--pred-horizons", nargs="*", type=int, default=None, help="Prediction horizons")
+    p.add_argument("--n-modes", type=int, default=3, help="Number of eigenmodes to extract")
 
-    p.add_argument("--max-bars", type=int, default=0, help="最多使用最近 N 根 K 线（0=不限制）。")
-    p.add_argument("--out", default="", help="输出 pkl 路径（默认 artifacts/koopman_lite/koopman_lite_<...>.pkl）。")
+    p.add_argument("--max-bars", type=int, default=0, help="Max bars to use (0=unlimited)")
+    p.add_argument("--out", default="", help="Output pkl path")
     return p.parse_args()
 
 
 def _read_symbols_yaml(path: Path) -> list[str]:
     raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     if not isinstance(raw, dict):
-        raise ValueError(f"symbols-yaml 必须是 YAML dict：{path.as_posix()}")
+        raise ValueError(f"symbols-yaml must be YAML dict: {path.as_posix()}")
     pairs = raw.get("pairs", []) or []
     if not isinstance(pairs, list):
-        raise ValueError(f"symbols-yaml 的 pairs 必须是 list：{path.as_posix()}")
+        raise ValueError(f"symbols-yaml pairs must be list: {path.as_posix()}")
     out = [str(p).strip() for p in pairs if str(p).strip()]
     if not out:
-        raise ValueError(f"symbols-yaml 的 pairs 为空：{path.as_posix()}")
+        raise ValueError(f"symbols-yaml pairs is empty: {path.as_posix()}")
     return out
 
 
 def _load_dataset(*, cfg, pair: str, exchange: str, timeframe: str) -> pd.DataFrame:
     symbol = freqtrade_pair_to_symbol(pair)
     if not symbol:
-        raise ValueError(f"pair 无法解析为 symbol：{pair}")
+        raise ValueError(f"Cannot parse pair to symbol: {pair}")
 
     p = (cfg.qlib_data_dir / exchange / timeframe / f"{symbol}.pkl").resolve()
     if not p.is_file():
         raise FileNotFoundError(
-            "未找到研究数据集，请先转换：\n"
-            f"- 期望路径：{p.as_posix()}\n"
-            "示例：uv run python -X utf8 scripts/qlib/convert_freqtrade_to_qlib.py --timeframe 15m\n"
+            f"Dataset not found, please convert first:\n"
+            f"- Expected path: {p.as_posix()}\n"
+            "Example: uv run python -X utf8 scripts/qlib/convert_freqtrade_to_qlib.py --timeframe 15m\n"
         )
 
     df = pd.read_pickle(p)
     if df is None or df.empty:
-        raise ValueError(f"数据为空：{p.as_posix()}")
+        raise ValueError(f"Empty data: {p.as_posix()}")
     if "date" not in df.columns:
-        raise ValueError(f"数据缺少 date 列：{p.as_posix()}")
+        raise ValueError(f"Missing date column: {p.as_posix()}")
 
     work = df.copy()
     work["date"] = pd.to_datetime(work["date"], utc=True, errors="coerce")
@@ -118,7 +119,7 @@ def _load_dataset(*, cfg, pair: str, exchange: str, timeframe: str) -> pd.DataFr
     need = ["open", "high", "low", "close", "volume"]
     missing = [c for c in need if c not in work.columns]
     if missing:
-        raise ValueError(f"数据缺少必要列 {missing}：{p.as_posix()}")
+        raise ValueError(f"Missing required columns {missing}: {p.as_posix()}")
 
     return work[need].astype("float64").replace([np.inf, -np.inf], np.nan)
 
@@ -127,13 +128,13 @@ def main() -> int:
     args = _parse_args()
     cfg = get_config()
 
-    # 从配置文件读取 Koopman 默认参数
+    # Load Koopman defaults from config
     koop_cfg = cfg.koopman_config()
 
     exchange = str(args.exchange or "").strip() or cfg.freqtrade_exchange
     timeframe = str(args.timeframe or "").strip()
     if not timeframe:
-        raise ValueError("timeframe 不能为空")
+        raise ValueError("timeframe cannot be empty")
 
     if args.pairs is not None and len(args.pairs) > 0:
         pairs = [str(p).strip() for p in args.pairs if str(p).strip()]
@@ -145,7 +146,7 @@ def main() -> int:
 
     pairs = [str(p).strip() for p in (pairs or []) if str(p).strip()]
     if not pairs:
-        raise ValueError("pairs 为空：请传入 --pairs 或 --symbols-yaml，或配置 04_shared/config/symbols.yaml")
+        raise ValueError("pairs is empty: use --pairs or --symbols-yaml, or configure 04_shared/config/symbols.yaml")
 
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     if str(args.out or "").strip():
@@ -154,13 +155,12 @@ def main() -> int:
         out_path = (_REPO_ROOT / "artifacts" / "koopman_lite" / f"koopman_lite_{exchange}_{timeframe}_{ts}.pkl").resolve()
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # 命令行优先，否则从配置读取
+    # CLI overrides config
     window = args.window if args.window is not None else koop_cfg.get("window", 512)
     embed_dim = args.embed_dim if args.embed_dim is not None else koop_cfg.get("embed_dim", 16)
     stride = args.stride if args.stride is not None else koop_cfg.get("stride", 10)
     ridge = args.ridge if args.ridge is not None else koop_cfg.get("ridge", 0.001)
-    fft_window = args.fft_window if args.fft_window is not None else koop_cfg.get("fft_window", 512)
-    fft_topk = args.fft_topk if args.fft_topk is not None else koop_cfg.get("fft_topk", 8)
+    n_modes = args.n_modes
 
     if args.pred_horizons is not None:
         pred_h = sorted({int(h) for h in args.pred_horizons if int(h) > 0})
@@ -179,13 +179,12 @@ def main() -> int:
         stride=int(stride),
         ridge=float(ridge),
         pred_horizons=pred_h,
-        fft_window=int(fft_window),
-        fft_topk=int(fft_topk),
+        n_modes=int(n_modes),
         max_bars=int(args.max_bars),
     )
 
     print("")
-    print("=== Koopa-lite 参数 ===")
+    print("=== Koopman Eigenmode Extraction (PyDMD HODMD) ===")
     print(f"- exchange: {kl_cfg.exchange}")
     print(f"- timeframe: {kl_cfg.timeframe}")
     print(f"- pairs: {len(kl_cfg.pairs)}")
@@ -194,8 +193,7 @@ def main() -> int:
     print(f"- stride: {kl_cfg.stride}")
     print(f"- ridge: {kl_cfg.ridge}")
     print(f"- pred_horizons: {kl_cfg.pred_horizons}")
-    print(f"- fft_window: {kl_cfg.fft_window}")
-    print(f"- fft_topk: {kl_cfg.fft_topk}")
+    print(f"- n_modes: {kl_cfg.n_modes}")
     print(f"- max_bars: {kl_cfg.max_bars}")
     print(f"- out: {kl_cfg.out_path.as_posix()}")
 
@@ -209,8 +207,7 @@ def main() -> int:
             "stride": kl_cfg.stride,
             "ridge": kl_cfg.ridge,
             "pred_horizons": kl_cfg.pred_horizons,
-            "fft_window": kl_cfg.fft_window,
-            "fft_topk": kl_cfg.fft_topk,
+            "n_modes": kl_cfg.n_modes,
             "max_bars": kl_cfg.max_bars,
         },
         "pairs": {},
@@ -229,23 +226,24 @@ def main() -> int:
                 stride=int(kl_cfg.stride),
                 ridge=float(kl_cfg.ridge),
                 pred_horizons=list(kl_cfg.pred_horizons or []),
-                fft_window=int(kl_cfg.fft_window),
-                fft_topk=int(kl_cfg.fft_topk),
+                fft_window=0,  # No longer used
+                fft_topk=0,
+                n_modes=int(kl_cfg.n_modes),
             )
             out["pairs"][str(pair)] = feats
         except Exception as e:
             skipped[str(pair)] = str(getattr(e, "args", [repr(e)])[0])
 
     if not out["pairs"]:
-        raise RuntimeError("没有任何可用数据：请检查 qlib_data 是否已生成、pair/timeframe 是否匹配。")
+        raise RuntimeError("No usable data: check qlib_data exists and pair/timeframe match.")
 
     pd.to_pickle(out, kl_cfg.out_path)
 
     print("")
-    print("=== Koopa-lite 输出 ===")
+    print("=== Output ===")
     print(f"- pairs_done: {len(out['pairs'])}")
     if skipped:
-        print(f"- pairs_skipped: {len(skipped)}（示例前5个：{', '.join(list(skipped.keys())[:5])}）")
+        print(f"- pairs_skipped: {len(skipped)} (first 5: {', '.join(list(skipped.keys())[:5])})")
     print(f"- out: {kl_cfg.out_path.as_posix()}")
     meta_path = kl_cfg.out_path.with_suffix(".meta.json")
     meta_path.write_text(json.dumps(out.get("__meta__", {}), ensure_ascii=False, indent=2), encoding="utf-8")

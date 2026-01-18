@@ -1,0 +1,18 @@
+{
+  "environment": "test",
+  "cache": {
+    "max_size": 1000,
+    "ttl": 3600,
+    "policy": "arc"
+  },
+  "data": {
+    "source": "local",
+    "path": "./data",
+    "symbols": ["BTC/USDT", "ETH/USDT"]
+  },
+  "computation": {
+    "batch_size": 100,
+    "parallel": true,
+    "max_workers": 4
+  }
+}

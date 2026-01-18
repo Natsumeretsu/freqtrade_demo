@@ -1,5 +1,7 @@
 # 自定义 FreqAI 预测模型（freqaimodels/）
 
+更新日期：2026-01-17
+
 本目录用于存放**自定义 FreqAI 预测模型**（Python 代码），供 Freqtrade 通过 `--freqaimodel` 加载。
 
 要点：

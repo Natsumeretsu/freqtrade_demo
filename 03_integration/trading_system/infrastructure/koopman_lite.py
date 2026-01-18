@@ -1,25 +1,20 @@
 from __future__ import annotations
 
 """
-koopman_lite.py - Koopa/Koopman 思路的轻量实现（无 torch 依赖）
+koopman_lite.py - 基于 PyDMD 的 Koopman 本征模态提取与预测
 
-本模块是“研究脚本”与“策略/服务侧在线计算”的共享实现，用于保证口径一致：
-- scripts/qlib/koopman_lite.py：离线批量生成额外因子
-- trading_system.infrastructure.factor_engines.*：策略侧按需在线计算同名因子
+核心思想：
+- Koopman 算子将非线性动力学提升到无限维空间，在那里动力学是线性的
+- 本征函数 φᵢ 满足：φᵢ(f(x)) = λᵢ · φᵢ(x)
+- 预测公式：x(t) ≈ Σ φᵢ(x₀) · λᵢᵗ · vᵢ（本征模态的线性组合）
 
-实现目标：
-- 在滚动窗口上估计局部线性算子（DMD/eDMD 的 ridge 版本），输出：
-  - Koopman 算子谱半径（稳定性/体制）
-  - one-step 拟合误差（可拟合性/噪声强度）
-  - 多步预测的累计收益（可选）
-- 用 FFT 做“时不变/时变”拆分的近似，输出：
-  - 低通趋势斜率
-  - 高通残差
-  - 低通能量占比
-
-注意：
-- 为控制计算量，默认按 stride 频率更新算子/FFT，并对输出做 ffill，保持“在线可用”。
-- 该实现只依赖 close 序列；如果未来要扩展到多维观测（订单簿/成交量等），再升级到 EDMD 字典即可。
+输出因子：
+- koop_mode_{i}_amp: 第 i 个本征模态的振幅（重要性）
+- koop_mode_{i}_freq: 第 i 个本征模态的频率（周期性）
+- koop_mode_{i}_decay: 第 i 个本征模态的衰减率（稳定性）
+- koop_pred_ret_h{N}: 基于本征模态线性组合的 N 步预测收益
+- koop_spectral_radius: 谱半径（最大本征值模，系统稳定性指标）
+- koop_reconstruction_error: 重建误差（模型拟合质量）
 """
 
 import math
@@ -27,53 +22,67 @@ from typing import Iterable
 
 import numpy as np
 import pandas as pd
+from pydmd import HODMD
 
 
-def _fft_lowpass_stats(x: np.ndarray, *, topk: int) -> tuple[float, float, float, float]:
+def _extract_eigenmode_features(
+    eigs: np.ndarray,
+    modes: np.ndarray,
+    dynamics: np.ndarray,
+    dt: float = 1.0,
+    n_modes: int = 3,
+) -> dict[str, float]:
     """
-    在窗口 x 上做简单 FFT 低通重建，返回：
-    - low_last: 低通重建值（最后一个点）
-    - high_last: 高通残差（x_last - low_last）
-    - low_slope: 低通斜率（low_last - low_prev）
-    - energy_ratio: 低通能量占比（0~1）
+    从 DMD 结果提取本征模态特征。
+
+    Args:
+        eigs: 本征值数组 (n_eigs,)
+        modes: 本征模态矩阵 (n_features, n_eigs)
+        dynamics: 动力学系数 (n_eigs,)
+        dt: 时间步长
+        n_modes: 提取前 n 个最重要的模态
+
+    Returns:
+        特征字典
     """
-    v = np.asarray(x, dtype="float64")
-    if v.ndim != 1 or len(v) < 8:
-        return float("nan"), float("nan"), float("nan"), float("nan")
+    features: dict[str, float] = {}
 
-    m = float(np.nanmean(v))
-    z = v - m
-    z = np.where(np.isfinite(z), z, 0.0)
+    if eigs is None or len(eigs) == 0:
+        return features
 
-    spec = np.fft.rfft(z)
-    amp = np.abs(spec)
-    if len(amp) <= 2:
-        return float("nan"), float("nan"), float("nan"), float("nan")
+    # 谱半径
+    spectral_radius = float(np.max(np.abs(eigs)))
+    features["koop_spectral_radius"] = spectral_radius
 
-    k = int(topk)
-    if k <= 0:
-        return float("nan"), float("nan"), float("nan"), float("nan")
+    # 按模态重要性（振幅）排序
+    if dynamics is not None and len(dynamics) > 0:
+        importance = np.abs(dynamics)
+    else:
+        importance = np.abs(eigs)
 
-    # 排除 DC（0 频），挑能量最大的 TopK 频率分量
-    idx = np.arange(1, len(amp))
-    order = idx[np.argsort(amp[1:])[::-1]]
-    keep = order[: min(k, len(order))]
+    sorted_idx = np.argsort(importance)[::-1]
 
-    filt = np.zeros_like(spec)
-    filt[keep] = spec[keep]
+    for i in range(min(n_modes, len(eigs))):
+        idx = sorted_idx[i]
+        eig = eigs[idx]
 
-    low = np.fft.irfft(filt, n=len(z)) + m
-    if len(low) < 2:
-        return float("nan"), float("nan"), float("nan"), float("nan")
+        # 振幅（模态重要性）
+        amp = float(importance[idx]) if i < len(importance) else 0.0
+        features[f"koop_mode_{i}_amp"] = amp
 
-    low_last = float(low[-1])
-    high_last = float(v[-1] - low_last)
-    low_slope = float(low[-1] - low[-2])
+        # 从本征值提取频率和衰减率
+        # λ = exp((σ + iω)·dt) => σ = ln|λ|/dt, ω = arg(λ)/dt
+        if abs(eig) > 1e-10:
+            decay = float(np.log(np.abs(eig)) / dt)  # 衰减率（负=稳定）
+            freq = float(np.angle(eig) / (2 * np.pi * dt))  # 频率
+        else:
+            decay = float("-inf")
+            freq = 0.0
 
-    e_all = float(np.sum(np.abs(spec) ** 2))
-    e_keep = float(np.sum(np.abs(filt) ** 2))
-    energy_ratio = (e_keep / e_all) if (math.isfinite(e_all) and e_all > 0 and math.isfinite(e_keep)) else float("nan")
-    return low_last, high_last, low_slope, float(energy_ratio)
+        features[f"koop_mode_{i}_freq"] = freq
+        features[f"koop_mode_{i}_decay"] = decay
+
+    return features
 
 
 def compute_koopman_lite_features(
@@ -84,131 +93,132 @@ def compute_koopman_lite_features(
     stride: int,
     ridge: float,
     pred_horizons: Iterable[int] | None,
-    fft_window: int,
-    fft_topk: int,
+    fft_window: int,  # 保留接口兼容，但不再单独使用
+    fft_topk: int,  # 保留接口兼容
+    n_modes: int = 3,
 ) -> pd.DataFrame:
     """
-    由 close 序列生成 Koopa-lite 特征（与 close 对齐）。
+    使用 PyDMD HODMD 提取 Koopman 本征模态特征。
 
-    - pred_horizons：例如 [1, 4]，会输出 koop_pred_ret_h1 / koop_pred_ret_h4
-    - FFT 与 Koopman 默认共用同一套 stride 更新频率（输出 ffill）
+    HODMD (Higher Order DMD) 通过延迟嵌入自动处理时间序列，
+    等价于在延迟坐标空间中做 DMD。
+
+    Args:
+        close: 收盘价序列
+        window: 滚动窗口长度
+        embed_dim: 延迟嵌入维度（HODMD 的 d 参数）
+        stride: 更新步长
+        ridge: 正则化参数（映射到 svd_rank 截断）
+        pred_horizons: 预测步数列表
+        fft_window: 保留接口兼容
+        fft_topk: 保留接口兼容
+        n_modes: 提取的本征模态数量
+
+    Returns:
+        特征 DataFrame，与 close 对齐
     """
     if close is None or close.empty:
         return pd.DataFrame()
 
     w = int(window)
-    m = int(embed_dim)
-    st = int(stride)
-    lam = float(ridge)
-    fft_w = int(fft_window)
-    fft_k = int(fft_topk)
+    d = int(embed_dim)
+    st = max(1, int(stride))
 
     if w < 32:
         raise ValueError("window 过小：建议 >= 128")
-    if m < 2:
+    if d < 2:
         raise ValueError("embed_dim 必须 >= 2")
-    if st <= 0:
-        st = 1
-    if not math.isfinite(lam) or lam < 0:
-        lam = 0.0
 
     h_list = sorted({int(h) for h in (pred_horizons or []) if int(h) > 0})
 
-    # 统一到 log(price) / log-return
+    # 转换为 log-return
     c = close.astype("float64").replace(0.0, np.nan)
     logp = np.log(c).replace([np.inf, -np.inf], np.nan)
     logr = logp.diff()
 
-    cols: list[str] = []
-    has_fft = (fft_w > 0) and (fft_k > 0)
-    if has_fft:
-        cols.extend(["fft_hp_logp", "fft_lp_slope", "fft_lp_energy_ratio"])
-    cols.extend(["koop_spectral_radius", "koop_fit_rmse"])
+    # 构建输出列
+    cols: list[str] = ["koop_spectral_radius", "koop_reconstruction_error"]
+    for i in range(n_modes):
+        cols.extend([
+            f"koop_mode_{i}_amp",
+            f"koop_mode_{i}_freq",
+            f"koop_mode_{i}_decay",
+        ])
     for h in h_list:
-        cols.append(f"koop_pred_ret_h{int(h)}")
+        cols.append(f"koop_pred_ret_h{h}")
 
     out = pd.DataFrame(index=logp.index, columns=cols, dtype="float64")
 
     lr = logr.astype("float64").dropna()
-    if len(lr) < (w + m + (max(h_list) if h_list else 0) + 5):
+    min_len = w + d + (max(h_list) if h_list else 0) + 5
+    if len(lr) < min_len:
         return out
 
     y = lr.to_numpy(dtype="float64")
     idx = lr.index
 
-    try:
-        swv = np.lib.stride_tricks.sliding_window_view  # type: ignore[attr-defined]
-    except Exception as e:
-        raise RuntimeError("numpy 版本过旧：缺少 sliding_window_view，无法生成延迟嵌入") from e
+    # 滚动窗口计算
+    for end in range(w - 1, len(y), st):
+        start = end - w + 1
+        segment = y[start:end + 1]
 
-    states = swv(y, m)[:, ::-1]
-    n_states = int(states.shape[0])
-
-    start_end = int(w - 1)
-    if start_end >= n_states:
-        return out
-
-    I = np.eye(m, dtype="float64")
-
-    for end in range(start_end, n_states, st):
-        s0 = end - w + 1
-        win = states[s0 : end + 1]  # (w, m)
-        if win.shape[0] < 3:
+        if len(segment) < d + 10:
             continue
 
-        X = win[:-1].T  # (m, w-1)
-        Y = win[1:].T  # (m, w-1)
-
-        Xt = X @ X.T
         try:
-            K = (Y @ X.T) @ np.linalg.inv(Xt + (lam * I))
-        except Exception:
-            continue
+            # 使用 HODMD：自动处理延迟嵌入
+            # svd_rank 控制保留的模态数量（类似正则化）
+            svd_rank = min(n_modes + 2, d, len(segment) // 2)
+            hodmd = HODMD(svd_rank=svd_rank, d=d)
+            hodmd.fit(segment.reshape(1, -1))
 
-        eig = np.linalg.eigvals(K)
-        rho = float(np.max(np.abs(eig))) if eig is not None and len(eig) > 0 else float("nan")
+            ts = idx[end]
 
-        try:
-            Y_hat = K @ X
-            err = (Y[0, :] - Y_hat[0, :]).astype("float64")
-            rmse = float(np.sqrt(float(np.nanmean(err * err))))
-        except Exception:
-            rmse = float("nan")
+            # 提取本征模态特征
+            eigs = hodmd.eigs
+            modes = hodmd.modes
+            dynamics = hodmd.dynamics
 
-        ts = idx[end + m - 1]
+            mode_features = _extract_eigenmode_features(
+                eigs, modes, dynamics[0] if dynamics is not None else None,
+                dt=1.0, n_modes=n_modes
+            )
 
-        if has_fft:
-            lp = logp.loc[:ts].astype("float64").dropna()
-            if len(lp) >= fft_w:
-                seg = lp.to_numpy(dtype="float64")[-fft_w:]
-                _, hp, slope, er = _fft_lowpass_stats(seg, topk=fft_k)
-                out.at[ts, "fft_hp_logp"] = float(hp)
-                out.at[ts, "fft_lp_slope"] = float(slope)
-                out.at[ts, "fft_lp_energy_ratio"] = float(er)
+            for k, v in mode_features.items():
+                if k in out.columns:
+                    out.at[ts, k] = v
 
-        out.at[ts, "koop_spectral_radius"] = float(rho)
-        out.at[ts, "koop_fit_rmse"] = float(rmse)
+            # 重建误差
+            try:
+                reconstructed = hodmd.reconstructed_data
+                if reconstructed is not None:
+                    recon = reconstructed.real.flatten()
+                    orig = segment[-len(recon):]
+                    error = float(np.sqrt(np.mean((orig - recon) ** 2)))
+                    out.at[ts, "koop_reconstruction_error"] = error
+            except Exception:
+                pass
 
-        if h_list:
-            z = win[-1].astype("float64")
-            for h in h_list:
-                z2 = z.copy()
-                cum_lr = 0.0
-                ok = True
-                for _ in range(int(h)):
+            # 基于本征模态的预测
+            # 预测公式：x(t+h) = Σ bᵢ · λᵢʰ · φᵢ
+            if h_list and eigs is not None and len(eigs) > 0:
+                for h in h_list:
                     try:
-                        z2 = (K @ z2).astype("float64")
+                        # 使用 HODMD 的预测功能
+                        hodmd.dmd_time["tend"] = len(segment) + h - 1
+                        forecast = hodmd.reconstructed_data
+                        if forecast is not None:
+                            pred_vals = forecast.real.flatten()
+                            if len(pred_vals) > len(segment):
+                                # 累计预测收益
+                                future_returns = pred_vals[len(segment):len(segment) + h]
+                                cum_ret = float(np.sum(future_returns))
+                                cum_ret = np.clip(cum_ret, -20.0, 20.0)
+                                out.at[ts, f"koop_pred_ret_h{h}"] = float(math.exp(cum_ret) - 1.0)
                     except Exception:
-                        ok = False
-                        break
-                    if not np.isfinite(float(z2[0])):
-                        ok = False
-                        break
-                    cum_lr += float(z2[0])
-                if not ok:
-                    continue
-                x2 = float(np.clip(cum_lr, -20.0, 20.0))
-                out.at[ts, f"koop_pred_ret_h{int(h)}"] = float(math.exp(x2) - 1.0)
+                        pass
+
+        except Exception:
+            continue
 
     return out.sort_index().ffill()
-

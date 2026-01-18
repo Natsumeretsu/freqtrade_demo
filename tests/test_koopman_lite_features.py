@@ -25,6 +25,7 @@ def _sample_ohlcv(n: int = 400) -> pd.DataFrame:
 
 class TestKoopmanLiteFeatures(unittest.TestCase):
     def test_compute_koopman_lite_features_basic(self) -> None:
+        """测试基于 PyDMD HODMD 的本征模态提取"""
         df = _sample_ohlcv(500)
         feats = compute_koopman_lite_features(
             close=df["close"],
@@ -33,29 +34,65 @@ class TestKoopmanLiteFeatures(unittest.TestCase):
             stride=5,
             ridge=1e-3,
             pred_horizons=[1, 4],
-            fft_window=96,
-            fft_topk=6,
+            fft_window=0,  # 不再使用独立 FFT
+            fft_topk=0,
+            n_modes=3,
         )
 
-        for col in [
-            "fft_hp_logp",
-            "fft_lp_slope",
-            "fft_lp_energy_ratio",
+        # 验证新的本征模态因子
+        expected_cols = [
             "koop_spectral_radius",
-            "koop_fit_rmse",
+            "koop_reconstruction_error",
+            "koop_mode_0_amp",
+            "koop_mode_0_freq",
+            "koop_mode_0_decay",
+            "koop_mode_1_amp",
+            "koop_mode_1_freq",
+            "koop_mode_1_decay",
+            "koop_mode_2_amp",
+            "koop_mode_2_freq",
+            "koop_mode_2_decay",
             "koop_pred_ret_h1",
             "koop_pred_ret_h4",
-        ]:
-            self.assertIn(col, feats.columns)
+        ]
+        for col in expected_cols:
+            self.assertIn(col, feats.columns, f"缺少列: {col}")
 
         arr = feats.astype("float64").to_numpy()
-        self.assertFalse(np.isinf(arr).any())
+        self.assertFalse(np.isinf(arr).any(), "存在无穷值")
 
-        # 过了窗口后应出现可用值（至少有一列出现有限数）
+        # 过了窗口后应出现可用值
         tail = feats.iloc[200:].astype("float64")
-        self.assertTrue(np.isfinite(tail.to_numpy()).any())
+        self.assertTrue(np.isfinite(tail.to_numpy()).any(), "尾部无有效值")
+
+    def test_eigenmode_interpretation(self) -> None:
+        """测试本征模态的物理意义"""
+        df = _sample_ohlcv(500)
+        feats = compute_koopman_lite_features(
+            close=df["close"],
+            window=96,
+            embed_dim=8,
+            stride=5,
+            ridge=1e-3,
+            pred_horizons=[1],
+            fft_window=0,
+            fft_topk=0,
+            n_modes=3,
+        )
+
+        # 谱半径应在合理范围内（接近 1 表示稳定系统）
+        sr = feats["koop_spectral_radius"].dropna()
+        if len(sr) > 0:
+            self.assertTrue((sr > 0).all(), "谱半径应为正")
+            self.assertTrue((sr < 10).all(), "谱半径异常大")
+
+        # 模态振幅应为非负
+        amp0 = feats["koop_mode_0_amp"].dropna()
+        if len(amp0) > 0:
+            self.assertTrue((amp0 >= 0).all(), "振幅应非负")
 
     def test_talib_engine_supports_and_compute_koopman_lite(self) -> None:
+        """测试 TalibFactorEngine 对新因子的支持"""
         df = _sample_ohlcv(500)
         engine = TalibFactorEngine(
             params=TalibEngineParams(
@@ -63,21 +100,26 @@ class TestKoopmanLiteFeatures(unittest.TestCase):
                 koop_embed_dim=8,
                 koop_stride=5,
                 koop_ridge=1e-3,
-                fft_window=96,
-                fft_topk=6,
             )
         )
 
-        names = ["koop_spectral_radius", "koop_fit_rmse", "fft_lp_slope", "koop_pred_ret_h4"]
+        # 测试新的因子名
+        names = [
+            "koop_spectral_radius",
+            "koop_reconstruction_error",
+            "koop_mode_0_amp",
+            "koop_mode_0_freq",
+            "koop_mode_0_decay",
+            "koop_pred_ret_h4",
+        ]
         for n in names:
-            self.assertTrue(engine.supports(n))
+            self.assertTrue(engine.supports(n), f"不支持因子: {n}")
 
         out = engine.compute(df, names)
         for n in names:
-            self.assertIn(n, out.columns)
+            self.assertIn(n, out.columns, f"输出缺少列: {n}")
         self.assertEqual(len(out), len(df))
 
 
 if __name__ == "__main__":
     unittest.main()
-

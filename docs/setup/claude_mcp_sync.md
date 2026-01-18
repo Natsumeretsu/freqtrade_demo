@@ -1,5 +1,8 @@
 # Claude MCP 同步与一键初始化
 
+更新日期：2026-01-17
+
+
 本文面向团队/多电脑场景：在新电脑拉取本项目后，一键把常用 MCP（Serena / Context7 / MarkItDown / Playwright / Chrome DevTools / Wolfram / GitHub / In-Memoria / Local RAG）配置到 **Claude Code（`claude` CLI）**。
 
 本仓库已提供一键脚本：`./scripts/mcp/setup_claude.ps1`。

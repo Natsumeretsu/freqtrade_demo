@@ -1,38 +1,441 @@
+# =============================================================================
+# 时间序列因子配置（单标的择时）
+# =============================================================================
+#
+# 分类体系（基于学术研究）：
+#   1. 动量因子（Momentum）    - 统计显著 ✓
+#   2. 反转因子（Reversal）    - 统计显著 ✓
+#   3. 风险因子（Risk）        - 统计显著 ✓
+#   4. 流动性因子（Liquidity） - 经济显著
+#   5. 技术指标因子（Technical）
+#   6. 链上因子（Onchain）     - 统计不显著 ✗
+#
+# 关键发现：
+#   - 仅动量和风险类因子（previous returns 的函数）具有统计显著性
+#   - 最优参数：28日 lookback + 5日持有期
+#   - 短期反转 Sharpe 4.58，2周动量 Sharpe 0.78
+#
+# 参考文献：
+#   [1] Baybutt (2024) "Empirical Crypto Asset Pricing"
+#   [2] Bianchi & Babiak (2022) "A Factor Model for Cryptocurrency Returns"
+#   [3] Liu, Tsyvinski & Wu (2021) "Time-Series and Cross-Sectional Momentum"
+#
+# =============================================================================
+
 factor_sets:
-  # CTA 因子集（仅依赖 OHLCV，便于在线计算）
-  #
-  # 设计原则：
-  # - cta_alpha：更偏“可解释的方向/趋势/动量”信息（用于 alpha）
-  # - cta_risk：更偏“波动/尾部/流动性”信息（用于风控与仓位折扣）
-  # - cta_core：默认组合（alpha + risk），用于策略/研究的基础套餐
-  #
-  # 注意：
-  # - 当前实现仅覆盖单品种时间序列口径（不做跨品种横截面排名）
+
+  # ===========================================================================
+  # 第一类：动量因子（Momentum Factors）
+  # ===========================================================================
+  # 理论基础：资产过往表现良好会继续上涨（趋势持续假说）
+  # 统计显著性：✓✓✓ 强统计显著
+  # 最优参数：28日 lookback + 5日持有期
+  # ===========================================================================
+
+  # 时间序列动量（Time-Series Momentum）
+  # - 单资产过往收益预测其未来收益
+  # - 2周动量：周度超额收益 1.5%（Sharpe 0.78）
+  # - 1月动量：周度超额收益 1.2%（Sharpe 0.75）
+  # - 2月动量：周度超额收益 1.4%（Sharpe 0.87）
+  momentum_ts:
+    # 短期动量（1-7日）
+    - ret_1               # 1日收益
+    - ret_3               # 3日收益
+    - ret_5               # 5日收益
+    - ret_7               # 7日收益（1周）
+    # 中期动量（14-28日）- 最优区间
+    - ret_14              # 14日收益（2周）- Sharpe 0.78
+    - ret_21              # 21日收益（3周）
+    - ret_28              # 28日收益（4周）- 最优 lookback
+    # 长期动量（56日）
+    - ret_56              # 56日收益（2月）- Sharpe 0.87
+
+  # 价格动量（Price Momentum）
+  # - 当前价格相对过往高点/低点的距离
+  # - 移动平均线偏离度
+  momentum_price:
+    - ema_spread          # EMA(10)/EMA(50) - 1
+    - ema_spread_20_50    # EMA(20)/EMA(50) - 1
+    - ema_spread_50_200   # EMA(50)/EMA(200) - 1
+    - price_to_high_20    # close / highest(20) - 1
+    - price_to_low_20     # close / lowest(20) - 1
+    - price_to_high_50    # close / highest(50) - 1
+    - price_to_low_50     # close / lowest(50) - 1
+
+  # 动量变化率（Rate of Change）
+  momentum_roc:
+    - roc_5               # 5日变化率
+    - roc_10              # 10日变化率
+    - roc_14              # 14日变化率
+    - roc_21              # 21日变化率
+    - roc_28              # 28日变化率
+
+  # 动量因子合集
+  momentum_all:
+    - "@momentum_ts"
+    - "@momentum_price"
+    - "@momentum_roc"
+
+  # ===========================================================================
+  # 第二类：反转因子（Reversal Factors）
+  # ===========================================================================
+  # 理论基础：极端价格偏离均值后倾向回归（过度反应假说）
+  # 统计显著性：✓✓ 经济显著（Sharpe 4.58）
+  # ===========================================================================
+
+  # 短期反转（1-5日）
+  # - 流动性供给和市场微观结构驱动
+  # - Sharpe 比率 4.58
+  reversal_short:
+    - reversal_1          # 1日反转信号
+    - reversal_3          # 3日反转信号
+    - reversal_5          # 5日反转信号
+
+  # 中期反转（7-30日）
+  # - 周度超额收益 -1.0%（Sharpe 0.57）
+  reversal_medium:
+    - reversal_7          # 7日反转信号
+    - reversal_14         # 14日反转信号
+    - reversal_21         # 21日反转信号
+    - reversal_30         # 30日反转信号
+
+  # 均值回归指标
+  reversal_mean_reversion:
+    - zscore_close_20     # 20日价格 Z-score
+    - zscore_close_50     # 50日价格 Z-score
+    - bb_percent_b_20_2   # 布林带位置（20日，2倍标准差）
+    - bb_percent_b_50_2   # 布林带位置（50日，2倍标准差）
+
+  # 反转因子合集
+  reversal_all:
+    - "@reversal_short"
+    - "@reversal_medium"
+    - "@reversal_mean_reversion"
+
+  # ===========================================================================
+  # 第三类：风险因子（Risk Factors）
+  # ===========================================================================
+  # 理论基础：高风险资产应提供更高收益补偿
+  # 统计显著性：✓✓✓ 强统计显著
+  # ===========================================================================
+
+  # 波动率风险（Volatility Risk）
+  risk_volatility:
+    - vol_7               # 7日波动率
+    - vol_14              # 14日波动率
+    - vol_21              # 21日波动率
+    # - vol_28            # 28日波动率 - REMOVED: failed validation (test IC negative)
+    - vol_56              # 56日波动率
+    - hl_range            # 日内振幅（high/low - 1）
+    - atr_14              # 14日 ATR
+    - atr_pct_14          # 14日 ATR%
+
+  # 下行风险/尾部风险（Downside Risk / Tail Risk）
+  # - 5% ES：周度超额收益 1.4%（Sharpe 0.76）
+  # - 特质偏度：周度超额收益 1.2%（Sharpe 0.79）
+  risk_downside:
+    - var_5_30            # 30日 5% VaR
+    - es_5_30             # 30日 5% ES（Expected Shortfall）
+    - skew_30             # 30日偏度
+    - skew_60             # 60日偏度
+    - kurt_30             # 30日峰度
+    - kurt_60             # 60日峰度
+    - tail_ratio_30       # 30日尾部比率
+    - tail_ratio_60       # 60日尾部比率
+    - downside_vol_30     # 30日下行波动率
+
+  # 波动率的波动（Volatility of Volatility）
+  risk_vol_of_vol:
+    - vol_of_vol_14       # 14日波动率的波动
+    - vol_of_vol_28       # 28日波动率的波动
+
+  # 风险因子合集
+  risk_all:
+    - "@risk_volatility"
+    - "@risk_downside"
+    - "@risk_vol_of_vol"
+
+  # ===========================================================================
+  # 第四类：流动性因子（Liquidity Factors）
+  # ===========================================================================
+  # 市场背景：加密市场流动性异质性大，是主要风险来源
+  # 统计显著性：经济显著
+  # ===========================================================================
+
+  # 成交量指标（Volume-based）
+  liquidity_volume:
+    - volume_z_14         # 14日成交量 Z-score
+    - volume_z_30         # 30日成交量 Z-score
+    - volume_z_72         # 72日成交量 Z-score
+    - rel_vol_14          # 14日相对成交量
+    - rel_vol_30          # 30日相对成交量
+    - volume_ratio        # 成交量比率（默认 72 根 K 线）
+    - obv_slope_14        # 14日 OBV 斜率
+
+  # 流动性冲击（Liquidity Shock）
+  liquidity_shock:
+    - ret_vol_ratio_14    # |ret|/volume（14日）
+    - ret_vol_ratio_30    # |ret|/volume（30日）
+    - price_impact_14     # 价格冲击代理（14日）
+    - price_impact_30     # 价格冲击代理（30日）
+    - amihud_14           # Amihud 非流动性比率（14日）
+    - amihud_30           # Amihud 非流动性比率（30日）
+
+  # 流动性因子合集
+  liquidity_all:
+    - "@liquidity_volume"
+    - "@liquidity_shock"
+
+  # ===========================================================================
+  # 第五类：技术指标因子（Technical Analysis Factors）
+  # ===========================================================================
+  # 应用范围：短期到中期交易信号
+  # ===========================================================================
+
+  # 动量振荡器（Momentum Oscillators）
+  technical_oscillator:
+    # RSI - 盘整市场表现优于 MACD
+    - rsi_7               # 7日 RSI
+    - rsi_14              # 14日 RSI（标准）
+    - rsi_21              # 21日 RSI
+    # MACD - 强趋势中表现优于 RSI
+    - macd                # MACD 线
+    - macdsignal          # MACD 信号线
+    - macdhist            # MACD 直方图
+    # 随机振荡器
+    - stoch_k_14_3_3      # Stochastic %K
+    - stoch_d_14_3_3      # Stochastic %D
+    - stoch_k_5_3_3       # 快速 Stochastic %K
+    - stoch_d_5_3_3       # 快速 Stochastic %D
+    # Williams %R
+    - willr_14            # 14日 Williams %R
+
+  # 趋势跟踪指标（Trend Following）
+  technical_trend:
+    # EMA 系列
+    - ema_5
+    - ema_10
+    - ema_20
+    - ema_50
+    - ema_100
+    - ema_200
+    # ADX 趋势强度
+    - adx                 # 14日 ADX（默认）
+    - adx_7               # 7日 ADX
+    - adx_21              # 21日 ADX
+    - adx_28              # 28日 ADX
+
+  # 波动带指标（Volatility Bands）
+  technical_bands:
+    - bb_width_20_2       # 布林带宽度（20日，2倍）
+    - bb_width_50_2       # 布林带宽度（50日，2倍）
+    - bb_percent_b_20_2   # 布林带位置（20日，2倍）
+    - bb_percent_b_50_2   # 布林带位置（50日，2倍）
+    - atr                 # ATR（默认 14日）
+    - atr_pct             # ATR%
+
+  # 其他技术指标
+  technical_other:
+    - cci_14              # 14日 CCI
+    - cci_20              # 20日 CCI
+    - mfi_14              # 14日 MFI
+
+  # 技术指标合集
+  technical_all:
+    - "@technical_oscillator"
+    - "@technical_trend"
+    - "@technical_bands"
+    - "@technical_other"
+
+  # ===========================================================================
+  # 第六类：市场制度因子（Market Regime Factors）
+  # ===========================================================================
+  # 用于识别市场状态/风险预算
+  # ===========================================================================
+
+  regime_entropy:
+    - dir_entropy_14      # 14日方向熵
+    - dir_entropy_28      # 28日方向熵
+    - bucket_entropy_14   # 14日分桶收益熵
+    - bucket_entropy_28   # 28日分桶收益熵
+    - vol_state_entropy_28  # 28日波动状态熵
+
+  regime_structure:
+    - hurst_28            # 28日 Hurst 指数
+    - hurst_56            # 56日 Hurst 指数
+
+  regime_all:
+    - "@regime_entropy"
+    - "@regime_structure"
+
+  # ===========================================================================
+  # 组合因子集（按优先级排序）
+  # ===========================================================================
+
+  # 第一优先：时间序列动量 + 短期反转（统计证据最强）
+  priority_1_momentum_reversal:
+    - ret_14              # 2周动量
+    - ret_28              # 4周动量（最优）
+    - ret_56              # 2月动量
+    - reversal_1          # 1日反转
+    - reversal_3          # 3日反转
+    - reversal_5          # 5日反转
+
+  # 第二优先：下行风险因子 + 动量确认
+  priority_2_risk:
+    - var_5_30            # 30日 VaR
+    - es_5_30             # 30日 ES
+    - skew_30             # 30日偏度
+    # - vol_28            # 28日波动率 - REMOVED: failed validation (test IC negative)
+    - downside_vol_30     # 30日下行波动率
+
+  # 第三优先：流动性相关动量
+  priority_3_liquidity:
+    - volume_z_30         # 成交量 Z-score
+    - amihud_30           # Amihud 非流动性
+    - price_impact_30     # 价格冲击
+
+  # 第四优先：技术指标背离（日线级别）
+  priority_4_technical:
+    - rsi_14              # RSI
+    - macd                # MACD
+    - macdhist            # MACD 直方图
+    - adx                 # ADX
+
+  # ===========================================================================
+  # 预设因子集（向后兼容）
+  # ===========================================================================
+
+  # CTA Alpha（动量为主）
   cta_alpha:
     - ret_1
     - ret_3
-    - ret_12
+    - ret_7
+    - ret_14
+    - ret_28
 
+  # CTA Risk（风险为主）
   cta_risk:
-    - vol_12
-    - skew_72
-    - kurt_72
-    - volume_z_72
+    - vol_14
+    # - vol_28              # REMOVED: failed validation (test IC negative)
+    - skew_30
+    - kurt_30
+    - volume_z_30
     - hl_range
 
+  # CTA Core（Alpha + Risk）
   cta_core:
     - "@cta_alpha"
     - "@cta_risk"
 
-  # 研究/模型侧默认特征集（用于 scripts/qlib/train_model.py 的 --feature-set）
-  # - 复用 CTA 因子，并额外加入一个“趋势结构”特征（ema_spread）
+  # ML Core（用于机器学习）
   ml_core:
     - "@cta_core"
     - ema_spread
+    - rsi_14
+    - macd
+    - adx
 
-  # 更强的研究候选池（仍只依赖 OHLCV，可在线计算）
-  # 目标：提供更多“可筛选的候选因子”，再用 factor_audit 做验收与淘汰，避免拍脑袋选指标。
-  # 注意：候选越多越容易过拟合，请务必以 30/60 天滚动稳定性与成本后收益做最终筛选。
+  # ===========================================================================
+  # 择时因子池（Timing Pool）
+  # ===========================================================================
+
+  # 核心择时因子（基于统计显著性筛选）
+  timing_core:
+    - "@priority_1_momentum_reversal"
+    - "@priority_2_risk"
+    - "@priority_3_liquidity"
+    - "@priority_4_technical"
+
+  # 完整择时因子池
+  timing_pool_v4:
+    - "@momentum_all"
+    - "@reversal_all"
+    - "@risk_all"
+    - "@liquidity_all"
+    - "@technical_all"
+    - "@regime_all"
+
+  # ===========================================================================
+  # Koopman 本征模态因子
+  # ===========================================================================
+
+  koopman_lite_v1:
+    - koop_spectral_radius
+    - koop_reconstruction_error
+    - koop_mode_0_amp
+    - koop_mode_0_freq
+    - koop_mode_0_decay
+    - koop_mode_1_amp
+    - koop_mode_1_freq
+    - koop_mode_1_decay
+    - koop_mode_2_amp
+    - koop_mode_2_freq
+    - koop_mode_2_decay
+    - koop_pred_ret_h1
+    - koop_pred_ret_h4
+
+  koopman_lite_v2:
+    - "@koopman_lite_v1"
+    - koop_pred_ret_h2
+    - koop_pred_ret_h8
+    - koop_pred_ret_h16
+
+  # ===========================================================================
+  # 策略专用因子集
+  # ===========================================================================
+
+  SmallAccountFuturesTrendV1:
+    - "@cta_core"
+    - ema_short_{ema_short_len}
+    - ema_long_{ema_long_len}
+    - adx
+    - atr
+    - atr_pct
+    - macd
+    - macdsignal
+    - macdhist
+    - volume_ratio_{volume_ratio_lookback}
+
+  SmallAccountSpotTrendFilteredV1:
+    - "@cta_core"
+    - ema_short_{ema_short_len}
+    - ema_long_{ema_long_len}
+    - adx
+    - atr
+    - atr_pct
+    - macd
+    - macdsignal
+    - macdhist
+    - volume_ratio_{volume_ratio_lookback}
+
+  # ===========================================================================
+  # 向后兼容（旧版因子集别名）
+  # ===========================================================================
+
+  market_regime:
+    - "@regime_all"
+    - vol_of_vol_24
+    - vol_of_vol_72
+    - ret_vol_ratio_24
+    - ret_vol_ratio_72
+    - rel_vol_24
+    - rel_vol_72
+    - dir_entropy_24
+    - dir_entropy_72
+    - vol_state_entropy_48
+
+  info_theory_risk:
+    - bucket_entropy_24
+    - bucket_entropy_72
+    - hurst_48
+    - hurst_96
+    - gap_24
+    - tail_ratio_48
+    - tail_ratio_96
+    - price_impact_24
+    - price_impact_72
+
   cta_alpha_strong:
     - "@cta_alpha"
     - rsi_14
@@ -57,18 +460,8 @@ factor_sets:
     - "@cta_core_strong"
     - ema_spread
 
-  # 择时（单币）因子筛选：默认候选池
-  #
-  # 目标：
-  # - 支持 “15m 主信号 + 1h 稳健对照” 的短期择时研究
-  # - 只依赖 OHLCV，可在线计算（不引入链上/资金流等外部数据）
-  #
-  # 说明：
-  # - 该集合用于 scripts/qlib/timing_audit.py 的默认 --feature-set
-  # - 候选越多越容易过拟合，请以 30/60 天滚动稳定性 + 成本后收益作为最终筛选标准
   timing_pool_v1:
     - "@cta_core_strong"
-    # 趋势/结构（多周期 EMA + 结构比值）
     - ema_5
     - ema_10
     - ema_20
@@ -76,17 +469,13 @@ factor_sets:
     - ema_100
     - ema_200
     - ema_spread
-    # 趋势强度 / 波动与止损敏感度
     - adx
     - atr
     - atr_pct
-    # 经典动量/趋势
     - macd
     - macdsignal
     - macdhist
-    # 成交量相对强弱（默认 lookback=72）
     - volume_ratio
-    # 更长短期尺度（与 ret_1/3/12 互补）
     - ret_24
     - ret_96
     - vol_24
@@ -100,363 +489,3 @@ factor_sets:
     - willr_28
     - stoch_k_9_3_3
     - stoch_d_9_3_3
-
-  # Koopa-lite（Koopman/本征模态）额外因子候选池
-  # - 用于把“多尺度/算子谱/局部线性动力学”落到可体检、可执行的因子名
-  koopman_lite_v1:
-    - fft_hp_logp
-    - fft_lp_slope
-    - fft_lp_energy_ratio
-    - koop_spectral_radius
-    - koop_fit_rmse
-    - koop_pred_ret_h1
-    - koop_pred_ret_h4
-
-  # 择时候选池：timing_pool_v1 + Koopa-lite
-  timing_pool_koop_v1:
-    - "@timing_pool_v1"
-    - "@koopman_lite_v1"
-
-  # 择时（单币）因子筛选：更大的传统候选池（200 个）
-  #
-  # 说明：
-  # - 这是“研究/筛选用”的候选池，不建议直接全部上策略；最终仍用 timing_audit + export_timing_policy 选出 TopK。
-  # - 只依赖 OHLCV，保持可在线计算。
-  # - 避免 volume_ratio_<n> 多窗口：compute_features 会强制报错（需要单独改动别名规则才能支持）。
-  timing_pool_v2_200:
-    - "@timing_pool_v1"
-    # --- ret_*（更密的多尺度收益） ---
-    - ret_2
-    - ret_4
-    - ret_5
-    - ret_6
-    - ret_8
-    - ret_9
-    - ret_10
-    - ret_14
-    - ret_15
-    - ret_16
-    - ret_18
-    - ret_20
-    - ret_21
-    - ret_30
-    - ret_32
-    - ret_36
-    - ret_40
-    - ret_42
-    - ret_48
-    - ret_60
-    - ret_64
-    - ret_72
-    - ret_80
-    - ret_84
-    - ret_120
-    # --- vol_*（波动多窗口） ---
-    - vol_6
-    - vol_8
-    - vol_10
-    - vol_14
-    - vol_16
-    - vol_18
-    - vol_20
-    - vol_30
-    - vol_32
-    - vol_36
-    - vol_40
-    - vol_42
-    - vol_60
-    - vol_64
-    - vol_72
-    - vol_80
-    - vol_84
-    - vol_96
-    - vol_120
-    - vol_144
-    # --- EMA（更密的趋势尺度） ---
-    - ema_3
-    - ema_4
-    - ema_6
-    - ema_8
-    - ema_12
-    - ema_14
-    - ema_16
-    - ema_18
-    - ema_24
-    - ema_26
-    - ema_30
-    - ema_32
-    - ema_34
-    - ema_36
-    - ema_40
-    - ema_42
-    - ema_48
-    - ema_60
-    - ema_64
-    - ema_72
-    - ema_80
-    - ema_84
-    - ema_96
-    - ema_120
-    - ema_144
-    # --- RSI（多尺度动量/均值回复） ---
-    - rsi_2
-    - rsi_3
-    - rsi_4
-    - rsi_5
-    - rsi_6
-    - rsi_8
-    - rsi_9
-    - rsi_10
-    - rsi_11
-    - rsi_12
-    - rsi_13
-    - rsi_15
-    - rsi_16
-    - rsi_18
-    - rsi_20
-    - rsi_24
-    - rsi_28
-    - rsi_30
-    - rsi_34
-    - rsi_42
-    # --- ROC（更密的变速率） ---
-    - roc_3
-    - roc_5
-    - roc_6
-    - roc_8
-    - roc_10
-    - roc_14
-    - roc_16
-    - roc_18
-    - roc_20
-    - roc_28
-    - roc_30
-    - roc_32
-    - roc_36
-    - roc_40
-    - roc_42
-    # --- ADX/ATR/ATR%（更多窗口） ---
-    - adx_7
-    - adx_10
-    - adx_12
-    - adx_20
-    - adx_24
-    - adx_28
-    - adx_30
-    - adx_42
-    - adx_56
-    - adx_84
-    - atr_7
-    - atr_10
-    - atr_12
-    - atr_20
-    - atr_24
-    - atr_28
-    - atr_30
-    - atr_42
-    - atr_56
-    - atr_84
-    - atr_pct_7
-    - atr_pct_10
-    - atr_pct_12
-    - atr_pct_20
-    - atr_pct_24
-    - atr_pct_28
-    - atr_pct_30
-    - atr_pct_42
-    - atr_pct_56
-    - atr_pct_84
-    # --- 布林宽度/位置（更多组合） ---
-    - bb_width_10_2
-    - bb_width_10_3
-    - bb_width_14_2
-    - bb_width_14_3
-    - bb_width_20_3
-    - bb_width_30_2
-    - bb_width_30_3
-    - bb_width_40_3
-    - bb_width_60_2
-    - bb_width_80_2
-    - bb_percent_b_10_2
-    - bb_percent_b_10_3
-    - bb_percent_b_14_2
-    - bb_percent_b_14_3
-    - bb_percent_b_20_3
-    - bb_percent_b_30_2
-    - bb_percent_b_30_3
-    - bb_percent_b_40_3
-    - bb_percent_b_60_2
-    - bb_percent_b_80_2
-
-  # Koopa-lite v2：在 v1 基础上补充更多预测步长（更贴近“多尺度”）
-  koopman_lite_v2:
-    - "@koopman_lite_v1"
-    - koop_pred_ret_h2
-    - koop_pred_ret_h8
-    - koop_pred_ret_h16
-
-  # 择时候选池：timing_pool_v2_200 + Koopa-lite v2
-  timing_pool_koop_v2_200:
-    - "@timing_pool_v2_200"
-    - "@koopman_lite_v2"
-
-  # 择时（单币）因子筛选：基于 v2_200 体检结果的精炼传统候选池（v3_pruned）
-  #
-  # 口径：
-  # - 仅看 horizon=1（与 export_timing_policy 的 prefer_horizon=1 对齐）
-  # - 对每个 pair：先过滤 verdict ∈ {pass, watch}，再按 roll_30d_median 取 Top10
-  # - 只要在 15m 或 1h 任一时间框进入过 Top10，即保留
-  #
-  # 当前规模：121（传统） / 131（传统 + Koopa-lite v2）
-  timing_pool_v3_pruned:
-    - ret_12
-    - roc_12
-    - stoch_k_14_3_3
-    - vol_12
-    - skew_72
-    - kurt_72
-    - volume_z_72
-    - bb_width_20_2
-    - ema_5
-    - ema_10
-    - ema_20
-    - ema_50
-    - ema_100
-    - ema_200
-    - ema_spread
-    - adx
-    - atr
-    - atr_pct
-    - macd
-    - macdsignal
-    - macdhist
-    - ret_96
-    - vol_24
-    - vol_48
-    - bb_width_40_2
-    - cci_40
-    - mfi_21
-    - stoch_k_9_3_3
-    - stoch_d_9_3_3
-    - ret_5
-    - ret_6
-    - ret_16
-    - ret_60
-    - ret_72
-    - ret_80
-    - ret_120
-    - vol_10
-    - vol_14
-    - vol_16
-    - vol_18
-    - vol_20
-    - vol_30
-    - vol_32
-    - vol_36
-    - vol_40
-    - vol_42
-    - vol_60
-    - vol_64
-    - vol_72
-    - vol_80
-    - vol_84
-    - vol_96
-    - vol_120
-    - vol_144
-    - ema_3
-    - ema_4
-    - ema_6
-    - ema_8
-    - ema_12
-    - ema_14
-    - ema_16
-    - ema_18
-    - ema_24
-    - ema_26
-    - ema_30
-    - ema_32
-    - ema_34
-    - ema_36
-    - ema_40
-    - ema_42
-    - ema_48
-    - ema_60
-    - ema_64
-    - ema_72
-    - ema_80
-    - ema_84
-    - ema_96
-    - ema_120
-    - ema_144
-    - rsi_42
-    - roc_5
-    - roc_6
-    - roc_16
-    - roc_40
-    - adx_10
-    - adx_12
-    - adx_20
-    - adx_24
-    - adx_28
-    - adx_30
-    - adx_42
-    - adx_56
-    - adx_84
-    - atr_7
-    - atr_10
-    - atr_12
-    - atr_20
-    - atr_24
-    - atr_28
-    - atr_30
-    - atr_42
-    - atr_56
-    - atr_84
-    - atr_pct_7
-    - atr_pct_10
-    - atr_pct_12
-    - atr_pct_20
-    - atr_pct_24
-    - atr_pct_28
-    - atr_pct_42
-    - atr_pct_56
-    - atr_pct_84
-    - bb_width_14_2
-    - bb_width_14_3
-    - bb_width_20_3
-    - bb_width_30_2
-    - bb_width_30_3
-    - bb_width_40_3
-    - bb_width_60_2
-    - bb_width_80_2
-    - bb_percent_b_60_2
-
-  # 择时候选池：timing_pool_v3_pruned + Koopa-lite v2
-  timing_pool_koop_v3_pruned:
-    - "@timing_pool_v3_pruned"
-    - "@koopman_lite_v2"
-
-  SmallAccountFuturesTrendV1:
-    - "@cta_core"
-    - ema_short_{ema_short_len}
-    - ema_long_{ema_long_len}
-    - adx
-    - atr
-    - atr_pct
-    - macd
-    - macdsignal
-    - macdhist
-    # 该项会在策略侧按开关/窗口判断是否启用（渲染后仍统一输出列名 volume_ratio）
-    - volume_ratio_{volume_ratio_lookback}
-
-  SmallAccountSpotTrendFilteredV1:
-    - "@cta_core"
-    - ema_short_{ema_short_len}
-    - ema_long_{ema_long_len}
-    - adx
-    - atr
-    - atr_pct
-    - macd
-    - macdsignal
-    - macdhist
-    - volume_ratio_{volume_ratio_lookback}

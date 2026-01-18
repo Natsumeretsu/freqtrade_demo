@@ -2,6 +2,12 @@
 测试统一分析器
 """
 
+import sys
+from pathlib import Path
+
+# 添加项目路径
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "03_integration"))
+
 import pandas as pd
 import pytest
 from pathlib import Path
@@ -30,11 +36,11 @@ def sample_data():
     pricing_data = {
         'BTC/USDT:USDT': pd.DataFrame({
             'date': pd.date_range('2024-01-01', periods=20, freq='1h'),
-            'close': 40000 + 100 * range(20)
+            'close': [40000 + 100 * i for i in range(20)]
         }),
         'ETH/USDT:USDT': pd.DataFrame({
             'date': pd.date_range('2024-01-01', periods=20, freq='1h'),
-            'close': 2000 + 10 * range(20)
+            'close': [2000 + 10 * i for i in range(20)]
         })
     }
 
@@ -50,6 +56,7 @@ def test_factor_analyzer_init(sample_data):
         pricing_data=pricing_data,
         periods=[1, 5],
         quantiles=5,
+        freq='h',  # 明确指定小时频率
     )
 
     assert analyzer is not None
@@ -66,6 +73,7 @@ def test_get_summary(sample_data):
         pricing_data=pricing_data,
         periods=[1, 5],
         quantiles=5,
+        freq='h',  # 明确指定小时频率
     )
 
     summary = analyzer.get_summary()

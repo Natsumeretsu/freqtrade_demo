@@ -1,0 +1,66 @@
+version: 2
+exchange: okx
+trading_mode: futures
+meta:
+  generated_at: '2026-01-16T04:30:00'
+  generator: manual_factor_reselection_based_on_ic_analysis
+  description: 基于 IC 分析修正的因子组合（移除动量因子，保留反转+风险因子）
+  reference: |
+    IC 分析结果（2026-01-16）：
+    - reversal_5: IC=0.24, 胜率=80%, IR=0.87 ⭐⭐⭐⭐⭐
+    - reversal_3: IC=0.19, 胜率=79%, IR=0.83 ⭐⭐⭐⭐⭐
+    - reversal_1: IC=0.13, 胜率=80%, IR=0.84 ⭐⭐⭐⭐
+    - es_5_30: IC=0.14, 胜率=65%, IR=0.39 ⭐⭐⭐
+    
+    移除的因子：
+    - ret_14, ret_28, ret_56: IC为负（-0.28至-0.41）
+    - vol_28, skew_30: IC接近0，预测能力不足
+  topk: 3
+
+main:
+  timeframe: 15m
+  quantiles: 5
+  lookback_days: 14
+  entry_threshold: 0.67
+  exit_threshold: 0.67
+
+confirm:
+  timeframe: 1h
+  quantiles: 5
+  lookback_days: 30
+  entry_threshold: 0.67
+  exit_threshold: 0.67
+
+fusion:
+  main_weight: 0.70
+  confirm_weight: 0.30
+  entry_threshold: 0.90
+  exit_threshold: 0.80
+
+defaults:
+  main:
+    factors:
+    - name: reversal_3
+      direction: neg
+      side: both
+      weight: 1.0
+    - name: reversal_5
+      direction: neg
+      side: both
+      weight: 1.0
+    - name: es_5_30
+      direction: pos
+      side: both
+      weight: 1.0
+  confirm:
+    factors:
+    - name: reversal_5
+      direction: neg
+      side: both
+      weight: 1.0
+    - name: es_5_30
+      direction: pos
+      side: both
+      weight: 1.0
+
+pairs: {}

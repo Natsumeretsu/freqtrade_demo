@@ -2,6 +2,12 @@
 测试 Alphalens 适配器
 """
 
+import sys
+from pathlib import Path
+
+# 添加项目路径
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "03_integration"))
+
 import pandas as pd
 import pytest
 from datetime import datetime, timedelta
@@ -39,11 +45,11 @@ def sample_pricing_data():
     pricing_data = {
         'BTC/USDT:USDT': pd.DataFrame({
             'date': dates,
-            'close': 40000 + 100 * range(len(dates))
+            'close': [40000 + 100 * i for i in range(len(dates))]
         }),
         'ETH/USDT:USDT': pd.DataFrame({
             'date': dates,
-            'close': 2000 + 10 * range(len(dates))
+            'close': [2000 + 10 * i for i in range(len(dates))]
         })
     }
 
@@ -57,6 +63,7 @@ def test_convert_to_alphalens_format(sample_factor_data, sample_pricing_data):
         pricing_data=sample_pricing_data,
         periods=[1, 5],
         quantiles=5,
+        freq='h',  # 明确指定小时频率（加密市场 24/7 交易）
     )
 
     # 验证结果格式
@@ -64,6 +71,9 @@ def test_convert_to_alphalens_format(sample_factor_data, sample_pricing_data):
     assert isinstance(result.index, pd.MultiIndex)
     assert result.index.names == ['date', 'asset']
     assert 'factor' in result.columns
+    assert 'factor_quantile' in result.columns
+    assert '1D' in result.columns  # 前瞻收益列
+    assert '5D' in result.columns
 
 
 def test_validate_factor_data_empty():

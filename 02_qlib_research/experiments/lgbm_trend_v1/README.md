@@ -1,5 +1,7 @@
 # 实验：lgbm_trend_v1
 
+更新日期：2026-01-17
+
 ## 0) 概览
 
 - `identifier`：`lgbm_trend_v1`

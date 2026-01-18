@@ -69,19 +69,49 @@ def _parse_args() -> argparse.Namespace:
         help="输出目录（默认：02_qlib_research/qlib_data/<exchange>/<timeframe>）。",
     )
     p.add_argument("--force", action="store_true", help="强制覆盖已存在的输出文件。")
+    p.add_argument(
+        "--trading-mode",
+        choices=["spot", "futures"],
+        default="spot",
+        help="交易模式：spot 或 futures（影响数据子目录和文件名格式）。",
+    )
     return p.parse_args()
 
 
-def _resolve_datadir(*, cfg, datadir_arg: str, exchange: str) -> Path:
+def _resolve_datadir(*, cfg, datadir_arg: str, exchange: str, trading_mode: str = "spot") -> Path:
     if str(datadir_arg or "").strip():
-        return Path(str(datadir_arg)).expanduser().resolve()
+        base = Path(str(datadir_arg)).expanduser().resolve()
+    else:
+        # 兼容两种配置：FREQTRADE_DATA_DIR=./01_freqtrade/data 或 ./01_freqtrade/data/okx
+        base = cfg.freqtrade_data_dir
+        cand = base / exchange
+        if cand.is_dir():
+            base = cand.resolve()
+        else:
+            base = base.resolve()
 
-    # 兼容两种配置：FREQTRADE_DATA_DIR=./01_freqtrade/data 或 ./01_freqtrade/data/okx
-    base = cfg.freqtrade_data_dir
-    cand = base / exchange
-    if cand.is_dir():
-        return cand.resolve()
-    return base.resolve()
+    # futures 模式下，数据在 futures/ 子目录
+    if trading_mode == "futures":
+        futures_dir = base / "futures"
+        if futures_dir.is_dir():
+            return futures_dir
+    return base
+
+
+def _freqtrade_pair_to_futures_filename(pair: str, timeframe: str) -> str:
+    """
+    将 futures 交易对转换为 Freqtrade futures 数据文件名。
+
+    示例：
+    - "BTC/USDT:USDT", "15m" -> "BTC_USDT_USDT-15m-futures.feather"
+    """
+    s = str(pair or "").strip()
+    tf = str(timeframe or "").strip()
+    if not s or not tf:
+        return ""
+    # BTC/USDT:USDT -> BTC_USDT_USDT
+    sym = s.replace("/", "_").replace(":", "_")
+    return f"{sym}-{tf}-futures.feather"
 
 
 def _read_ohlcv_feather(path: Path) -> pd.DataFrame:
@@ -113,12 +143,14 @@ def main() -> int:
     if not timeframe:
         raise ValueError("timeframe 不能为空")
 
+    trading_mode = getattr(args, "trading_mode", "spot") or "spot"
+
     pairs = args.pairs if args.pairs is not None else cfg.pairs()
     pairs = [str(p).strip() for p in (pairs or []) if str(p).strip()]
     if not pairs:
         raise ValueError("pairs 为空：请传入 --pairs 或配置 04_shared/config/symbols.yaml")
 
-    datadir = _resolve_datadir(cfg=cfg, datadir_arg=str(args.datadir), exchange=exchange)
+    datadir = _resolve_datadir(cfg=cfg, datadir_arg=str(args.datadir), exchange=exchange, trading_mode=trading_mode)
 
     outdir = Path(str(args.outdir)).expanduser() if str(args.outdir or "").strip() else (cfg.qlib_data_dir / exchange / timeframe)
     outdir = outdir.resolve()
@@ -130,7 +162,11 @@ def main() -> int:
 
     for pair in pairs:
         symbol = freqtrade_pair_to_symbol(pair)
-        filename = freqtrade_pair_to_data_filename(pair, timeframe)
+        # 根据 trading_mode 选择文件名格式
+        if trading_mode == "futures":
+            filename = _freqtrade_pair_to_futures_filename(pair, timeframe)
+        else:
+            filename = freqtrade_pair_to_data_filename(pair, timeframe)
         src = datadir / filename
         if not src.is_file():
             skipped_missing.append(pair)

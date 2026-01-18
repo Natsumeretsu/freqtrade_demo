@@ -1,0 +1,76 @@
+version: 2
+exchange: okx
+trading_mode: futures
+meta:
+  generated_at: '2026-01-16T01:10:00'
+  generator: manual
+  note: 简化多空策略 - 使用对多空都有效的因子
+main:
+  timeframe: 15m
+  quantiles: 5
+  lookback_days: 14
+  entry_threshold: 0.50
+  exit_threshold: 0.45
+confirm:
+  timeframe: 1h
+  quantiles: 5
+  lookback_days: 30
+  entry_threshold: 0.50
+  exit_threshold: 0.45
+fusion:
+  main_weight: 0.6
+  confirm_weight: 0.4
+  entry_threshold: 0.50
+  exit_threshold: 0.45
+defaults:
+  main:
+    factors:
+    - name: ema_10
+      direction: neg
+      side: both
+      weight: 1.0
+  confirm:
+    factors:
+    - name: ema_10
+      direction: neg
+      side: both
+      weight: 1.0
+pairs:
+  ETH/USDT:USDT:
+    main:
+      factors:
+      # 趋势因子 - 多空通用
+      - name: ema_5
+        direction: neg
+        side: both
+        weight: 1.5
+      - name: ema_10
+        direction: neg
+        side: both
+        weight: 1.5
+      # 动量因子 - 多空通用
+      - name: rsi_14
+        direction: neg
+        side: both
+        weight: 1.0
+      # 反转因子 - 对空头有利
+      - name: roc_24
+        direction: neg
+        side: both
+        weight: 1.0
+    confirm:
+      factors:
+      # 趋势确认
+      - name: ema_5
+        direction: neg
+        side: both
+        weight: 1.5
+      - name: ema_10
+        direction: neg
+        side: both
+        weight: 1.5
+      # RSI 确认
+      - name: rsi_21
+        direction: neg
+        side: both
+        weight: 1.0

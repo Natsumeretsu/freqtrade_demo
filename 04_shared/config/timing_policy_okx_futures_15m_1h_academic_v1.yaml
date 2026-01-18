@@ -1,0 +1,63 @@
+version: 2
+exchange: okx
+trading_mode: futures
+meta:
+  generated_at: '2026-01-16T04:00:00'
+  generator: manual_factor_reselection
+  description: 基于学术研究的因子重新选型（保守版）
+  reference: |
+    Baybutt (2024) "Empirical Crypto Asset Pricing"
+    - 动量因子：ret_14 (Sharpe 0.78), ret_28 (最优参数)
+    - 反转因子：reversal_3, reversal_5 (Sharpe 4.58)
+    - 风险因子：es_5_30 (Sharpe 0.76)
+    注意：vol_28 已移除（验证失败：测试集 IC 为负）
+  topk: 2
+
+main:
+  timeframe: 15m
+  quantiles: 5
+  lookback_days: 14
+  entry_threshold: 0.67
+  exit_threshold: 0.67
+
+confirm:
+  timeframe: 1h
+  quantiles: 5
+  lookback_days: 30
+  entry_threshold: 0.67
+  exit_threshold: 0.67
+
+fusion:
+  main_weight: 0.70
+  confirm_weight: 0.30
+  entry_threshold: 0.90
+  exit_threshold: 0.80
+
+defaults:
+  main:
+    factors:
+    - name: ret_14
+      direction: pos
+      side: both
+      weight: 1.0
+    - name: reversal_3
+      direction: neg
+      side: both
+      weight: 1.0
+    # vol_28 removed: failed validation (test IC negative)
+  confirm:
+    factors:
+    - name: ret_28
+      direction: pos
+      side: both
+      weight: 1.0
+    - name: reversal_5
+      direction: neg
+      side: both
+      weight: 1.0
+    - name: es_5_30
+      direction: neg
+      side: both
+      weight: 1.0
+
+pairs: {}

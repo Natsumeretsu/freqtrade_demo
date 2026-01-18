@@ -1,5 +1,7 @@
 # 配置模板（`04_shared/configs/`）
 
+更新日期：2026-01-17
+
 本目录用于存放**可提交、可复制**的配置模板（均为脱敏示例）。
 
 - 通用模板：`04_shared/configs/config.example.json`

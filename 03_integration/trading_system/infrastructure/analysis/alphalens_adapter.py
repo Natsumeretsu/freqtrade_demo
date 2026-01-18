@@ -18,7 +18,7 @@ from typing import Dict, List, Optional, Union
 
 import numpy as np
 import pandas as pd
-from alphalens.utils import get_clean_factor_and_forward_returns
+from alphalens.utils import get_clean_factor_and_forward_returns, quantize_factor
 
 
 def convert_to_alphalens_format(
@@ -27,6 +27,7 @@ def convert_to_alphalens_format(
     periods: List[int] = [1, 5, 10],
     quantiles: Optional[int] = 5,
     bins: Optional[int] = None,
+    freq: Optional[str] = None,
 ) -> pd.DataFrame:
     """
     将项目数据格式转换为 Alphalens 格式
@@ -39,6 +40,8 @@ def convert_to_alphalens_format(
         periods: 前瞻期列表（单位：K线数量）
         quantiles: 分位数数量（用于分层分析）
         bins: 自定义分箱边界
+        freq: 数据频率（如 'D' 日频, 'h' 小时频）。
+              None 表示自动推断（加密市场推荐明确指定）
 
     返回：
         Alphalens 格式的 DataFrame
@@ -49,24 +52,45 @@ def convert_to_alphalens_format(
     factor_wide = _standardize_factor_format(factor_data)
 
     # 2. 标准化价格数据格式
-    pricing_wide = _standardize_pricing_format(pricing_data)
+    pricing_wide = _standardize_pricing_format(pricing_data, freq=freq)
 
     # 3. 对齐时间索引
     factor_wide, pricing_wide = _align_timestamps(factor_wide, pricing_wide)
 
-    # 4. 转换为 Alphalens 格式
-    factor_data_alphalens = _convert_to_multiindex(factor_wide, pricing_wide, periods)
+    # 4. 转换为 MultiIndex 格式
+    factor_multiindex = _convert_to_multiindex(factor_wide)
 
-    # 5. 使用 Alphalens 的清洗函数
-    clean_factor_data = get_clean_factor_and_forward_returns(
-        factor=factor_data_alphalens['factor'],
-        prices=pricing_wide,
-        periods=periods,
-        quantiles=quantiles,
-        bins=bins,
+    # 5. 手动计算前瞻收益（绕过 Alphalens 的频率验证）
+    forward_returns = _compute_forward_returns_manual(pricing_wide, periods)
+
+    # 6. 合并因子和前瞻收益
+    merged_data = pd.merge(
+        factor_multiindex,
+        forward_returns,
+        left_index=True,
+        right_index=True,
+        how='inner'
     )
 
-    return clean_factor_data
+    # 7. 添加分位数标签
+    if quantiles is not None and bins is None:
+        # quantize_factor 期望传入 DataFrame（带有 'factor' 列）
+        merged_data['factor_quantile'] = quantize_factor(
+            merged_data[['factor']],  # 传入 DataFrame 而不是 Series
+            quantiles=quantiles,
+            by_group=False,
+            no_raise=False,
+            zero_aware=False
+        )
+    elif bins is not None:
+        merged_data['factor_quantile'] = pd.cut(
+            merged_data['factor'],
+            bins=bins,
+            labels=False,
+            include_lowest=True
+        ) + 1
+
+    return merged_data
 
 
 def _standardize_factor_format(factor_data: pd.DataFrame) -> pd.DataFrame:
@@ -102,13 +126,15 @@ def _standardize_factor_format(factor_data: pd.DataFrame) -> pd.DataFrame:
 
 
 def _standardize_pricing_format(
-    pricing_data: Dict[str, pd.DataFrame]
+    pricing_data: Dict[str, pd.DataFrame],
+    freq: Optional[str] = None,
 ) -> pd.DataFrame:
     """
     标准化价格数据为 wide format
 
     输入：
         {pair: DataFrame(date, close)}
+        freq: 数据频率（如 'D', 'h'）。None 表示自动推断
 
     输出：
         Wide format: index=date, columns=pairs, values=close
@@ -131,6 +157,10 @@ def _standardize_pricing_format(
 
     pricing_wide = pd.DataFrame(pricing_dict)
     pricing_wide = pricing_wide.sort_index()
+
+    # 设置频率信息（如果提供）
+    if freq is not None:
+        pricing_wide.index.freq = freq
 
     return pricing_wide
 
@@ -173,16 +203,13 @@ def _align_timestamps(
 
 
 def _convert_to_multiindex(
-    factor_wide: pd.DataFrame,
-    pricing_wide: pd.DataFrame,
-    periods: List[int]
+    factor_wide: pd.DataFrame
 ) -> pd.DataFrame:
     """
     转换为 MultiIndex 格式
 
     输入：
         factor_wide: index=date, columns=pairs
-        pricing_wide: index=date, columns=pairs
 
     输出：
         MultiIndex DataFrame: (date, asset)
@@ -195,6 +222,39 @@ def _convert_to_multiindex(
     result = pd.DataFrame({'factor': factor_stacked})
 
     return result
+
+
+def _compute_forward_returns_manual(
+    pricing_wide: pd.DataFrame,
+    periods: List[int]
+) -> pd.DataFrame:
+    """
+    手动计算前瞻收益（绕过 Alphalens 的频率验证）
+
+    输入：
+        pricing_wide: index=date, columns=pairs, values=close
+        periods: 前瞻期列表（单位：K线数量）
+
+    输出：
+        MultiIndex DataFrame: (date, asset)
+        Columns: period_1, period_5, period_10, ...
+    """
+    forward_returns_dict = {}
+
+    for period in periods:
+        # 计算每个 period 的前瞻收益
+        period_returns = pricing_wide.pct_change(periods=period).shift(-period)
+
+        # Stack 转换为 MultiIndex
+        period_returns_stacked = period_returns.stack()
+        period_returns_stacked.index.names = ['date', 'asset']
+
+        forward_returns_dict[f'{period}D'] = period_returns_stacked
+
+    # 合并所有 period 的收益
+    forward_returns = pd.DataFrame(forward_returns_dict)
+
+    return forward_returns
 
 
 def validate_factor_data(factor_data: pd.DataFrame) -> None:

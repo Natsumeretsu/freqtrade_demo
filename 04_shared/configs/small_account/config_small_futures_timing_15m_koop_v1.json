@@ -20,7 +20,7 @@
 
   "timeframe": "15m",
 
-  "timing_policy_path": "04_shared/config/timing_policy_okx_futures_15m_1h_koop_v1.yaml",
+  "timing_policy_path": "04_shared/config/timing_policy_okx_futures_15m_1h_koop_v2_strict.yaml",
 
   "unfilledtimeout": {
     "entry": 10,

@@ -1,8 +1,10 @@
-"""
-trading_system
+"""交易系统模块
 
-本包用于承接“策略（Freqtrade）⇄ 因子/模型（研究层）”的工程化接口，目标是：
-- 因子与策略分离：策略只编排与决策，因子计算集中在基础设施层
-- 依赖倒置（DIP）：策略依赖抽象（domain），具体实现可由配置切换
-- 训练与实盘一致：特征工程在训练脚本与策略侧共用，避免口径漂移
+集成所有功能的统一接口。
+
+创建日期: 2026-01-17
 """
+from .system_manager import SystemManager
+from .system_config import SystemConfig
+
+__all__ = ['SystemManager', 'SystemConfig']

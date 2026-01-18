@@ -4,7 +4,7 @@
 
 .DESCRIPTION
     为 Codex CLI 配置常用 MCP：Serena / Context7 / MarkItDown /
-    Playwright / Chrome DevTools / Wolfram / In-Memoria / Local RAG / vbrain。
+    Playwright / Chrome DevTools / Wolfram / GitHub。
 
 .PARAMETER Force
     覆盖已存在的同名 MCP server 配置
@@ -195,15 +195,6 @@ try {
       $stats.Failed++
       Write-Warning ("配置失败：{0} - {1}" -f $name, $_.Exception.Message)
       continue
-    }
-  }
-
-  # 额外补丁：local_rag 需要 cwd 才能让 BASE_DIR/DB_PATH 以“项目目录”为基准解析（跨设备不依赖绝对路径）
-  if ($PSCmdlet.ShouldProcess("local_rag", "ensure cwd")) {
-    try {
-      Ensure-CodexMcpServerCwd -Name "local_rag" -CwdValue "."
-    } catch {
-      Write-Warning ("写入 local_rag.cwd 失败（可忽略，但跨设备可能需要手动补齐）：{0}" -f $_.Exception.Message)
     }
   }
 

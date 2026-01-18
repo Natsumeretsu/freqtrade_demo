@@ -83,3 +83,13 @@ Thumbs.db
 /temp/
 /in-memoria-vectors.db/
 /lancedb/
+
+# 临时数据文件（分析/调试产生的中间文件）
+factor_data*.csv
+*.db
+export_log.txt
+
+# 临时脚本（一次性分析/检查脚本）
+check_*.py
+analyze_*.py
+prepare_*.py

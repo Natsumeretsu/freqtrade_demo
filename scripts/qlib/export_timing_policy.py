@@ -267,15 +267,19 @@ def _factor_family(factor: str) -> str:
     if n == "ema_spread":
         return "ema_spread"
 
-    # --- Koopa-lite / 频域 ---
-    if n.startswith("fft_"):
-        return "fft"
+    # --- Koopman 本征模态因子（PyDMD HODMD） ---
     if n.startswith("koop_pred_ret"):
         return "koop_pred"
-    if n.startswith("koop_spectral_radius"):
+    if n == "koop_spectral_radius":
         return "koop_spectrum"
-    if n.startswith("koop_fit_"):
-        return "koop_fit"
+    if n == "koop_reconstruction_error":
+        return "koop_error"
+    if n.startswith("koop_mode_") and "_amp" in n:
+        return "koop_mode_amp"
+    if n.startswith("koop_mode_") and "_freq" in n:
+        return "koop_mode_freq"
+    if n.startswith("koop_mode_") and "_decay" in n:
+        return "koop_mode_decay"
     if n.startswith("koop_"):
         return "koop_other"
 

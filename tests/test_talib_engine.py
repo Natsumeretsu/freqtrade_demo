@@ -57,7 +57,7 @@ class TestTalibFactorEngine(unittest.TestCase):
         self.assertIn("macd", factors.columns)
         self.assertIn("macdsignal", factors.columns)
         self.assertIn("macdhist", factors.columns)
-        self.assertIn("volume_ratio", factors.columns)
+        self.assertIn("volume_ratio_72", factors.columns)
         self.assertIn("rsi_14", factors.columns)
         self.assertIn("cci_20", factors.columns)
         self.assertIn("mfi_14", factors.columns)
@@ -98,6 +98,49 @@ class TestTalibFactorEngine(unittest.TestCase):
         engine = TalibFactorEngine()
         with self.assertRaises(ValueError):
             engine.compute(pd.DataFrame({"close": [1.0]}), ["adx"])
+
+    def test_supports_method_for_all_factor_types(self) -> None:
+        """测试 supports 方法对所有因子类型的支持"""
+        engine = TalibFactorEngine()
+
+        # EMA 因子
+        self.assertTrue(engine.supports("ema_short_10"))
+        self.assertTrue(engine.supports("ema_long_50"))
+
+        # 技术指标
+        self.assertTrue(engine.supports("adx"))
+        self.assertTrue(engine.supports("atr"))
+        self.assertTrue(engine.supports("rsi_14"))
+
+        # 动量因子
+        self.assertTrue(engine.supports("ret_1"))
+        self.assertTrue(engine.supports("roc_10"))
+
+        # 不支持的因子
+        self.assertFalse(engine.supports("invalid_factor"))
+        self.assertFalse(engine.supports(""))
+
+    def test_compute_with_empty_factor_list(self) -> None:
+        """测试空因子列表"""
+        df = _sample_ohlcv(200)
+        engine = TalibFactorEngine()
+
+        factors = engine.compute(df, [])
+        self.assertEqual(len(factors.columns), 0)
+        self.assertEqual(len(factors), len(df))
+
+    def test_compute_volatility_factors(self) -> None:
+        """测试波动率因子"""
+        df = _sample_ohlcv(200)
+        engine = TalibFactorEngine()
+
+        factor_names = ["vol_12", "vol_24", "vol_72"]
+        factors = engine.compute(df, factor_names)
+
+        for name in factor_names:
+            self.assertIn(name, factors.columns)
+            # 波动率应该是非负的
+            self.assertTrue((factors[name].dropna() >= 0).all())
 
 
 if __name__ == "__main__":

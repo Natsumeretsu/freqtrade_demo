@@ -27,7 +27,10 @@ if ($null -eq $FreqtradeArgs) {
 # Load common module
 $mcpCommon = Join-Path $PSScriptRoot "lib/common.ps1"
 if (Test-Path $mcpCommon) {
+  # 临时关闭 StrictMode 以避免 common.ps1 的 StrictMode 影响后续变量定义
+  Set-StrictMode -Off
   . $mcpCommon
+  Set-StrictMode -Version Latest
 } else {
   function Test-Command {
     param([string]$Name)
@@ -47,13 +50,14 @@ $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 Set-Location $repoRoot
 
 # 确保策略侧可导入 03_integration/trading_system（集成层代码）
-$integrationRoot = (Join-Path $repoRoot "03_integration")
+$integrationRoot = [string](Join-Path $repoRoot "03_integration")
 if (Test-Path $integrationRoot) {
   if ([string]::IsNullOrWhiteSpace($env:PYTHONPATH)) {
     $env:PYTHONPATH = $integrationRoot
   } else {
     # Windows 上 PYTHONPATH 分隔符为 ';'
-    if ($env:PYTHONPATH -notmatch [regex]::Escape($integrationRoot)) {
+    $escapedPath = [regex]::Escape($integrationRoot)
+    if ($env:PYTHONPATH -notmatch $escapedPath) {
       $env:PYTHONPATH = "$integrationRoot;$($env:PYTHONPATH)"
     }
   }

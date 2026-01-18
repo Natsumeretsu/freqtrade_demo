@@ -4,7 +4,7 @@
 
 .DESCRIPTION
     为 Claude Code 配置常用 MCP：Serena / Context7 / MarkItDown /
-    Playwright / Chrome DevTools / Wolfram / In-Memoria / Local RAG / GitHub。
+    Playwright / Chrome DevTools / Wolfram / GitHub。
 
 .PARAMETER Force
     覆盖已存在的同名 MCP server 配置

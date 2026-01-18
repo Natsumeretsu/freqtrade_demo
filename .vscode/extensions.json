@@ -4,7 +4,6 @@
     "anthropic.claude-code",
     "charliermarsh.ruff",
     "chunsen.bracket-select",
-    "docker.docker",
     "dracula-theme.theme-dracula",
     "github.remotehub",
     "lokalise.i18n-ally",

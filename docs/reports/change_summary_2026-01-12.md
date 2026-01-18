@@ -1,5 +1,15 @@
 # 变更总结（2026-01-12）
 
+更新日期：2026-01-12
+
+
+
+> **⚠️ 历史文档说明（2026-01-17）**：
+> 本文档中提及的 vbrain、vharvest、local_rag、in_memoria 等系统已于 2026-01-17 完全移除。
+> 当前项目采用 Docker MCP ToolKit 的 `memory` 工具（知识图谱）+ 实时获取（fetch/playwright/context7/duckduckgo）方案。
+> 本文档保留作为历史记录，文中相关内容仅供参考，不再适用于当前架构。
+
+
 本次变更围绕 smallaccount 目标（稳定增长/控回撤，且尽量不跑输牛市）对 `SmallAccountSpotTrendFilteredV1` 做了“风险层优先、信号层尽量少动”的迭代，并同步补齐了可追溯的知识与资料管线（来源登记、抓取缓存、vbrain 本地索引）。
 
 ---

@@ -14,7 +14,7 @@ dependencies = [
     "mcp>=1.18.0,<2.0.0",
     "pydmd>=2025.8.1",
     "alphalens-reloaded>=0.4.6",
-    "empyrical>=0.5.5",
+    "empyrical-reloaded>=0.5.12",
 ]
 
 [tool.uv]
@@ -28,6 +28,7 @@ dev = [
     "ipykernel",
     "ipywidgets>=8.1.8",
     "plotly",
+    "pytest>=9.0.2",
 ]
 docs = [
     "mkdocs>=1.6.0",

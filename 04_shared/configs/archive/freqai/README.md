@@ -1,5 +1,7 @@
 # FreqAI 配置（`04_shared/configs/archive/freqai/`）
 
+更新日期：2026-01-17
+
 本目录用于存放 FreqAI 相关的示例/实验配置（回测、训练、实盘均可复用）。
 
 ## 回归（收益率回归）

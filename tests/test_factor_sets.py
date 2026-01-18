@@ -44,15 +44,17 @@ class TestFactorSets(unittest.TestCase):
         templates = get_factor_templates("SmallAccountFuturesTrendV1")
         self.assertTrue(all(not str(x).startswith("@") for x in templates))
 
+        # 验证 cta_core 展开后的前缀（cta_alpha + cta_risk）
+        # cta_alpha: ret_1, ret_3, ret_7, ret_14, ret_28
+        # cta_risk: vol_14, skew_30, kurt_30, volume_z_30, hl_range (vol_28 removed: failed validation)
         expected_prefix = [
             "ret_1",
             "ret_3",
-            "ret_12",
-            "vol_12",
-            "skew_72",
-            "kurt_72",
-            "volume_z_72",
-            "hl_range",
+            "ret_7",
+            "ret_14",
+            "ret_28",
+            "vol_14",
+            "skew_30",
         ]
         self.assertEqual(templates[: len(expected_prefix)], expected_prefix)
         self.assertIn("ema_short_{ema_short_len}", templates)

@@ -63,16 +63,24 @@ class SmallAccountFuturesTimingExecV1(IStrategy):
     # 因此主周期（15m）的 lookback_days 默认取 14 天（<= 1500/96≈15.6 天）。
     startup_candle_count = 1400
 
-    minimal_roi = {"0": 100}
-    stoploss = -0.06
+    # P0-3 优化：根据 IC 分析，因子最优持仓周期为 32 K线（8小时）
+    # 目标：强制在 8 小时内退出，降低资金费率成本从 -4.5% 至 -1.5%
+    minimal_roi = {
+        "0": 0.10,    # 10% 立即止盈
+        "60": 0.08,   # 1 小时后 8%
+        "120": 0.06,  # 2 小时后 6%
+        "240": 0.05,  # 4 小时后 5%
+        "480": 0.03   # 8 小时后 3%（强制退出，对齐因子有效期）
+    }
+    stoploss = -0.08  # 保持 -8% 止损
 
-    # 轻量追踪止损：让盈利在短周期里尽量不回吐太多
+    # 优化追踪止损：提高激活点至 6%，避免过早触发
     trailing_stop = True
-    trailing_stop_positive_offset = 0.02
-    trailing_stop_positive = 0.01
+    trailing_stop_positive_offset = 0.06  # 提高至 6%（高于平均盈利 4.218%）
+    trailing_stop_positive = 0.02         # 保持 2%
     trailing_only_offset_is_reached = True
 
-    use_exit_signal = True
+    use_exit_signal = False
     exit_profit_only = False
     ignore_roi_if_entry_signal = False
 
@@ -97,6 +105,16 @@ class SmallAccountFuturesTimingExecV1(IStrategy):
 
     # futures 杠杆：先给一个保守默认值（收益想更激进可以调高，但回撤与爆仓风险会同步上升）
     buy_leverage_base = DecimalParameter(1.0, 10.0, default=2.0, decimals=2, space="buy", optimize=False)
+
+    # 做空信号强度过滤：只有当 short_score >= 此阈值时才允许做空（0.0 = 不过滤）
+    buy_short_score_min = DecimalParameter(0.0, 1.0, default=0.0, decimals=2, space="buy", optimize=False)
+
+    # P0-2 风险预警参数（降低止损率从 33.2% 至 < 20%）
+    risk_enable_atr_spike = BooleanParameter(default=True, space="buy", optimize=False)
+    risk_enable_volume_spike = BooleanParameter(default=True, space="buy", optimize=False)
+    risk_enable_macd_reversal = BooleanParameter(default=True, space="buy", optimize=False)
+    risk_atr_zscore_threshold = DecimalParameter(1.5, 3.0, default=2.0, decimals=1, space="buy", optimize=False)
+    risk_volume_ratio_threshold = DecimalParameter(2.0, 5.0, default=3.0, decimals=1, space="buy", optimize=False)
 
     def informative_pairs(self):
         """
@@ -390,7 +408,20 @@ class SmallAccountFuturesTimingExecV1(IStrategy):
 
         # 1) 计算主周期因子
         main_factor_names = [s.name for s in main_specs]
-        dataframe = get_container().factor_usecase().execute(dataframe, main_factor_names)
+        
+        # P0-2: 确保风险预警所需的因子被计算
+        risk_factors = []
+        if bool(self.risk_enable_atr_spike.value):
+            risk_factors.append("atr")
+        if bool(self.risk_enable_volume_spike.value):
+            risk_factors.append("volume_ratio")
+        if bool(self.risk_enable_macd_reversal.value):
+            risk_factors.extend(["macd", "macdsignal"])
+        
+        # 合并主周期因子和风险预警因子（去重）
+        all_main_factors = list(set(main_factor_names + risk_factors))
+        
+        dataframe = get_container().factor_usecase().execute(dataframe, all_main_factors)
 
         main_long, main_short, main_net = self._long_short_scores_from_factors(
             df=dataframe,
@@ -472,7 +503,56 @@ class SmallAccountFuturesTimingExecV1(IStrategy):
         dataframe["timing_final_sig"] = self._signal_from_net_score(final_score, threshold=float(fusion_thr))
         dataframe["timing_final_exit_sig"] = self._signal_from_net_score(final_score, threshold=float(fusion_exit_thr))
 
+        # P0-2: 计算风险预警因子
+        dataframe = self._calculate_risk_warnings(dataframe)
+
         return dataframe.replace([np.inf, -np.inf], np.nan)
+
+    def _calculate_risk_warnings(self, dataframe: DataFrame) -> DataFrame:
+        """
+        计算风险预警因子（P0-2 改进）
+        
+        目标：降低止损率从 33.2% 至 < 20%
+        
+        风险预警因子：
+        1. ATR 突破因子：检测异常波动（ATR Z-score > 阈值）
+        2. 成交量异常因子：识别恐慌性抛售（volume_ratio > 阈值）
+        3. 趋势反转因子：捕捉趋势转折点（MACD 信号反转）
+        """
+        if dataframe is None or dataframe.empty:
+            return dataframe
+        
+        # 初始化风险预警列
+        dataframe["risk_atr_spike"] = False
+        dataframe["risk_volume_spike"] = False
+        dataframe["risk_macd_reversal_long"] = False
+        dataframe["risk_macd_reversal_short"] = False
+        
+        # 1. ATR 突破因子（异常波动检测）
+        if "atr" in dataframe.columns:
+            atr_mean = dataframe["atr"].rolling(window=20, min_periods=1).mean()
+            atr_std = dataframe["atr"].rolling(window=20, min_periods=1).std()
+            atr_zscore = (dataframe["atr"] - atr_mean) / atr_std.replace(0, np.nan)
+            dataframe["risk_atr_spike"] = atr_zscore > float(self.risk_atr_zscore_threshold.value)
+        
+        # 2. 成交量异常因子（恐慌性抛售检测）
+        if "volume_ratio" in dataframe.columns:
+            dataframe["risk_volume_spike"] = dataframe["volume_ratio"] > float(self.risk_volume_ratio_threshold.value)
+        
+        # 3. 趋势反转因子（MACD 信号反转检测）
+        if "macd" in dataframe.columns and "macdsignal" in dataframe.columns:
+            macd_cross_down = (
+                (dataframe["macd"].shift(1) > dataframe["macdsignal"].shift(1)) &
+                (dataframe["macd"] <= dataframe["macdsignal"])
+            )
+            macd_cross_up = (
+                (dataframe["macd"].shift(1) < dataframe["macdsignal"].shift(1)) &
+                (dataframe["macd"] >= dataframe["macdsignal"])
+            )
+            dataframe["risk_macd_reversal_long"] = macd_cross_down
+            dataframe["risk_macd_reversal_short"] = macd_cross_up
+        
+        return dataframe
 
     def populate_entry_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         dataframe["enter_long"] = 0
@@ -519,9 +599,25 @@ class SmallAccountFuturesTimingExecV1(IStrategy):
         if final_exit_sig is None:
             final_exit_sig = final_sig
 
-        # 退出规则（迟滞）：使用融合后的 final_exit_sig 判定是否“仍然保持同向”。
+        # 原有退出规则（迟滞）：使用融合后的 final_exit_sig 判定是否"仍然保持同向"。
         exit_long = final_exit_sig.astype("float64") != 1.0
         exit_short = final_exit_sig.astype("float64") != -1.0
+
+        # P0-2: 风险预警退出逻辑
+        # 当检测到风险信号时，提前退出以降低止损率
+        if bool(self.risk_enable_atr_spike.value) and "risk_atr_spike" in dataframe.columns:
+            exit_long = exit_long | dataframe["risk_atr_spike"]
+            exit_short = exit_short | dataframe["risk_atr_spike"]
+        
+        if bool(self.risk_enable_volume_spike.value) and "risk_volume_spike" in dataframe.columns:
+            exit_long = exit_long | dataframe["risk_volume_spike"]
+            exit_short = exit_short | dataframe["risk_volume_spike"]
+        
+        if bool(self.risk_enable_macd_reversal.value):
+            if "risk_macd_reversal_long" in dataframe.columns:
+                exit_long = exit_long | dataframe["risk_macd_reversal_long"]
+            if "risk_macd_reversal_short" in dataframe.columns:
+                exit_short = exit_short | dataframe["risk_macd_reversal_short"]
 
         dataframe.loc[exit_long & (dataframe["volume"] > 0), "exit_long"] = 1
         dataframe.loc[exit_short & (dataframe["volume"] > 0), "exit_short"] = 1
@@ -585,7 +681,9 @@ class SmallAccountFuturesTimingExecV1(IStrategy):
         **kwargs,
     ) -> bool:
         """
-        最后一层准入：自动降风险闭环（crit / 恢复期）可直接禁止新开仓。
+        最后一层准入：
+        1. 自动降风险闭环（crit / 恢复期）可直接禁止新开仓
+        2. 做空信号强度过滤：只有当 short_score >= buy_short_score_min 时才允许做空
         """
         side_l = str(side).strip().lower()
         if side_l not in {"long", "short"}:
@@ -594,6 +692,20 @@ class SmallAccountFuturesTimingExecV1(IStrategy):
         dp = getattr(self, "dp", None)
         if dp is None:
             return True
+
+        # 做空信号强度过滤
+        if side_l == "short":
+            short_min = float(self.buy_short_score_min.value)
+            if short_min > 0:
+                try:
+                    df = get_analyzed_dataframe_upto_time(dp, pair=pair, timeframe=str(self.timeframe), current_time=current_time)
+                    if df is not None and not df.empty and "timing_main_short_score" in df.columns:
+                        short_score = float(df["timing_main_short_score"].iloc[-1])
+                        if not np.isfinite(short_score) or short_score < short_min:
+                            logger.info("做空信号强度不足 (%.3f < %.3f)，跳过做空: %s", short_score, short_min, pair)
+                            return False
+                except Exception as e:
+                    logger.debug("做空过滤检查异常: %s", e)
 
         try:
             decision = get_container().auto_risk_service().decision(

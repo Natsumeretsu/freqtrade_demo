@@ -1,5 +1,7 @@
 # freqtrade_demo
 
+更新日期：2026-01-17
+
 这是一个面向 Windows + `uv` 的 **Freqtrade（回测/实盘）+ Qlib 风格研究（因子/模型）** 的工程化仓库。
 
 > 重要变化：本仓库不再把 repo root 当作 userdir。Freqtrade `userdir` 固定在：`01_freqtrade/`。
@@ -17,6 +19,12 @@
 - `scripts/`：统一脚本入口（强制使用）
 - `docs/`：权威文档；`docs/archive/`：离线参考与归档（含子模块 `docs/archive/strategies_ref_docs/`，使用说明见：`docs/archive/strategies_ref_docs_guide.md`）
 - `artifacts/`：本地 benchmark 产物（默认不提交）
+  - `artifacts/temp/`：临时文件存放位置（每月第一周清理）
+
+**⚠️ 临时文件管理规范**：
+- 临时数据文件（CSV、DB）：存放到 `artifacts/temp/`
+- 临时脚本（check_*.py、analyze_*.py）：执行完成后移动到 `scripts/archive/`
+- 根目录保持整洁，不要直接创建临时文件
 
 ---
 

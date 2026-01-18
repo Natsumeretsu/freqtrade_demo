@@ -1,0 +1,98 @@
+version: 2
+exchange: okx
+trading_mode: futures
+meta:
+  generated_at: '2026-01-15T23:23:32'
+  generator: scripts/qlib/export_timing_policy.py
+  main_csv: artifacts/timing_audit/timing_audit_20260115_231350_koop_v2_15m/timing_summary.csv
+  confirm_csv: artifacts/timing_audit/timing_audit_20260115_231857_koop_v2_1h/timing_summary.csv
+  main_series_dir: artifacts/timing_audit/timing_audit_20260115_231350_koop_v2_15m
+  confirm_series_dir: artifacts/timing_audit/timing_audit_20260115_231857_koop_v2_1h
+  topk: 5
+  allow_watch: false
+  roll_key: roll_30d_median
+  weight_mode: equal
+  prefer_horizon: 1
+  allow_other_horizons: false
+  dedupe:
+    method: corr
+    threshold: 0.9
+    min_common_obs: 200
+    family_cap: 0
+    note: 去冗余基于择时序列 pos 的 |corr|（active 优先）+ 同族上限（family_cap），用于逼近“少数模态张成”的信号集合。
+main:
+  timeframe: 15m
+  quantiles: 5
+  lookback_days: 14
+  entry_threshold: 0.67
+  exit_threshold: 0.67
+confirm:
+  timeframe: 1h
+  quantiles: 5
+  lookback_days: 30
+  entry_threshold: 0.67
+  exit_threshold: 0.67
+fusion:
+  main_weight: 0.7
+  confirm_weight: 0.3
+  entry_threshold: 0.67
+  exit_threshold: 0.67
+defaults:
+  main:
+    factors:
+    - name: ema_20
+      direction: neg
+      side: both
+      weight: 1.0
+  confirm:
+    factors:
+    - name: ema_20
+      direction: neg
+      side: both
+      weight: 1.0
+pairs:
+  ETH/USDT:USDT:
+    main:
+      factors:
+      - name: vol_80
+        direction: pos
+        side: long
+        weight: 1.0
+      - name: vol_84
+        direction: pos
+        side: long
+        weight: 1.0
+      - name: atr_84
+        direction: pos
+        side: long
+        weight: 1.0
+      - name: atr_56
+        direction: pos
+        side: long
+        weight: 1.0
+      - name: atr_42
+        direction: pos
+        side: long
+        weight: 1.0
+    confirm:
+      factors:
+      - name: atr_42
+        direction: pos
+        side: both
+        weight: 1.0
+      - name: atr_24
+        direction: pos
+        side: long
+        weight: 1.0
+      - name: atr_30
+        direction: pos
+        side: long
+        weight: 1.0
+      - name: atr_28
+        direction: pos
+        side: long
+        weight: 1.0
+      - name: atr_20
+        direction: pos
+        side: long
+        weight: 1.0

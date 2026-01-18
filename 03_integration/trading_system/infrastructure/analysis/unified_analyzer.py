@@ -29,6 +29,7 @@ class FactorAnalyzer:
         pricing_data: Dict[str, pd.DataFrame],
         periods: List[int] = [1, 5, 10],
         quantiles: int = 5,
+        freq: Optional[str] = None,
     ):
         """
         初始化因子分析器
@@ -38,6 +39,7 @@ class FactorAnalyzer:
             pricing_data: 价格数据字典
             periods: 前瞻期列表
             quantiles: 分位数数量
+            freq: 数据频率（如 'D' 日频, 'h' 小时频）
         """
         self.periods = periods
         self.quantiles = quantiles
@@ -48,6 +50,7 @@ class FactorAnalyzer:
             pricing_data=pricing_data,
             periods=periods,
             quantiles=quantiles,
+            freq=freq,
         )
 
     def analyze_ic(self, output_dir: Optional[Path] = None) -> Dict:
