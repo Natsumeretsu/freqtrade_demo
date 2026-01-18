@@ -57,9 +57,12 @@ Copy-Item "04_shared/configs/config-private.example.json" "01_freqtrade/config-p
 ### 3. 下载数据
 
 ```powershell
-# 下载 BTC/USDT 15分钟数据（最近90天）
-cd 02_qlib_research/data_pipeline
-python download.py --symbol BTC/USDT --timeframe 15m --days 90
+# 下载 BTC/USDT 15分钟数据（2020-2021年）
+./scripts/data/download.ps1 `
+  -Pairs "BTC/USDT:USDT" `
+  -Timeframes "15m" `
+  -TradingMode "futures" `
+  -Timerange "20200101-20211231"
 ```
 
 ---
@@ -67,20 +70,20 @@ python download.py --symbol BTC/USDT --timeframe 15m --days 90
 ## 📊 MVP 工作流程
 
 ### 阶段1：数据准备
-- 下载 OHLCV 数据
-- 数据清洗与质量检查
+- 使用 `scripts/data/download.ps1` 下载 OHLCV 数据
+- 数据自动保存到 `01_freqtrade/data/okx/futures/`
 - 验证数据完整性
 
 ### 阶段2：因子验证
-- 在 Jupyter Notebook 中研究因子
-- 计算 IC（信息系数）、t 值
-- 样本外测试验证稳定性
+- 在 `03_integration/` 中实现因子计算函数
+- 使用 `factor_validator.py` 计算 IC、t 值
+- 编写单元测试验证因子逻辑
 - **验收标准**：IC > 0.05，t 值 > 2
 
 ### 阶段3：策略构建
-- 选择验证通过的因子
-- 实现 SimpleMVPStrategy
-- 回测验证（目标：夏普 > 1.5）
+- 将验证通过的因子集成到策略中
+- 使用 `./scripts/ft.ps1 backtesting` 回测
+- 目标：夏普 > 1.5
 
 ---
 
@@ -112,9 +115,9 @@ python download.py --symbol BTC/USDT --timeframe 15m --days 90
 
 ## 📚 参考文档
 
-- [重构总结](docs/REFACTOR_SUMMARY.md) - 了解项目重构动机与新架构
-- [深度清理报告](docs/DEEP_CLEANUP_REPORT.md) - 查看清理统计
-- [改进清单](docs/IMPROVEMENT_CHECKLIST.md) - 进一步改进建议
+- [架构说明](docs/ARCHITECTURE.md) - 了解项目架构设计
+- [因子文档](docs/FACTORS.md) - 查看因子库和验证结果
+- [快速开始](docs/QUICKSTART.md) - 详细的入门指南
 
 ---
 
