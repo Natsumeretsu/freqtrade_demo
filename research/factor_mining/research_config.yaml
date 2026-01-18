@@ -1,0 +1,28 @@
+# 因子挖掘研究配置文件
+
+# 数据配置
+data:
+  pair: "BTC/USDT:USDT"
+  timeframe: "5m"
+  timerange: "20240101-20240131"
+  data_dir: "ft_userdir/data/okx/futures"
+
+# 因子生成配置
+factor_generation:
+  momentum_windows: [12, 24, 48, 72, 96, 144, 288]  # 1h, 2h, 4h, 6h, 8h, 12h, 24h
+  volatility_windows: [24, 48, 96, 144, 288]  # 2h, 4h, 8h, 12h, 24h
+  volume_windows: [96]  # 8h
+
+# 因子评估配置
+evaluation:
+  forward_return_periods: [1, 4, 8]  # 1期、4期、8期未来收益
+  n_groups: 5  # 分组数量
+  ic_threshold: 0.02  # IC 阈值
+  t_stat_threshold: 2.0  # t 统计量阈值（显著性）
+  significance_level: 0.05  # 显著性水平
+
+# 输出配置
+output:
+  report_dir: "docs/reports/factor_research"
+  csv_dir: "research/factor_mining/results"
+  plot_format: "html"
