@@ -14,9 +14,8 @@ import yaml
 # 添加项目根目录到 Python 路径
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
-sys.path.insert(0, str(project_root / "integration"))
 
-from factor_library import get_factor_class
+from integration.factor_library import get_factor_class
 
 
 def load_evaluation_results(results_file: Path) -> pd.DataFrame:
@@ -76,7 +75,7 @@ def update_factor_config(
     # 备份原配置
     if backup and config_file.exists():
         backup_file = config_file.with_suffix(".yaml.bak")
-        backup_file.write_text(config_file.read_text(), encoding="utf-8")
+        backup_file.write_text(config_file.read_text(encoding="utf-8"), encoding="utf-8")
         print(f"已备份原配置: {backup_file}")
 
     # 读取现有配置

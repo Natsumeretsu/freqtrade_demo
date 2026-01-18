@@ -13,10 +13,10 @@ import yaml
 
 # 添加项目路径
 project_root = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(project_root / "integration"))
+sys.path.insert(0, str(project_root))
 
-from data_pipeline import calculate_forward_returns
-from factor_library import FactorLibrary
+from integration.data_pipeline import calculate_forward_returns
+from integration.factor_library import FactorLibrary
 from research.factor_mining.factor_evaluator import FactorEvaluator
 from research.factor_mining.factor_generator import FactorGenerator
 
