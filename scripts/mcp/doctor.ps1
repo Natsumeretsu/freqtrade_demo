@@ -260,7 +260,6 @@ try {
           Write-Host ("chrome.exe: {0}" -f (Convert-PathToPosix $chromeExe))
         } else {
           Write-Warning "未找到 chrome.exe（Playwright/Chrome DevTools 可能不可用）。"
-          Write-Host "建议：运行 ./scripts/tools/fix_chrome_for_mcp.ps1"
         }
 
         $inMemoriaDb = Join-Path $repoRoot "in-memoria.db"
