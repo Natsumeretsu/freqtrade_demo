@@ -115,14 +115,6 @@ Copy-Item "04_shared/configs/config-private.example.json" "01_freqtrade/config-p
 
 ---
 
-## 📚 参考文档
-
-- [架构说明](docs/ARCHITECTURE.md) - 了解项目架构设计
-- [因子文档](docs/FACTORS.md) - 查看因子库和验证结果
-- [快速开始](docs/QUICKSTART.md) - 详细的入门指南
-
----
-
 ## ⚠️ 重要约定
 
 ### 禁止事项
