@@ -136,6 +136,17 @@ Claude 是本项目的**主交互助手**，负责：
   - 专注于复杂代码生成和自动化任务
   - **禁止在 Codex 执行环境中调用 codex-cli MCP**（避免循环）
   - 使用基础工具（Read/Write/Edit/Bash）完成任务
+  - **标准配置**（强制）：
+    ```json
+    {
+      "model": "gpt-5.2",
+      "approvalPolicy": "on-failure",
+      "sandboxMode": "workspace-write",
+      "workingDir": "F:\\Code\\freqtrade_demo"
+    }
+    ```
+  - **禁止使用其他 model**：只允许 `gpt-5.2`，禁止使用 `gpt-5-codex`、`gpt-5`、`o3` 等其他模型
+  - **权限配置**：必须使用 `approvalPolicy: "on-failure"` + `sandboxMode: "workspace-write"`，避免权限错误
 
 - **Gemini**（多模态分析）：
   - 适用场景：图表分析、视频处理、复杂文档解析、多模态推理
