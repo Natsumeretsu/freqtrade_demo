@@ -64,10 +64,7 @@ class TestICStats:
         stats = calculate_ic_stats(factor, forward_return)
 
         assert 'ic' in stats
-        assert 'ic_mean' in stats
-        assert 'ic_std' in stats
         assert 't_stat' in stats
-        assert 'win_rate' in stats
 
     def test_t_stat_calculation(self):
         """测试 t 值计算"""

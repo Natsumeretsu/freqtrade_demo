@@ -52,7 +52,7 @@ def calculate_ic_stats(
     method: str = 'pearson'
 ) -> Dict[str, float]:
     """
-    计算 IC 统计指标
+    计算 IC 和 t 统计量
 
     Args:
         factor: 因子值序列
@@ -60,7 +60,7 @@ def calculate_ic_stats(
         method: 相关系数方法
 
     Returns:
-        包含 IC、IC均值、IC标准差、t值、胜率的字典
+        包含 IC 和 t 值的字典
     """
     ic = calculate_ic(factor, forward_return, method)
 
@@ -71,10 +71,7 @@ def calculate_ic_stats(
     if n < 10:
         return {
             'ic': np.nan,
-            'ic_mean': np.nan,
-            'ic_std': np.nan,
-            't_stat': np.nan,
-            'win_rate': np.nan
+            't_stat': np.nan
         }
 
     # t = IC * sqrt(n-2) / sqrt(1-IC^2)
@@ -85,10 +82,7 @@ def calculate_ic_stats(
 
     return {
         'ic': ic,
-        'ic_mean': ic,
-        'ic_std': 0.0,  # 单次计算无标准差
-        't_stat': t_stat,
-        'win_rate': 1.0 if ic > 0 else 0.0
+        't_stat': t_stat
     }
 
 
