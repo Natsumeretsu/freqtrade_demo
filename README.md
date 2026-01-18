@@ -20,15 +20,17 @@
 freqtrade_demo/
 ├── 01_freqtrade/          # 执行层（Freqtrade 策略）
 │   ├── config.json        # 运行配置
+│   ├── data/              # 历史数据
 │   └── strategies/        # 策略文件
-├── 02_qlib_research/      # 研究层（因子验证）
-│   ├── data_pipeline/     # 数据下载与清洗
-│   └── notebooks/         # Jupyter 研究笔记
-├── 03_integration/        # 集成层（简化因子模块）
-│   └── simple_factors/    # 基础因子计算
+├── 03_integration/        # 集成层（因子计算与验证）
+│   ├── simple_factors/    # 基础因子计算
+│   ├── data_pipeline.py   # 数据预处理
+│   └── factor_validator.py # 因子验证
 ├── 04_shared/             # 共享配置
 │   └── configs/           # 配置模板
 ├── scripts/               # 自动化脚本
+│   ├── ft.ps1             # Freqtrade 命令包装器
+│   └── data/              # 数据下载脚本
 └── docs/                  # 文档
 ```
 
