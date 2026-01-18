@@ -12,9 +12,11 @@ from pathlib import Path
 import pandas as pd
 from freqtrade.strategy import IStrategy
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / "integration"))
+# 添加项目根目录到路径
+project_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(project_root))
 
-from factor_library import FactorLibrary
+from integration.factor_library import FactorLibrary
 
 
 class SimpleMVPStrategy(IStrategy):
@@ -29,7 +31,7 @@ class SimpleMVPStrategy(IStrategy):
     """
 
     INTERFACE_VERSION = 3
-    can_short = True  # 期货市场支持做空
+    can_short = False  # 现货市场不支持做空
 
     timeframe = "15m"
     startup_candle_count = 100
@@ -43,8 +45,8 @@ class SimpleMVPStrategy(IStrategy):
         super().__init__(config)
         # 初始化因子库
         self.factor_lib = FactorLibrary()
-        # 从配置文件读取要使用的因子列表
-        self.factor_names = ["momentum_8h", "volatility_24h", "volume_surge"]
+        # 使用评估通过的波动率因子
+        self.factor_names = ["bb_width_20", "hist_vol_20", "keltner_width_20"]
 
     def populate_indicators(self, dataframe: pd.DataFrame, metadata: dict) -> pd.DataFrame:
         """计算因子 - 使用因子库动态加载"""
@@ -53,44 +55,44 @@ class SimpleMVPStrategy(IStrategy):
 
     def populate_entry_trend(self, dataframe: pd.DataFrame, metadata: dict) -> pd.DataFrame:
         """
-        入场信号 - 基于动量因子的简单规则
+        入场信号 - 基于波动率因子的简单规则
 
-        做多条件: 动量 > 2% 且成交量 > 0
-        做空条件: 动量 < -2% 且成交量 > 0
+        逻辑：高波动率预示价格波动加大，适合入场
+        做多条件: 波动率因子平均值 > 阈值
         """
+        # 计算三个波动率因子的平均值（标准化后）
+        dataframe['volatility_score'] = (
+            dataframe['bb_width_20'] +
+            dataframe['hist_vol_20'] +
+            dataframe['keltner_width_20']
+        ) / 3
+
+        # 使用滚动分位数作为动态阈值
+        dataframe['vol_threshold'] = dataframe['volatility_score'].rolling(100).quantile(0.7)
+
         dataframe.loc[
             (
-                (dataframe['momentum_8h'] > 0.02) &  # 动量 > 2%
+                (dataframe['volatility_score'] > dataframe['vol_threshold']) &
                 (dataframe['volume'] > 0)
             ),
             'enter_long'] = 1
-
-        dataframe.loc[
-            (
-                (dataframe['momentum_8h'] < -0.02) &  # 动量 < -2%
-                (dataframe['volume'] > 0)
-            ),
-            'enter_short'] = 1
 
         return dataframe
 
     def populate_exit_trend(self, dataframe: pd.DataFrame, metadata: dict) -> pd.DataFrame:
         """
-        出场信号 - 基于动量反转的简单规则
+        出场信号 - 基于波动率回落的简单规则
 
-        平多条件: 动量 < -1% (反转)
-        平空条件: 动量 > 1% (反转)
+        逻辑：波动率回落预示价格波动减小，适合出场
+        平多条件: 波动率因子平均值 < 阈值
         """
+        # 使用滚动分位数作为动态阈值
+        dataframe['vol_exit_threshold'] = dataframe['volatility_score'].rolling(100).quantile(0.3)
+
         dataframe.loc[
             (
-                dataframe['momentum_8h'] < -0.01  # 动量反转
+                dataframe['volatility_score'] < dataframe['vol_exit_threshold']
             ),
             'exit_long'] = 1
-
-        dataframe.loc[
-            (
-                dataframe['momentum_8h'] > 0.01  # 动量反转
-            ),
-            'exit_short'] = 1
 
         return dataframe
