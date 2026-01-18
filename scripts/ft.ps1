@@ -49,16 +49,17 @@ $env:PYTHONIOENCODING = "utf-8"
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 Set-Location $repoRoot
 
-# 确保策略侧可导入 03_integration/trading_system（集成层代码）
-$integrationRoot = [string](Join-Path $repoRoot "03_integration")
+# 确保策略侧可导入 03_integration（集成层代码）
+$integrationRoot = Join-Path $repoRoot "03_integration"
 if (Test-Path $integrationRoot) {
+  $integrationRootStr = $integrationRoot.ToString()
   if ([string]::IsNullOrWhiteSpace($env:PYTHONPATH)) {
-    $env:PYTHONPATH = $integrationRoot
+    $env:PYTHONPATH = $integrationRootStr
   } else {
     # Windows 上 PYTHONPATH 分隔符为 ';'
-    $escapedPath = [regex]::Escape($integrationRoot)
+    $escapedPath = [regex]::Escape($integrationRootStr)
     if ($env:PYTHONPATH -notmatch $escapedPath) {
-      $env:PYTHONPATH = "$integrationRoot;$($env:PYTHONPATH)"
+      $env:PYTHONPATH = "$integrationRootStr;$($env:PYTHONPATH)"
     }
   }
 }
