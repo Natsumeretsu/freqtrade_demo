@@ -17,8 +17,6 @@ freqtrade = { git = "https://github.com/freqtrade/freqtrade.git", rev = "8e91fea
 
 [dependency-groups]
 dev = [
-    "ipykernel",
-    "ipywidgets>=8.1.8",
     "plotly",
     "pytest>=9.0.2",
     "mypy>=1.0.0",
