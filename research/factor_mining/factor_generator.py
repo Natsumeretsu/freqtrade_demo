@@ -5,6 +5,15 @@
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
+# 添加项目路径
+project_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(project_root / "integration"))
+
+from factor_library import list_all_factors
+
 
 class FactorGenerator:
     """因子生成器
@@ -70,11 +79,11 @@ class FactorGenerator:
     def generate_all_factors(self) -> list[str]:
         """批量生成所有候选因子
 
+        自动从因子库中获取所有已注册因子的名称。
+
         Returns:
             所有因子名称列表
         """
-        all_factors = []
-        all_factors.extend(self.generate_momentum_factors())
-        all_factors.extend(self.generate_volatility_factors())
-        all_factors.extend(self.generate_volume_factors())
-        return all_factors
+        # 从因子注册表获取所有已注册因子
+        all_factor_names = list_all_factors()
+        return all_factor_names
