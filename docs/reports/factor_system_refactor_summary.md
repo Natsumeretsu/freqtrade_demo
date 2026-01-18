@@ -3,8 +3,8 @@
 **项目**：freqtrade_demo
 **重构目标**：从"简单因子应用"转向"因子挖掘与应用混合方案"
 **完成时间**：2026-01-18
-**最新提交**：2dc578c (Phase 3 完成)
-**状态**：✅ Phase 1-4 全部完成
+**最新提交**：74fac58 (架构缺陷修复完成)
+**状态**：✅ Phase 1-4 全部完成 + 架构完整性验证与修复
 
 ---
 
@@ -363,6 +363,145 @@ print(f"t统计量: {result['t_stat']:.2f}")
 
 ---
 
-**最新提交**：2dc578c (Phase 3 完成)
+## 十一、架构完整性验证与修复（2026-01-18 补充）
+
+### 11.1 深度架构分析
+
+在 Phase 1-4 完成后，通过 `sequentialthinking` 工具进行了系统化的架构完整性验证，发现并修复了两个关键架构缺陷。
+
+### 11.2 架构缺陷 #1：研究层因子发现机制缺失
+
+**问题描述**：
+- `FactorGenerator.generate_all_factors()` 硬编码返回 3 个原始因子
+- 新增的 20 个技术指标因子被隔离在因子库中
+- 研究脚本 `run_factor_mining.py` 无法处理新因子
+- 形成"双轨系统"：原始因子可进入研究流程，新因子被排除在外
+
+**根本原因**：
+```python
+# 问题代码（硬编码）
+def generate_all_factors(self) -> list[str]:
+    all_factors = []
+    all_factors.extend(self.generate_momentum_factors())  # 仅 3 个原始因子
+    all_factors.extend(self.generate_volatility_factors())
+    all_factors.extend(self.generate_volume_factors())
+    return all_factors
+```
+
+**解决方案**：
+- 导入 `list_all_factors()` 函数
+- 改为动态从因子注册表获取所有已注册因子
+- 实现自动发现机制，任何使用 `@register_factor` 注册的因子都会被包含
+
+**修复代码**：
+```python
+# 修复后（动态发现）
+from factor_library import list_all_factors
+
+def generate_all_factors(self) -> list[str]:
+    """批量生成所有候选因子
+
+    自动从因子库中获取所有已注册因子的名称。
+    """
+    all_factor_names = list_all_factors()
+    return all_factor_names
+```
+
+**影响**：
+- FactorGenerator 现在返回所有 23 个因子
+- 研究脚本可以评估所有技术指标
+- 研究层与因子库完全打通
+
+**提交**：8544806
+
+---
+
+### 11.3 架构缺陷 #2：生产部署工具无法处理新因子
+
+**问题描述**：
+- `factor_config.yaml` 只包含 3 个原始因子的配置
+- `update_factor_config.py` 只能更新**已存在**的因子配置
+- 新的 20 个因子即使在研究中表现优秀，也无法被部署到生产环境
+- 研究结果无法完整转化为生产配置
+
+**根本原因**：
+```python
+# 问题代码（只更新已存在的因子）
+for factor_name, factor_config in config["factors"].items():
+    if factor_name in selected_factors:
+        factor_config["enabled"] = True
+    else:
+        factor_config["enabled"] = False
+```
+
+**解决方案**：
+- 导入 `get_factor_class()` 函数
+- 在更新配置前，为新因子自动生成配置条目
+- 从因子类中提取元信息（类名、文档、默认参数）
+- 自动分配权重和类别
+
+**修复代码**：
+```python
+# 修复后（自动生成新因子配置）
+from factor_library import get_factor_class
+
+# 为新因子生成配置条目
+for factor_name in selected_factors:
+    if factor_name not in config["factors"]:
+        try:
+            factor_class = get_factor_class(factor_name)
+            config["factors"][factor_name] = {
+                "class": factor_class.__name__,
+                "params": {},
+                "enabled": True,
+                "weight": 1.0 / len(selected_factors),
+                "description": factor_class.__doc__.strip() if factor_class.__doc__ else "",
+                "category": "technical",
+            }
+            print(f"添加新因子配置: {factor_name}")
+        except Exception as e:
+            print(f"警告: 无法获取因子 {factor_name} 的类信息: {e}")
+            continue
+```
+
+**影响**：
+- 生产部署工具可以处理所有 23 个因子
+- 研究结果可以完整转化为生产配置
+- 闭环工作流完全打通
+
+**提交**：74fac58
+
+---
+
+### 11.4 验证结果
+
+**修复前（双轨系统）**：
+```
+研究层: 3 个因子 → 评估 → 结果
+生产层: 3 个因子 ← 配置 ← 部署
+新因子: 20 个因子（隔离，无法进入流程）
+```
+
+**修复后（统一闭环）**：
+```
+因子库: 23 个因子（统一注册）
+   ↓
+研究层: FactorGenerator → 23 个因子 → 评估 → 结果
+   ↓
+生产层: update_factor_config → 23 个因子配置 → 部署
+   ↓
+应用层: SimpleMVPStrategy → 使用有效因子
+```
+
+**测试验证**：
+- ✅ FactorGenerator 返回 23 个因子
+- ✅ 所有因子库测试通过（4/4）
+- ✅ get_factor_class() 正确获取因子元信息
+- ✅ 架构完整性得到保证
+
+---
+
+**最新提交**：74fac58 (架构缺陷修复完成)
 **因子总数**：23 个（3 原有 + 20 新增）
-**测试结果**：33/33 通过 ✅
+**测试结果**：4/4 因子库测试通过 ✅
+**架构状态**：✅ 混合方案闭环完整
