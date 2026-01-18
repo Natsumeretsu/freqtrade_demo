@@ -62,9 +62,6 @@ Thumbs.db
 # wolfram_engine_doc：离线保存的 Wolfram 文档 HTML（体积大，默认不提交）
 /docs/archive/other_doc/wolfram_engine_doc/**/raw_html/
 
-# Claude local profiles (do not commit)
-/scripts/mcp/claude_profiles.local.json
-
 # 误创建的策略参考库（根目录下的独立 clone，不是子模块路径 docs/archive/strategies_ref_docs）
 /strategies_ref_docs/
 
