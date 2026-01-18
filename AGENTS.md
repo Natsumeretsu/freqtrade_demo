@@ -31,7 +31,7 @@
 
 **⚠️ 所有 Freqtrade 操作必须通过 `scripts/` 文件夹中的脚本执行：**
 
-- Freqtrade 命令：`./scripts/ft.ps1 <命令> ...`（自动补 `--userdir "./01_freqtrade"`，并注入 `PYTHONPATH=03_integration`）
+- Freqtrade 命令：`./scripts/ft.ps1 <命令> ...`（自动补 `--userdir "./ft_userdir"`，并注入 `PYTHONPATH=integration`）
 - 数据下载：`./scripts/data/download.ps1`
 - 初始化：`./scripts/bootstrap.ps1`
 - **禁止直接运行 `freqtrade` 或 `uv run freqtrade`**，否则会创建多余的 `user_data/` 子目录
@@ -46,9 +46,9 @@
 
 ## 仓库结构
 
-- `01_freqtrade/`：Freqtrade userdir（策略、配置、数据、模型）
-- `02_qlib_research/`：研究层（Notebook/实验记录）
-- `03_integration/`：集成层（桥接代码，例如 `trading_system/`）
+- `ft_userdir/`：Freqtrade userdir（策略、配置、数据、模型）
+- `research/`：研究层（Notebook/实验记录）
+- `integration/`：集成层（桥接代码，例如 `trading_system/`）
 - `04_shared/`：共享配置与工具
 - `docs/`：文档与归档
 - `scripts/`：自动化脚本（PowerShell/Python）

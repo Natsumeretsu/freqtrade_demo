@@ -17,9 +17,9 @@ param(
   # K线周期（建议至少包含训练/回测用到的周期）
   [string[]]$Timeframes = @("1h"),
 
-  # 配置文件与 userdir（本仓库默认 userdir=01_freqtrade）
-  [string]$Config = "01_freqtrade/config.json",
-  [string]$UserDir = "./01_freqtrade",
+  # 配置文件与 userdir（本仓库默认 userdir=ft_userdir）
+  [string]$Config = "ft_userdir/config.json",
+  [string]$UserDir = "./ft_userdir",
 
   # 下载范围：二选一
   [int]$Days = 0,

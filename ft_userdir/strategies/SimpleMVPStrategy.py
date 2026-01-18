@@ -12,7 +12,7 @@ import pandas as pd
 # 导入简化的因子模块
 import sys
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / "03_integration"))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "integration"))
 
 from simple_factors.basic_factors import calculate_all_factors
 

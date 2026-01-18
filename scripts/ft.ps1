@@ -3,11 +3,11 @@
     Freqtrade command wrapper
 
 .DESCRIPTION
-    Run freqtrade via uv, auto-set userdir to ./01_freqtrade.
+    Run freqtrade via uv, auto-set userdir to ./ft_userdir.
     All arguments are passed through to freqtrade.
 
 .EXAMPLE
-    .\ft.ps1 backtesting --config 01_freqtrade/config.json
+    .\ft.ps1 backtesting --config ft_userdir/config.json
     .\ft.ps1 download-data --pairs BTC/USDT
 #>
 [CmdletBinding()]
@@ -49,8 +49,8 @@ $env:PYTHONIOENCODING = "utf-8"
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 Set-Location $repoRoot
 
-# 确保策略侧可导入 03_integration（集成层代码）
-$integrationRoot = Join-Path $repoRoot "03_integration"
+# 确保策略侧可导入 integration（集成层代码）
+$integrationRoot = Join-Path $repoRoot "integration"
 if (Test-Path $integrationRoot) {
   $integrationRootStr = $integrationRoot.ToString()
   if ([string]::IsNullOrWhiteSpace($env:PYTHONPATH)) {
@@ -108,7 +108,7 @@ else {
   # Freqtrade's --userdir is a subcommand arg, must come after command
   $argsList += $FreqtradeArgs[0]
   if (-not $hasUserdir) {
-    $argsList += @("--userdir", "./01_freqtrade")
+    $argsList += @("--userdir", "./ft_userdir")
   }
 
   if ($FreqtradeArgs.Count -gt 1) {

@@ -32,7 +32,7 @@ addopts = [
     "--strict-markers",
     "--tb=short",
 ]
-pythonpath = ["03_integration"]
+pythonpath = ["integration"]
 markers = [
     "unit: 单元测试",
     "integration: 集成测试",
@@ -45,4 +45,4 @@ warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = false
 ignore_missing_imports = true
-mypy_path = "03_integration"
+mypy_path = "integration"

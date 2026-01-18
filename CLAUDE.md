@@ -25,7 +25,7 @@ Claude 是本项目的**主交互助手**，负责：
 - **项目脚本**：使用 PowerShell 7 (pwsh) 编写（如 `./scripts/ft.ps1`）。
 - 统一使用 `uv` 管理虚拟环境（`./.venv/`），依赖安装：`uv sync --frozen`。
 - **⚠️ 所有 Freqtrade 操作必须通过 `scripts/` 文件夹中的脚本执行：**
-  - Freqtrade 命令：`./scripts/ft.ps1 <命令> ...`（自动补 `--userdir "./01_freqtrade"`，并注入 `PYTHONPATH=03_integration`）
+  - Freqtrade 命令：`./scripts/ft.ps1 <命令> ...`（自动补 `--userdir "./ft_userdir"`，并注入 `PYTHONPATH=integration`）
   - 数据下载：`./scripts/data/download.ps1`
   - 初始化：`./scripts/bootstrap.ps1`
   - **禁止直接运行 `freqtrade` 或 `uv run freqtrade`**，否则会创建多余的 `user_data/` 子目录
@@ -43,16 +43,16 @@ Claude 是本项目的**主交互助手**，负责：
 ## 仓库结构与约定
 
 - 本仓库采用分层结构：
-  - `01_freqtrade/`：Freqtrade userdir（策略、配置、数据、模型）
-  - `02_qlib_research/`：研究层（Notebook/实验记录；`qlib_data/` 与 `models/` 默认 gitignore）
-  - `03_integration/`：集成层（桥接代码，例如 `trading_system/`）
+  - `ft_userdir/`：Freqtrade userdir（策略、配置、数据、模型）
+  - `research/`：研究层（Notebook/实验记录；`qlib_data/` 与 `models/` 默认 gitignore）
+  - `integration/`：集成层（桥接代码，例如 `trading_system/`）
   - `04_shared/`：共享配置与工具
   - `docs/`：文档与归档（包含 `docs/archive/strategies_ref_docs/` 子模块）
   - `scripts/`：自动化脚本（PowerShell/Python）
 - 配置管理：
   - 配置模板：`04_shared/configs/`（脱敏、可提交）
-  - 运行配置：`01_freqtrade/config.json`（可提交但禁止写入密钥）
-  - 私密覆盖：`01_freqtrade/config-private.json` 与 `.env`（必须保持 gitignore）
+  - 运行配置：`ft_userdir/config.json`（可提交但禁止写入密钥）
+  - 私密覆盖：`ft_userdir/config-private.json` 与 `.env`（必须保持 gitignore）
 - 依赖声明：`pyproject.toml`（唯一来源）；依赖锁文件：`uv.lock`（锁死传递依赖）
 - Python 版本：`.python-version`（uv 自动使用）
 - 安全：严禁提交任何密钥/Token/个人路径；提交前务必 `git status` 复核。
@@ -176,12 +176,12 @@ Claude（主助手）
 - 覆盖历史：`git push --force` / orphan 重置等
 - 修改系统配置/权限/环境变量
 - 修改 `pyproject.toml` / `uv.lock`（依赖变更）
-- 修改 `01_freqtrade/config.json`（运行配置）
+- 修改 `ft_userdir/config.json`（运行配置）
 
 ## 输出规范
 
 - 代码块必须使用完整的 markdown 代码块格式（包含语言标识）
-- 文件路径引用格式：`file_path:line_number`（如 `03_integration/trading_system/infrastructure/koopman_lite.py:42`）
+- 文件路径引用格式：`file_path:line_number`（如 `integration/trading_system/infrastructure/koopman_lite.py:42`）
 - 命令示例必须可直接复制执行（包含完整路径、参数、引号）
 - 技术术语首次出现时提供简短解释（中文 + 英文原文）
 - 避免过度使用 emoji（除非用户明确要求）
@@ -221,10 +221,10 @@ uv sync --frozen
 ./scripts/data/download.ps1
 
 # 回测
-./scripts/ft.ps1 backtesting --strategy <策略名> --config 01_freqtrade/config.json
+./scripts/ft.ps1 backtesting --strategy <策略名> --config ft_userdir/config.json
 
 # 超参优化
-./scripts/ft.ps1 hyperopt --strategy <策略名> --hyperopt-loss <loss名> --config 01_freqtrade/config.json
+./scripts/ft.ps1 hyperopt --strategy <策略名> --hyperopt-loss <loss名> --config ft_userdir/config.json
 
 # 查看策略列表
 ./scripts/ft.ps1 list-strategies

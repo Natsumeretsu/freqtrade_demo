@@ -18,11 +18,11 @@
 
 ```
 freqtrade_demo/
-├── 01_freqtrade/          # 执行层（Freqtrade 策略）
+├── ft_userdir/          # 执行层（Freqtrade 策略）
 │   ├── config.json        # 运行配置
 │   ├── data/              # 历史数据
 │   └── strategies/        # 策略文件
-├── 03_integration/        # 集成层（因子计算与验证）
+├── integration/        # 集成层（因子计算与验证）
 │   ├── simple_factors/    # 基础因子计算
 │   ├── data_pipeline.py   # 数据预处理
 │   └── factor_validator.py # 因子验证
@@ -52,8 +52,8 @@ uv sync --frozen
 ### 2. 生成配置文件
 
 ```powershell
-Copy-Item "04_shared/configs/config.example.json" "01_freqtrade/config.json"
-Copy-Item "04_shared/configs/config-private.example.json" "01_freqtrade/config-private.json"
+Copy-Item "04_shared/configs/config.example.json" "ft_userdir/config.json"
+Copy-Item "04_shared/configs/config-private.example.json" "ft_userdir/config-private.json"
 ```
 
 ### 3. 下载数据
@@ -73,11 +73,11 @@ Copy-Item "04_shared/configs/config-private.example.json" "01_freqtrade/config-p
 
 ### 阶段1：数据准备
 - 使用 `scripts/data/download.ps1` 下载 OHLCV 数据
-- 数据自动保存到 `01_freqtrade/data/okx/futures/`
+- 数据自动保存到 `ft_userdir/data/okx/futures/`
 - 验证数据完整性
 
 ### 阶段2：因子验证
-- 在 `03_integration/` 中实现因子计算函数
+- 在 `integration/` 中实现因子计算函数
 - 使用 `factor_validator.py` 计算 IC、t 值
 - 编写单元测试验证因子逻辑
 - **验收标准**：IC > 0.05，t 值 > 2
@@ -98,7 +98,7 @@ Copy-Item "04_shared/configs/config-private.example.json" "01_freqtrade/config-p
 ./scripts/ft.ps1 list-strategies
 
 # 回测（示例）
-./scripts/ft.ps1 backtesting --strategy SimpleMVPStrategy --config 01_freqtrade/config.json
+./scripts/ft.ps1 backtesting --strategy SimpleMVPStrategy --config ft_userdir/config.json
 ```
 
 **⚠️ 重要**：所有 Freqtrade 命令必须通过 `./scripts/ft.ps1` 执行，禁止直接运行 `freqtrade` 命令。

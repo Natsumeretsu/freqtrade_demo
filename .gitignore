@@ -8,23 +8,23 @@
 /config*.private.json
 /config-private*.json
 
-# 运行配置（01_freqtrade/ 下的私密覆盖：不要提交）
-/01_freqtrade/config*.local.json
-/01_freqtrade/config*.secrets.json
-/01_freqtrade/config*.private.json
-/01_freqtrade/config-private*.json
+# 运行配置（ft_userdir/ 下的私密覆盖：不要提交）
+/ft_userdir/config*.local.json
+/ft_userdir/config*.secrets.json
+/ft_userdir/config*.private.json
+/ft_userdir/config-private*.json
 
 # 运行期数据/日志（通常体积较大且可再生成）
 # 市场数据（OHLCV/资金费率/盘口等）体积大且可再生成，默认不使用 Git 同步。
 # 如确需跨设备复现：建议用脚本重新下载，或使用独立存储（NAS/对象存储）或 Git LFS。
-/01_freqtrade/data/
+/ft_userdir/data/
 /*.sqlite*
 /*.log
 /*.db-shm
 /*.db-wal
 
 # FreqAI 训练产物默认写入 userdir/models/<identifier>/（体积大且可再生成，避免误提交）
-/01_freqtrade/models/*/
+/ft_userdir/models/*/
 
 # 外部工具：建议安装到 ~/.codex/tools（避免作为仓库依赖/子模块）
 /tools/Wolfram-MCP/

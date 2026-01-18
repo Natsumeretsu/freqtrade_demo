@@ -47,8 +47,8 @@ scripts/
 **用途**：Freqtrade 命令包装器
 
 **功能**：
-- 自动设置 `--userdir "./01_freqtrade"`
-- 注入 `PYTHONPATH=03_integration`
+- 自动设置 `--userdir "./ft_userdir"`
+- 注入 `PYTHONPATH=integration`
 - 统一命令入口
 
 **使用**：
@@ -57,7 +57,7 @@ scripts/
 ./scripts/ft.ps1 list-strategies
 
 # 回测
-./scripts/ft.ps1 backtesting --strategy SimpleMVPStrategy --config 01_freqtrade/config.json
+./scripts/ft.ps1 backtesting --strategy SimpleMVPStrategy --config ft_userdir/config.json
 
 # 超参优化
 ./scripts/ft.ps1 hyperopt --strategy SimpleMVPStrategy --hyperopt-loss SharpeHyperOptLoss
