@@ -18,23 +18,27 @@ from pandas import DataFrame
 import pandas as pd
 import numpy as np
 import talib.abstract as ta
+import freqtrade.vendor.qtpylib.indicators as qtpylib
 from functools import reduce
 
 
 class ETHMicrostructureStrategy(IStrategy):
 
     # 基础配置
-    timeframe = '5m'
+    timeframe = '1m'
     can_short = True
 
-    # ROI 和 Stoploss（Phase 6 平衡优化）
+    # ROI 和 Stoploss（1分钟剥头皮 - 行业标准）
     minimal_roi = {
-        "0": 0.012,   # 1.2% 立即止盈
-        "15": 0.008,  # 15分钟后降到 0.8%
-        "30": 0.005,  # 30分钟后降到 0.5%
-        "45": 0.003   # 45分钟后降到 0.3%（保本）
+        "0": 0.005,   # 0.5% 立即止盈
+        "3": 0.003,   # 3分钟后降到 0.3%
+        "5": 0.002    # 5分钟后降到 0.2%
     }
-    stoploss = -0.008  # -0.8% 止损（平衡风险控制）
+    stoploss = -0.99  # 使用 custom_stoploss（时间止损）+ trailing_stop 管理风险
+    trailing_stop = True
+    trailing_stop_positive = 0.002  # 达到 0.2% 后激活追踪止损
+    trailing_stop_positive_offset = 0.003  # 0.3% 后开始追踪
+    trailing_only_offset_is_reached = True
 
     # FreqAI 配置
     process_only_new_candles = True
@@ -53,33 +57,16 @@ class ETHMicrostructureStrategy(IStrategy):
         2. 所有特征必须以 % 开头才能被 FreqAI 识别
         """
 
-        # ===== 1. Order Flow Imbalance 近似 =====
-        # 使用成交量和价格变化近似订单流
+        # ===== 1. 买卖压力（Money Flow 方法）=====
+        # 使用 Money Flow Multiplier 计算买卖压力
         dataframe['%-price_change'] = dataframe['close'].pct_change()
-        dataframe['%-volume_change'] = dataframe['volume'].pct_change()
 
-        # 买卖压力近似：价格上涨 + 成交量增加 = 买压
-        dataframe['buy_pressure'] = np.where(
-            (dataframe['%-price_change'] > 0) & (dataframe['%-volume_change'] > 0),
-            dataframe['volume'],
-            0
-        )
-        dataframe['sell_pressure'] = np.where(
-            (dataframe['%-price_change'] < 0) & (dataframe['%-volume_change'] > 0),
-            dataframe['volume'],
-            0
-        )
-
-        # Order Flow Imbalance (多周期) - 添加 % 前缀
-        for window in [5, 10, 20]:
-            buy_vol = dataframe['buy_pressure'].rolling(window).sum()
-            sell_vol = dataframe['sell_pressure'].rolling(window).sum()
-            total_vol = buy_vol + sell_vol
-            dataframe[f'%-ofi_{window}'] = np.where(
-                total_vol > 0,
-                (buy_vol - sell_vol) / total_vol,
-                0
-            )
+        # Money Flow 方法
+        dataframe['mf_multiplier'] = ((dataframe['close'] - dataframe['low']) - (dataframe['high'] - dataframe['close'])) / (dataframe['high'] - dataframe['low'])
+        dataframe['mf_multiplier'] = dataframe['mf_multiplier'].fillna(0)
+        dataframe['mf_volume'] = dataframe['mf_multiplier'] * dataframe['volume']
+        dataframe['buy_pressure'] = np.where(dataframe['mf_volume'] > 0, dataframe['mf_volume'], 0)
+        dataframe['sell_pressure'] = np.where(dataframe['mf_volume'] < 0, abs(dataframe['mf_volume']), 0)
 
         # ===== 2. VPIN 近似 =====
         # 使用成交量桶近似 VPIN
@@ -94,7 +81,30 @@ class ETHMicrostructureStrategy(IStrategy):
             (dataframe['volume'].rolling(num_buckets).sum() + 1e-10)
         )
 
-        # ===== 3. Microprice 近似 =====
+        # ===== 3. ATR 归一化（区分度 2.11）=====
+        dataframe['tr'] = np.maximum(
+            dataframe['high'] - dataframe['low'],
+            np.maximum(
+                abs(dataframe['high'] - dataframe['close'].shift(1)),
+                abs(dataframe['low'] - dataframe['close'].shift(1))
+            )
+        )
+        dataframe['%-atr_14'] = dataframe['tr'].rolling(14).mean()
+        dataframe['%-atr_normalized'] = dataframe['%-atr_14'] / dataframe['close']
+
+        # ===== 4. 已实现波动率（区分度 1.99）=====
+        for window in [12, 24, 48]:
+            dataframe[f'%-realized_vol_{window}'] = dataframe['close'].pct_change().rolling(window).std()
+
+        # ===== 5. 价格动量（区分度 0.21）=====
+        for window in [5, 10, 15]:
+            dataframe[f'%-momentum_{window}'] = dataframe['close'].pct_change(window)
+
+        # ===== 6. 成交量相对强度（区分度 0.24）=====
+        dataframe['%-volume_sma_12'] = dataframe['volume'].rolling(12).mean()
+        dataframe['%-volume_ratio'] = dataframe['volume'] / (dataframe['%-volume_sma_12'] + 1e-10)
+
+        # ===== 7. Microprice 近似 =====
         # 使用 high/low 近似 bid/ask
         dataframe['bid_approx'] = dataframe['low']
         dataframe['ask_approx'] = dataframe['high']
@@ -139,19 +149,19 @@ class ETHMicrostructureStrategy(IStrategy):
         # 状态 1: 震荡（低波动）
         # 状态 2: 牛市（上涨 + 高波动）
 
-        # Phase 1 优化：提高趋势阈值（±2% → ±5%），缩短计算窗口（20 → 15）
+        # 使用1天窗口判断长期趋势（±10%阈值）
 
         # 趋势强度 - 添加 % 前缀
-        dataframe['%-trend'] = (dataframe['close'] - dataframe['close'].shift(15)) / dataframe['close'].shift(15)
+        dataframe['%-trend'] = (dataframe['close'] - dataframe['close'].shift(1440)) / dataframe['close'].shift(1440)
 
         # 状态分类 - 添加 % 前缀
         dataframe['%-regime_state'] = 1  # 默认震荡
         dataframe.loc[
-            (dataframe['%-trend'] > 0.05) & (dataframe['%-realized_vol'] > dataframe['%-realized_vol'].rolling(100).quantile(0.5)),
+            (dataframe['%-trend'] > 0.10) & (dataframe['%-realized_vol'] > dataframe['%-realized_vol'].rolling(100).quantile(0.5)),
             '%-regime_state'
         ] = 2  # 牛市
         dataframe.loc[
-            (dataframe['%-trend'] < -0.05) & (dataframe['%-realized_vol'] > dataframe['%-realized_vol'].rolling(100).quantile(0.5)),
+            (dataframe['%-trend'] < -0.10) & (dataframe['%-realized_vol'] > dataframe['%-realized_vol'].rolling(100).quantile(0.5)),
             '%-regime_state'
         ] = 0  # 熊市
 
@@ -185,54 +195,42 @@ class ETHMicrostructureStrategy(IStrategy):
 
     def set_freqai_targets(self, dataframe: DataFrame, metadata: dict, **kwargs) -> DataFrame:
         """
-        设置预测目标 - 二分类（交易/不交易）
+        设置预测目标 - 回归模型预测未来收益率
 
-        高频策略优化（Phase 5）：
-        - 预测窗口：60分钟 → 20分钟（适配5分钟高频交易）
-        - 收益阈值：0.8% → 0.4%（快进快出，小收益高频率）
-        - 交易成本：更保守估计（0.1%滑点 → 0.1%滑点，保持不变）
+        1分钟剥头皮优化（行业标准）：
+        - 预测窗口：5 分钟（5 根 1m K 线）
+        - 预测目标：未来最大可获得收益率（扣除交易成本）
+        - 交易成本：0.4%（双向 0.1% 手续费 + 0.1% 滑点）
         """
-        # 设置分类标签名称（FreqAI 分类器必须使用字符串标签）
-        self.freqai.class_names = ["no_trade", "trade"]
+        # 计算未来收益（5 分钟预测窗口）
+        forward_window = 5  # 未来 5 根 K 线（5 分钟）
 
-        # 计算未来收益（Phase 6：平衡优化）
-        forward_window = 6  # 未来 6 根 K 线（30 分钟）- 平衡短期和稳定性
-
-        # 修复：直接使用 rolling，不要 shift(-1)
+        # 计算未来最高价和最低价
         dataframe['future_max'] = dataframe['high'].rolling(forward_window).max().shift(-forward_window)
         dataframe['future_min'] = dataframe['low'].rolling(forward_window).min().shift(-forward_window)
 
-        # 交易成本（高频策略：更保守的滑点估计）
+        # 交易成本
         fee = 0.001  # 0.1% 交易费
-        slippage = 0.001  # 0.1% 滑点（从 0.05% 提高）
+        slippage = 0.001  # 0.1% 滑点
         total_cost = 2 * (fee + slippage)  # 双向成本 0.4%
 
-        # 潜在收益
+        # 潜在收益（做多和做空）
         dataframe['potential_long_return'] = (dataframe['future_max'] / dataframe['close'] - 1) - total_cost
         dataframe['potential_short_return'] = (1 - dataframe['future_min'] / dataframe['close']) - total_cost
 
-        # 目标收益阈值（Phase 6：平衡优化）
-        threshold = 0.005  # 0.5% - 平衡机会和质量
+        # 回归目标：预测未来最大可获得收益率（取做多和做空中的较大值）
+        dataframe['&-s_target_roi'] = np.maximum(
+            dataframe['potential_long_return'],
+            dataframe['potential_short_return']
+        )
 
-        # 二分类标签（使用字符串标签）
-        # 'no_trade': 不交易
-        # 'trade': 交易（做多或做空）
-        dataframe['&-action'] = 'no_trade'
-
-        # 交易条件：任一方向的潜在收益 > threshold
-        dataframe.loc[
-            (dataframe['potential_long_return'] > threshold) |
-            (dataframe['potential_short_return'] > threshold),
-            '&-action'
-        ] = 'trade'
-
-        # 调试：打印标签分布
+        # 调试：打印收益率分布
         import logging
         logger = logging.getLogger(__name__)
-        label_counts = dataframe['&-action'].value_counts()
-        total = len(dataframe)
-        logger.info(f"标签分布 - no_trade(不交易): {label_counts.get('no_trade', 0)} ({label_counts.get('no_trade', 0)/total*100:.1f}%), "
-                   f"trade(交易): {label_counts.get('trade', 0)} ({label_counts.get('trade', 0)/total*100:.1f}%)")
+        logger.info(f"收益率统计 - 均值: {dataframe['&-s_target_roi'].mean():.4f}, "
+                   f"中位数: {dataframe['&-s_target_roi'].median():.4f}, "
+                   f">0.2%: {(dataframe['&-s_target_roi'] > 0.002).sum()} ({(dataframe['&-s_target_roi'] > 0.002).sum()/len(dataframe)*100:.1f}%), "
+                   f">0.5%: {(dataframe['&-s_target_roi'] > 0.005).sum()} ({(dataframe['&-s_target_roi'] > 0.005).sum()/len(dataframe)*100:.1f}%)")
 
         return dataframe
 
@@ -245,30 +243,13 @@ class ETHMicrostructureStrategy(IStrategy):
 
         # 创建基础特征（用于出场信号）
         dataframe['price_change'] = dataframe['close'].pct_change()
-        dataframe['volume_change'] = dataframe['volume'].pct_change()
 
-        # 买卖压力近似
-        dataframe['buy_pressure'] = np.where(
-            (dataframe['price_change'] > 0) & (dataframe['volume_change'] > 0),
-            dataframe['volume'],
-            0
-        )
-        dataframe['sell_pressure'] = np.where(
-            (dataframe['price_change'] < 0) & (dataframe['volume_change'] > 0),
-            dataframe['volume'],
-            0
-        )
-
-        # Order Flow Imbalance
-        for window in [5, 10, 20]:
-            buy_vol = dataframe['buy_pressure'].rolling(window).sum()
-            sell_vol = dataframe['sell_pressure'].rolling(window).sum()
-            total_vol = buy_vol + sell_vol
-            dataframe[f'ofi_{window}'] = np.where(
-                total_vol > 0,
-                (buy_vol - sell_vol) / total_vol,
-                0
-            )
+        # Money Flow 方法计算买卖压力
+        dataframe['mf_multiplier'] = ((dataframe['close'] - dataframe['low']) - (dataframe['high'] - dataframe['close'])) / (dataframe['high'] - dataframe['low'])
+        dataframe['mf_multiplier'] = dataframe['mf_multiplier'].fillna(0)
+        dataframe['mf_volume'] = dataframe['mf_multiplier'] * dataframe['volume']
+        dataframe['buy_pressure'] = np.where(dataframe['mf_volume'] > 0, dataframe['mf_volume'], 0)
+        dataframe['sell_pressure'] = np.where(dataframe['mf_volume'] < 0, abs(dataframe['mf_volume']), 0)
 
         # VPIN
         dataframe['volume_imbalance'] = abs(dataframe['buy_pressure'] - dataframe['sell_pressure'])
@@ -277,17 +258,31 @@ class ETHMicrostructureStrategy(IStrategy):
             (dataframe['volume'].rolling(20).sum() + 1e-10)
         )
 
-        # 市场状态（Phase 1 优化：±2% → ±5%，20 → 15）
-        dataframe['trend'] = (dataframe['close'] - dataframe['close'].shift(15)) / dataframe['close'].shift(15)
+        # ADX（平均趋向指数）- 用于识别震荡市场 vs 趋势市场
+        dataframe['adx'] = ta.ADX(dataframe, timeperiod=14)
+
+        # Bollinger Bands Width - 用于识别波动率（震荡 vs 趋势）
+        bollinger = qtpylib.bollinger_bands(dataframe['close'], window=20, stds=2)
+        dataframe['bb_upper'] = bollinger['upper']
+        dataframe['bb_middle'] = bollinger['mid']
+        dataframe['bb_lower'] = bollinger['lower']
+        dataframe['bb_width'] = (dataframe['bb_upper'] - dataframe['bb_lower']) / dataframe['bb_middle']
+
+        # 30天趋势 - 用于识别长期牛市/熊市
+        # 30天 = 43200 分钟（1分钟数据）
+        dataframe['trend_30d'] = (dataframe['close'] - dataframe['close'].shift(43200)) / dataframe['close'].shift(43200)
+
+        # 市场状态（使用1天窗口判断长期趋势）
+        dataframe['trend'] = (dataframe['close'] - dataframe['close'].shift(1440)) / dataframe['close'].shift(1440)
         dataframe['realized_vol'] = dataframe['price_change'].rolling(20).std()
 
         dataframe['regime_state'] = 1  # 默认震荡
         dataframe.loc[
-            (dataframe['trend'] > 0.05) & (dataframe['realized_vol'] > dataframe['realized_vol'].rolling(100).quantile(0.5)),
+            (dataframe['trend'] > 0.10) & (dataframe['realized_vol'] > dataframe['realized_vol'].rolling(100).quantile(0.5)),
             'regime_state'
         ] = 2  # 牛市
         dataframe.loc[
-            (dataframe['trend'] < -0.05) & (dataframe['realized_vol'] > dataframe['realized_vol'].rolling(100).quantile(0.5)),
+            (dataframe['trend'] < -0.10) & (dataframe['realized_vol'] > dataframe['realized_vol'].rolling(100).quantile(0.5)),
             'regime_state'
         ] = 0  # 熊市
 
@@ -295,13 +290,12 @@ class ETHMicrostructureStrategy(IStrategy):
 
     def populate_entry_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         """
-        入场信号 - 基于 FreqAI 预测 + 微观结构确认
+        入场信号 - 基于 FreqAI 回归预测 + 收益率阈值过滤
 
-        Phase 6 平衡优化：
-        - 提高 OFI 阈值：0.05/-0.05 → 0.08/-0.08（提高入场质量）
-        - 恢复单根K线持续性确认（减少假信号）
-        - 保持 VPIN 风险阈值：0.7
-        - 目标：120-180 笔交易，平衡频率和质量
+        高频优化（1 分钟数据）：
+        - 模型预测未来收益率（&-s_target_roi）
+        - 入场条件：预测收益率 > 0.5%（行业标准）+ VPIN < 0.7（风险控制）
+        - 使用短期动量判断方向（做多/做空）
         """
         # 检查 FreqAI 列是否存在
         if 'do_predict' not in dataframe.columns:
@@ -309,28 +303,35 @@ class ETHMicrostructureStrategy(IStrategy):
             dataframe['enter_short'] = 0
             return dataframe
 
-        # 计算持续性确认（单根K线）
-        dataframe['ofi_10_prev'] = dataframe['ofi_10'].shift(1)
+        # 计算方向指标（使用短期动量）
+        dataframe['momentum_signal'] = dataframe['close'].pct_change(5)  # 5 分钟动量
 
-        # 做多条件（平衡版 - 恢复持续性确认）
+        # 收益率阈值（行业标准 0.5%）
+        roi_threshold = 0.005
+
+        # 做多条件：预测收益率 > 0.5% + 正动量 + 震荡市场（三重过滤）
         dataframe.loc[
             (dataframe['do_predict'] == 1) &
-            (dataframe['&-action'] == 'trade') &  # 模型预测交易
-            (dataframe['ofi_10'] > 0.08) &  # 提高阈值：0.05 → 0.08
-            (dataframe['ofi_10_prev'] > 0.08) &  # 持续性确认（单根K线）
+            (dataframe['&-s_target_roi'] > roi_threshold) &  # 预测收益率 > 0.5%
             (dataframe['vpin'] < 0.7) &  # 风险控制
-            (dataframe['volume'] > 0),  # 有成交量
+            (dataframe['volume'] > 0) &  # 有成交量
+            (dataframe['adx'] < 25) &  # 1. ADX < 25：趋势强度低
+            (dataframe['bb_width'] < 0.04) &  # 2. BB Width < 4%：波动率低
+            (abs(dataframe['trend_30d']) < 0.15) &  # 3. 30天涨跌幅 < ±15%
+            (dataframe['momentum_signal'] > 0),  # 正动量 -> 做多
             'enter_long'
         ] = 1
 
-        # 做空条件（平衡版 - 恢复持续性确认）
+        # 做空条件：预测收益率 > 0.5% + 负动量 + 震荡市场（三重过滤）
         dataframe.loc[
             (dataframe['do_predict'] == 1) &
-            (dataframe['&-action'] == 'trade') &  # 模型预测交易
-            (dataframe['ofi_10'] < -0.08) &  # 提高阈值：-0.05 → -0.08
-            (dataframe['ofi_10_prev'] < -0.08) &  # 持续性确认（单根K线）
+            (dataframe['&-s_target_roi'] > roi_threshold) &  # 预测收益率 > 0.5%
             (dataframe['vpin'] < 0.7) &  # 风险控制
-            (dataframe['volume'] > 0),  # 有成交量
+            (dataframe['volume'] > 0) &  # 有成交量
+            (dataframe['adx'] < 25) &  # 1. ADX < 25：趋势强度低
+            (dataframe['bb_width'] < 0.04) &  # 2. BB Width < 4%：波动率低
+            (abs(dataframe['trend_30d']) < 0.15) &  # 3. 30天涨跌幅 < ±15%
+            (dataframe['momentum_signal'] < 0),  # 负动量 -> 做空
             'enter_short'
         ] = 1
 
@@ -338,34 +339,35 @@ class ETHMicrostructureStrategy(IStrategy):
 
     def populate_exit_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         """
-        出场信号 - 基于微观结构反转
-
-        Phase 6 平衡优化：
-        - 放宽 OFI 阈值：±0.15 → ±0.2（减少过早出场）
-        - 保持单根K线触发
-        - 保留 VPIN 风险控制
-        - 目标：配合 ROI 梯度和适中止损，实现平衡收益
+        出场信号 - 禁用（完全依赖 ROI + 追踪止损）
         """
-        # 平多条件（放宽阈值 - 减少过早出场）
-        dataframe.loc[
-            (
-                # 订单流反转（-0.15 → -0.2，单根K线）
-                (dataframe['ofi_10'] < -0.2) |
-                # 风险过高
-                (dataframe['vpin'] > 0.8)
-            ),
-            'exit_long'
-        ] = 1
-
-        # 平空条件（放宽阈值 - 减少过早出场）
-        dataframe.loc[
-            (
-                # 订单流反转（0.15 → 0.2，单根K线）
-                (dataframe['ofi_10'] > 0.2) |
-                # 风险过高
-                (dataframe['vpin'] > 0.8)
-            ),
-            'exit_short'
-        ] = 1
+        # 不使用出场信号，完全依赖 ROI 和追踪止损
+        dataframe['exit_long'] = 0
+        dataframe['exit_short'] = 0
 
         return dataframe
+
+    def custom_stoploss(self, pair: str, trade: 'Trade', current_time: 'datetime',
+                        current_rate: float, current_profit: float, **kwargs) -> float:
+        """
+        时间止损策略（不干扰追踪止损）
+
+        时间止损策略：
+        - 所有交易超过 48 小时：强制平仓（避免长期持仓）
+        - 亏损交易超过 2 小时：强制止损
+        - 其他情况：返回 None，让 trailing_stop 正常工作
+        """
+        # 计算持仓时间
+        trade_duration_hours = (current_time - trade.open_date_utc).total_seconds() / 3600
+
+        # 48 小时强制平仓（所有交易，无论盈亏）
+        if trade_duration_hours > 48:
+            return -0.001  # 立即触发止损
+
+        # 亏损交易的 2 小时止损
+        if current_profit < 0:
+            if trade_duration_hours > 2:  # 2 小时后强制止损
+                return -0.001  # 立即触发止损
+
+        # 其他情况：返回 None，让 trailing_stop 和 ROI 正常工作
+        return None
