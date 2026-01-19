@@ -61,6 +61,7 @@ Thumbs.db
 # Serena（建议同步 memories 与 project.yml，忽略缓存/日志）
 /.serena/cache/
 /.serena/logs/
+/.serena/memories/
 
 # Vibe coding（AI 大脑 / RAG 向量库缓存）
 # - In-Memoria：`in-memoria.db` 建议随 Git 同步（跨设备同一个大脑）
