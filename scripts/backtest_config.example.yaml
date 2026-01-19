@@ -1,0 +1,39 @@
+# 批量回测配置示例
+
+# 策略列表（留空则回测所有策略）
+strategies:
+  - SimpleMVPStrategy
+  - ETHHighFreqStrategy
+  - ETHStatArbStrategy
+  - ETHFreqAIStrategy
+
+# 回测配置
+backtest:
+  # 配置文件路径
+  config: "ft_userdir/config.json"
+
+  # 时间范围（格式：YYYYMMDD-YYYYMMDD）
+  timerange: "20230101-20231231"
+
+  # 输出目录
+  output_dir: "docs/reports/backtest"
+
+  # 是否导出交易记录
+  export_trades: true
+
+  # 并行执行数量（暂不支持）
+  parallel: 1
+
+# 报告配置
+report:
+  # 是否生成 Markdown 报告
+  generate_markdown: true
+
+  # 是否生成 HTML 报告（暂不支持）
+  generate_html: false
+
+  # 排序字段
+  sort_by: "total_profit_pct"
+
+  # 排序方向
+  sort_ascending: false
