@@ -27,14 +27,14 @@ class ETHMicrostructureStrategy(IStrategy):
     timeframe = '5m'
     can_short = True
 
-    # ROI 和 Stoploss（Phase 5 高频优化）
+    # ROI 和 Stoploss（Phase 6 平衡优化）
     minimal_roi = {
-        "0": 0.008,   # 0.8% 立即止盈
-        "10": 0.006,  # 10分钟后降到 0.6%
-        "20": 0.004,  # 20分钟后降到 0.4%
-        "30": 0.002   # 30分钟后降到 0.2%（保本）
+        "0": 0.012,   # 1.2% 立即止盈
+        "15": 0.008,  # 15分钟后降到 0.8%
+        "30": 0.005,  # 30分钟后降到 0.5%
+        "45": 0.003   # 45分钟后降到 0.3%（保本）
     }
-    stoploss = -0.004  # -0.4% 止损（从 -5% 大幅收紧）
+    stoploss = -0.008  # -0.8% 止损（平衡风险控制）
 
     # FreqAI 配置
     process_only_new_candles = True
@@ -297,12 +297,11 @@ class ETHMicrostructureStrategy(IStrategy):
         """
         入场信号 - 基于 FreqAI 预测 + 微观结构确认
 
-        Phase 5 高频优化（激进入场）：
-        - 移除持续性确认（不要求连续多根K线）
-        - 降低 OFI 阈值：0.1/-0.15 → 0.05/-0.05
-        - 移除市场状态过滤（允许任何市场状态交易）
-        - 放宽 VPIN 风险阈值：0.5/0.6 → 0.7
-        - 目标：提高交易频率从 71 笔到 180-250 笔
+        Phase 6 平衡优化：
+        - 提高 OFI 阈值：0.05/-0.05 → 0.08/-0.08（提高入场质量）
+        - 恢复单根K线持续性确认（减少假信号）
+        - 保持 VPIN 风险阈值：0.7
+        - 目标：120-180 笔交易，平衡频率和质量
         """
         # 检查 FreqAI 列是否存在
         if 'do_predict' not in dataframe.columns:
@@ -310,22 +309,27 @@ class ETHMicrostructureStrategy(IStrategy):
             dataframe['enter_short'] = 0
             return dataframe
 
-        # 做多条件（简化版 - 移除持续性确认和市场状态过滤）
+        # 计算持续性确认（单根K线）
+        dataframe['ofi_10_prev'] = dataframe['ofi_10'].shift(1)
+
+        # 做多条件（平衡版 - 恢复持续性确认）
         dataframe.loc[
             (dataframe['do_predict'] == 1) &
             (dataframe['&-action'] == 'trade') &  # 模型预测交易
-            (dataframe['ofi_10'] > 0.05) &  # 降低阈值：0.1 → 0.05
-            (dataframe['vpin'] < 0.7) &  # 放宽风险：0.6 → 0.7
+            (dataframe['ofi_10'] > 0.08) &  # 提高阈值：0.05 → 0.08
+            (dataframe['ofi_10_prev'] > 0.08) &  # 持续性确认（单根K线）
+            (dataframe['vpin'] < 0.7) &  # 风险控制
             (dataframe['volume'] > 0),  # 有成交量
             'enter_long'
         ] = 1
 
-        # 做空条件（简化版 - 移除持续性确认和市场状态过滤）
+        # 做空条件（平衡版 - 恢复持续性确认）
         dataframe.loc[
             (dataframe['do_predict'] == 1) &
             (dataframe['&-action'] == 'trade') &  # 模型预测交易
-            (dataframe['ofi_10'] < -0.05) &  # 降低阈值：-0.15 → -0.05
-            (dataframe['vpin'] < 0.7) &  # 放宽风险：0.5 → 0.7
+            (dataframe['ofi_10'] < -0.08) &  # 提高阈值：-0.05 → -0.08
+            (dataframe['ofi_10_prev'] < -0.08) &  # 持续性确认（单根K线）
+            (dataframe['vpin'] < 0.7) &  # 风险控制
             (dataframe['volume'] > 0),  # 有成交量
             'enter_short'
         ] = 1
@@ -336,29 +340,28 @@ class ETHMicrostructureStrategy(IStrategy):
         """
         出场信号 - 基于微观结构反转
 
-        Phase 5 高频优化（快速出场）：
-        - 收紧 OFI 阈值：±0.4 → ±0.15（更敏感地响应反转）
-        - 移除持续性确认（单根K线即可触发）
+        Phase 6 平衡优化：
+        - 放宽 OFI 阈值：±0.15 → ±0.2（减少过早出场）
+        - 保持单根K线触发
         - 保留 VPIN 风险控制
-        - 移除市场状态过滤（依靠 ROI/Stoploss 控制）
-        - 目标：配合 ROI 梯度和紧止损，实现快进快出
+        - 目标：配合 ROI 梯度和适中止损，实现平衡收益
         """
-        # 平多条件（收紧阈值 - 快速响应反转）
+        # 平多条件（放宽阈值 - 减少过早出场）
         dataframe.loc[
             (
-                # 订单流反转（-0.4 → -0.15，单根K线）
-                (dataframe['ofi_10'] < -0.15) |
+                # 订单流反转（-0.15 → -0.2，单根K线）
+                (dataframe['ofi_10'] < -0.2) |
                 # 风险过高
                 (dataframe['vpin'] > 0.8)
             ),
             'exit_long'
         ] = 1
 
-        # 平空条件（收紧阈值 - 快速响应反转）
+        # 平空条件（放宽阈值 - 减少过早出场）
         dataframe.loc[
             (
-                # 订单流反转（0.4 → 0.15，单根K线）
-                (dataframe['ofi_10'] > 0.15) |
+                # 订单流反转（0.15 → 0.2，单根K线）
+                (dataframe['ofi_10'] > 0.2) |
                 # 风险过高
                 (dataframe['vpin'] > 0.8)
             ),
